@@ -42,6 +42,6 @@
     "skipLibCheck": true,
     //"moduleResolution": "NodeNext",
     "esModuleInterop": true,
-    "outDir": "dist"
+    "outDir": "./dist"
   }
 }
