@@ -14,17 +14,22 @@
   "description": "",
   "devDependencies": {
     "@types/cors": "^2.8.19",
+    "@types/multer": "^2.0.0",
     "@types/mysql": "^2.15.27",
     "@types/node": "^24.3.1",
+    "@types/streamifier": "^0.1.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.2"
   },
   "dependencies": {
     "@types/express": "^5.0.3",
+    "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "multer": "^2.0.2",
     "mysql": "^2.18.1",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "streamifier": "^0.1.1"
   },
   "type": "commonjs"
 }
