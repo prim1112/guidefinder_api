@@ -1,17 +1,24 @@
-import mysql from "mysql";
+import mysql, { Pool } from "mysql2";
+import dotenv from "dotenv";
 
-const db = mysql.createConnection({
+dotenv.config();
+
+const db: Pool = mysql.createPool({
   host: "mysql-guidefinderapp.alwaysdata.net",
   user: "427092",
   password: "65011212063",
   database: "guidefinderapp_db",
+  waitForConnections: true, // ✅ ป้องกัน ECONNRESET
+  connectionLimit: 10, // ✅ ใช้ได้ใน Pool
+  queueLimit: 0,
 });
 
-db.connect((err) => {
+db.getConnection((err, connection) => {
   if (err) {
-    console.error("❌ Database connection failed: ", err);
+    console.error("❌ Database connection failed:", err);
   } else {
-    console.log("✅ Connected to MySQL database");
+    console.log("✅ Connected to MySQL database (pool)");
+    connection.release();
   }
 });
 

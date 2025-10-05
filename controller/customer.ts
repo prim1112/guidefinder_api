@@ -3,6 +3,7 @@ import multer from "multer";
 import streamifier from "streamifier";
 import cloudinary from "../src/config/configCloud";
 import db from "../db/dbconnect";
+import { ResultSetHeader } from "mysql2";
 
 export const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -34,7 +35,6 @@ router.get("/customers", (req: Request, res: Response) => {
     handleResponse(res, null, sanitizedRows);
   });
 });
-
 // ✅ เพิ่มลูกค้าใหม่ (อัปโหลดรูปขึ้น Cloudinary)
 router.post(
   "/customers",
@@ -52,7 +52,8 @@ router.post(
       const sql =
         "INSERT INTO customer (cid, name, phone, email, image_customer, password) VALUES (?, ?, ?, ?, ?, ?)";
 
-      db.query(
+      // 🟢 เพิ่ม <ResultSetHeader> เพื่อให้ TypeScript รู้ว่ามี insertId
+      db.query<ResultSetHeader>(
         sql,
         [cid, name, phone, email, imageUrl, password],
         (err, result) => {
@@ -67,7 +68,7 @@ router.post(
 
           handleResponse(res, null, {
             message: "✅ Customer created successfully",
-            id: result.insertId,
+            id: result.insertId, // ✅ ใช้ได้แล้ว ไม่มี error
           });
         }
       );
