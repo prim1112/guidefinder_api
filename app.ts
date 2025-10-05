@@ -7,7 +7,7 @@ export const app = express();
 const allowedOrigins = [
   "http://127.0.0.1:5500",
   "http://localhost:3000",
-  "srv-d2ujn6re5dus73eqnjag",
+  "https://guidefinder-api.onrender.com",
 ];
 
 app.use(
