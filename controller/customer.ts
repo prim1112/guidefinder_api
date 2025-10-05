@@ -1,7 +1,7 @@
 import { Request, Response, Router } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
-import { v2 as cloudinary } from "cloudinary";
+import cloudinary from "../src/config/configCloud";
 import db from "../db/dbconnect";
 
 export const router = Router();
