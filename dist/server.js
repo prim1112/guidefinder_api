@@ -5,9 +5,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const http_1 = __importDefault(require("http"));
 const app_1 = require("./app");
-const port = process.env.port || 3000;
+const port = process.env.PORT || 3000;
 const server = http_1.default.createServer(app_1.app);
 server.listen(port, () => {
-    console.log("Server is started");
+    console.log(`Server running on port ${port}`);
 });
 //# sourceMappingURL=server.js.map
