@@ -3,10 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const mysql2_1 = __importDefault(require("mysql2"));
+const promise_1 = __importDefault(require("mysql2/promise"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
-const db = mysql2_1.default.createPool({
+const db = promise_1.default.createPool({
     host: "mysql-guidefinderapp.alwaysdata.net",
     user: "427092",
     password: "65011212063",
@@ -15,14 +15,21 @@ const db = mysql2_1.default.createPool({
     connectionLimit: 10, // ✅ ใช้ได้ใน Pool
     queueLimit: 0,
 });
-db.getConnection((err, connection) => {
-    if (err) {
-        console.error("❌ Database connection failed:", err);
-    }
-    else {
-        console.log("✅ Connected to MySQL database (pool)");
-        connection.release();
-    }
+// db.getConnection((err, connection) => {
+//   if (err) {
+//     console.error("❌ Database connection failed:", err);
+//   } else {
+//     console.log("✅ Connected to MySQL database (pool)");
+//     connection.release();
+//   }
+// });
+db.getConnection()
+    .then((connection) => {
+    console.log("✅ Connected to MySQL database (pool)");
+    connection.release();
+})
+    .catch((err) => {
+    console.error("❌ Database connection failed:", err);
 });
 exports.default = db;
 //# sourceMappingURL=dbconnect.js.map

@@ -9,7 +9,7 @@ const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
 const streamifier_1 = __importDefault(require("streamifier"));
 const configCloud_1 = __importDefault(require("../src/config/configCloud"));
-const uploadToCloudinary_1 = __importDefault(require("../src/config/uploadToCloudinary"));
+// import uploadToCloud from "../src/config/uploadToCloudinary";
 const dbconnect_1 = __importDefault(require("../db/dbconnect"));
 exports.router = (0, express_1.Router)();
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
@@ -48,23 +48,32 @@ exports.router.post("/customers", upload.single("image_customer"), async (req, r
         const { name, phone, email, password } = req.body;
         let imageUrl = "";
         if (req.file && req.file.buffer) {
-            const result = await (0, uploadToCloudinary_1.default)(req.file.buffer, "customers");
+            // const result = await uploadToCloud(req.file.buffer, "customers");
+            const result = await uploadToCloudinary(req.file.buffer, "customers");
             imageUrl = result.secure_url;
         }
-        const sql = "INSERT INTO customer (cid, name, phone, email, image_customer, password) VALUES (?, ?, ?, ?, ?, ?)";
-        // 🟢 เพิ่ม <ResultSetHeader> เพื่อให้ TypeScript รู้ว่ามี insertId
-        dbconnect_1.default.query(sql, [name, phone, email, imageUrl, password], (err, result) => {
-            if (err)
-                return handleResponse(res, err, null, 500, "Failed to create customer");
-            handleResponse(res, null, {
-                message: "✅ Customer created successfully",
-                id: result.insertId, // ✅ ใช้ได้แล้ว ไม่มี error
-            });
+        const sql = "INSERT INTO customer (`name`, `phone`, `email`, `image_customer`, `password`) VALUES (?, ?, ?, ?, ?)";
+        console.log("📦 SQL:", sql);
+        console.log("📊 VALUES:", [name, phone, email, imageUrl, password]);
+        // ✅ ใช้ execute แทน query (เพราะ db เป็น mysql2/promise)
+        const [result] = await dbconnect_1.default.execute(sql, [
+            name,
+            phone,
+            email,
+            imageUrl,
+            password,
+        ]);
+        handleResponse(res, null, {
+            message: "✅ Customer created successfully",
+            id: result.insertId,
         });
     }
     catch (error) {
-        console.error("❌ Upload Error:", error);
-        res.status(500).json({ message: "Upload failed", error: error.message });
+        console.error("❌ SQL Insert Error:", error);
+        res.status(500).json({
+            message: "Internal Server Error",
+            error: error.message,
+        });
     }
 });
 // Helper function to handle API responses
