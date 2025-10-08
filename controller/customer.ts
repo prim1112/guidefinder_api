@@ -54,13 +54,11 @@ router.post(
       const { name, phone, email, password } = req.body;
       let imageUrl = "";
 
-      // 🔍 ตรวจสอบเบอร์โทรก่อนว่ามีอยู่แล้วไหม
+      // ✅ 1. เช็กเบอร์ซ้ำก่อน upload รูป
       const [rows] = await db.execute<any[]>(
         "SELECT cid FROM customer WHERE phone = ?",
         [phone]
       );
-
-      console.log("🔍 ตรวจเบอร์ในระบบ:", rows);
 
       if (rows.length > 0) {
         return res.status(400).json({
@@ -68,18 +66,15 @@ router.post(
         });
       }
 
-      // 📤 ถ้ามีไฟล์แนบ → อัปโหลดรูปขึ้น Cloudinary
+      // ✅ 2. ถ้าเบอร์ไม่ซ้ำ ค่อยอัปโหลดรูปขึ้น Cloudinary
       if (req.file && req.file.buffer) {
         const result = await uploadToCloudinary(req.file.buffer, "customers");
         imageUrl = result.secure_url;
       }
 
-      // 💾 เพิ่มลูกค้าใหม่ในฐานข้อมูล
+      // ✅ 3. Insert ลงฐานข้อมูล
       const sql =
         "INSERT INTO customer (`name`, `phone`, `email`, `image_customer`, `password`) VALUES (?, ?, ?, ?, ?)";
-      console.log("📦 SQL:", sql);
-      console.log("📊 VALUES:", [name, phone, email, imageUrl, password]);
-
       const [result] = await db.execute<ResultSetHeader>(sql, [
         name,
         phone,
@@ -93,7 +88,7 @@ router.post(
         id: (result as ResultSetHeader).insertId,
       });
     } catch (error: any) {
-      // ✅ ดัก error เบอร์ซ้ำจาก MySQL (ER_DUP_ENTRY)
+      // ✅ ดัก error จาก MySQL (กรณี unique constraint)
       if (error.code === "ER_DUP_ENTRY") {
         return res.status(400).json({
           message: "❌ เบอร์โทรนี้มีอยู่ในระบบแล้ว",
