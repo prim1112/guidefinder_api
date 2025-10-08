@@ -44,6 +44,7 @@ router.get("/customers", (req: Request, res: Response) => {
     handleResponse(res, null, sanitizedRows);
   });
 });
+
 // ✅ เพิ่มลูกค้าใหม่ (อัปโหลดรูปขึ้น Cloudinary)
 router.post(
   "/customers",
@@ -61,26 +62,19 @@ router.post(
       const sql =
         "INSERT INTO customer (`name`, `phone`, `email`, `image_customer`, `password`) VALUES (?, ?, ?, ?, ?)";
 
-      // 🟢 เพิ่ม <ResultSetHeader> เพื่อให้ TypeScript รู้ว่ามี insertId
-      db.query<ResultSetHeader>(
-        sql,
-        [name, phone, email, imageUrl, password],
-        (err, result) => {
-          if (err)
-            return handleResponse(
-              res,
-              err,
-              null,
-              500,
-              "Failed to create customer"
-            );
+      // ✅ ใช้ execute แทน query (เพราะ db เป็น mysql2/promise)
+      const [result] = await db.execute<ResultSetHeader>(sql, [
+        name,
+        phone,
+        email,
+        imageUrl,
+        password,
+      ]);
 
-          handleResponse(res, null, {
-            message: "✅ Customer created successfully",
-            id: result.insertId, // ✅ ใช้ได้แล้ว ไม่มี error
-          });
-        }
-      );
+      handleResponse(res, null, {
+        message: "✅ Customer created successfully",
+        id: (result as ResultSetHeader).insertId,
+      });
     } catch (error: any) {
       console.error("❌ Upload Error:", error);
       res.status(500).json({ message: "Upload failed", error: error.message });
