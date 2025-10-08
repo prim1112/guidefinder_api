@@ -26,9 +26,9 @@ app.use(express.json());
 
 app.use("/", index);
 app.use("/customer", customerRouter);
-app.use("/", (req, res) => {
-  res.send("Hello World!!!");
-});
+// app.use("/", (req, res) => {
+//   res.send("Hello World!!!");
+// });
 
 app.get("/test-cloudinary", (req, res) => {
   res.json({
