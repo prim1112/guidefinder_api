@@ -19,7 +19,7 @@
     "@types/node": "^24.3.1",
     "@types/streamifier": "^0.1.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "@types/express": "^5.0.3",
