@@ -76,8 +76,11 @@ router.post(
         id: (result as ResultSetHeader).insertId,
       });
     } catch (error: any) {
-      console.error("❌ Upload Error:", error);
-      res.status(500).json({ message: "Upload failed", error: error.message });
+      console.error("❌ SQL Insert Error:", error);
+      res.status(500).json({
+        message: "Internal Server Error",
+        error: error.message,
+      });
     }
   }
 );
