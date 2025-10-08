@@ -29,11 +29,3 @@ app.use("/customer", customerRouter);
 // app.use("/", (req, res) => {
 //   res.send("Hello World!!!");
 // });
-
-app.get("/test-cloudinary", (req, res) => {
-  res.json({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY ? "✅ Loaded" : "❌ Missing",
-    api_secret: process.env.CLOUDINARY_API_SECRET ? "✅ Loaded" : "❌ Missing",
-  });
-});

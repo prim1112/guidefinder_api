@@ -21,6 +21,14 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
+router.get("/test-cloudinary", (req, res) => {
+  res.json({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY ? "✅ Loaded" : "❌ Missing",
+    api_secret: process.env.CLOUDINARY_API_SECRET ? "✅ Loaded" : "❌ Missing",
+  });
+});
+
 // ✅ ดึงข้อมูลลูกค้าทั้งหมด
 router.get("/customers", (req: Request, res: Response) => {
   const sql = "SELECT * FROM customer";
