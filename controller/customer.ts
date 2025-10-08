@@ -2,7 +2,7 @@ import { Request, Response, Router } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
 import cloudinary from "../src/config/configCloud";
-import uploadToCloud from "../src/config/uploadToCloudinary";
+// import uploadToCloud from "../src/config/uploadToCloudinary";
 import db from "../db/dbconnect";
 import { ResultSetHeader } from "mysql2";
 
@@ -55,12 +55,16 @@ router.post(
       let imageUrl = "";
 
       if (req.file && req.file.buffer) {
-        const result = await uploadToCloud(req.file.buffer, "customers");
+        // const result = await uploadToCloud(req.file.buffer, "customers");
+        const result = await uploadToCloudinary(req.file.buffer, "customers");
+
         imageUrl = result.secure_url;
       }
 
       const sql =
         "INSERT INTO customer (`name`, `phone`, `email`, `image_customer`, `password`) VALUES (?, ?, ?, ?, ?)";
+      console.log("📦 SQL:", sql);
+      console.log("📊 VALUES:", [name, phone, email, imageUrl, password]);
 
       // ✅ ใช้ execute แทน query (เพราะ db เป็น mysql2/promise)
       const [result] = await db.execute<ResultSetHeader>(sql, [
