@@ -50,7 +50,7 @@ router.post(
   upload.single("image_customer"),
   async (req: Request, res: Response) => {
     try {
-      const { cid, name, phone, email, password } = req.body;
+      const { name, phone, email, password } = req.body;
       let imageUrl = "";
 
       if (req.file && req.file.buffer) {
@@ -64,7 +64,7 @@ router.post(
       // 🟢 เพิ่ม <ResultSetHeader> เพื่อให้ TypeScript รู้ว่ามี insertId
       db.query<ResultSetHeader>(
         sql,
-        [cid, name, phone, email, imageUrl, password],
+        [name, phone, email, imageUrl, password],
         (err, result) => {
           if (err)
             return handleResponse(
