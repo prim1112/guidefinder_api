@@ -28,7 +28,7 @@ exports.app.use((0, cors_1.default)({
 exports.app.use(express_1.default.json());
 exports.app.use("/", index_1.router);
 exports.app.use("/customer", customer_1.router);
-exports.app.use("/", (req, res) => {
-    res.send("Hello World!!!");
-});
+// exports.app.use("/", (req, res) => {
+//     res.send("Hello World!!!");
+// });
 //# sourceMappingURL=app.js.map
