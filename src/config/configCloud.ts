@@ -10,16 +10,17 @@
 import { v2 as cloudinary } from "cloudinary";
 import dotenv from "dotenv";
 
-// ✅ โหลด .env เฉพาะตอนรันในเครื่อง (Render ไม่ต้อง)
+// โหลด .env เฉพาะตอนรันในเครื่อง (Render ไม่ต้อง)
 if (process.env.NODE_ENV !== "production") {
   dotenv.config();
 }
 
-// ✅ ใช้ชื่อ Key ตามที่ตั้งใน Render
+// ใช้ชื่อ Key ตามที่ตั้งใน Render
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME as string,
   api_key: process.env.CLOUDINARY_API_KEY as string,
   api_secret: process.env.CLOUDINARY_API_SECRET as string,
+  secure: true,
 });
 
 console.log("🧩 Render Cloudinary Config:", {
