@@ -54,19 +54,30 @@ router.post(
       const { name, phone, email, password } = req.body;
       let imageUrl = "";
 
-      if (req.file && req.file.buffer) {
-        // const result = await uploadToCloud(req.file.buffer, "customers");
-        const result = await uploadToCloudinary(req.file.buffer, "customers");
+      // ✅ ตรวจสอบว่ามีเบอร์นี้อยู่แล้วหรือไม่
+      const [exists]: any = await db.execute(
+        "SELECT cid FROM customer WHERE phone = ?",
+        [phone]
+      );
 
+      if ((exists as any[]).length > 0) {
+        return res.status(400).json({
+          message: "❌ เบอร์โทรนี้ถูกใช้งานแล้ว",
+        });
+      }
+
+      // ✅ ถ้ามีรูป ให้ upload ขึ้น Cloudinary
+      if (req.file && req.file.buffer) {
+        const result = await uploadToCloudinary(req.file.buffer, "customers");
         imageUrl = result.secure_url;
       }
 
+      // ✅ Insert ข้อมูลใหม่
       const sql =
         "INSERT INTO customer (`name`, `phone`, `email`, `image_customer`, `password`) VALUES (?, ?, ?, ?, ?)";
       console.log("📦 SQL:", sql);
       console.log("📊 VALUES:", [name, phone, email, imageUrl, password]);
 
-      // ✅ ใช้ execute แทน query (เพราะ db เป็น mysql2/promise)
       const [result] = await db.execute<ResultSetHeader>(sql, [
         name,
         phone,
