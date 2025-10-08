@@ -45,7 +45,7 @@ router.get("/customers", (req: Request, res: Response) => {
   });
 });
 
-// ✅ เพิ่มลูกค้าใหม่ (อัปโหลดรูปขึ้น Cloudinary)
+// ✅ เพิ่มลูกค้าใหม่ (ห้ามเบอร์ซ้ำ)
 router.post(
   "/customers",
   upload.single("image_customer"),
@@ -54,25 +54,27 @@ router.post(
       const { name, phone, email, password } = req.body;
       let imageUrl = "";
 
-      // ✅ ตรวจสอบว่ามีเบอร์นี้อยู่แล้วหรือไม่
-      const [exists]: any = await db.execute(
+      // 🔍 ตรวจสอบเบอร์โทรก่อนว่ามีอยู่แล้วไหม
+      const [rows] = await db.execute<any[]>(
         "SELECT cid FROM customer WHERE phone = ?",
         [phone]
       );
 
-      if ((exists as any[]).length > 0) {
+      console.log("🔍 ตรวจเบอร์ในระบบ:", rows);
+
+      if (rows.length > 0) {
         return res.status(400).json({
           message: "❌ เบอร์โทรนี้ถูกใช้งานแล้ว",
         });
       }
 
-      // ✅ ถ้ามีรูป ให้ upload ขึ้น Cloudinary
+      // 📤 ถ้ามีไฟล์แนบ → อัปโหลดรูปขึ้น Cloudinary
       if (req.file && req.file.buffer) {
         const result = await uploadToCloudinary(req.file.buffer, "customers");
         imageUrl = result.secure_url;
       }
 
-      // ✅ Insert ข้อมูลใหม่
+      // 💾 เพิ่มลูกค้าใหม่ในฐานข้อมูล
       const sql =
         "INSERT INTO customer (`name`, `phone`, `email`, `image_customer`, `password`) VALUES (?, ?, ?, ?, ?)";
       console.log("📦 SQL:", sql);
@@ -91,6 +93,13 @@ router.post(
         id: (result as ResultSetHeader).insertId,
       });
     } catch (error: any) {
+      // ✅ ดัก error เบอร์ซ้ำจาก MySQL (ER_DUP_ENTRY)
+      if (error.code === "ER_DUP_ENTRY") {
+        return res.status(400).json({
+          message: "❌ เบอร์โทรนี้มีอยู่ในระบบแล้ว",
+        });
+      }
+
       console.error("❌ SQL Insert Error:", error);
       res.status(500).json({
         message: "Internal Server Error",
@@ -100,7 +109,7 @@ router.post(
   }
 );
 
-// Helper function to handle API responses
+// ✅ Helper ฟังก์ชันตอบกลับ API
 export function handleResponse(
   res: Response,
   err: Error | null,
