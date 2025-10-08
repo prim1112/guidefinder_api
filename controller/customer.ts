@@ -59,7 +59,7 @@ router.post(
       }
 
       const sql =
-        "INSERT INTO customer (cid, name, phone, email, image_customer, password) VALUES (?, ?, ?, ?, ?, ?)";
+        "INSERT INTO customer (name, phone, email, image_customer, password) VALUES (?, ?, ?, ?, ?)";
 
       // 🟢 เพิ่ม <ResultSetHeader> เพื่อให้ TypeScript รู้ว่ามี insertId
       db.query<ResultSetHeader>(
