@@ -1,10 +1,10 @@
-import { Request, Response, Router, NextFunction } from "express";
+import { Request, Response, Router } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
 import cloudinary from "../src/config/configCloud";
 // import uploadToCloud from "../src/config/uploadToCloudinary";
 import db from "../db/dbconnect";
-import { ResultSetHeader } from "mysql2";
+import { RowDataPacket, ResultSetHeader } from "mysql2";
 
 export const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -44,70 +44,55 @@ router.get("/customers", (req: Request, res: Response) => {
     handleResponse(res, null, sanitizedRows);
   });
 });
-// ✅ Middleware เช็กเบอร์ก่อน upload
-const checkDuplicatePhone = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { phone } = req.body;
 
-    if (!phone) {
-      return res.status(400).json({ message: "❌ กรุณาระบุหมายเลขโทรศัพท์" });
-    }
+router.post("/customers/check-phone", async (req: Request, res: Response) => {
+  const { phone } = req.body;
 
-    const [rows] = await db.execute<any[]>(
+  const [rows] = await db.execute<RowDataPacket[]>(
+    "SELECT cid FROM customer WHERE phone = ?",
+    [phone]
+  );
+
+  if (rows.length > 0) {
+    return res.status(400).json({ message: "❌ เบอร์โทรนี้ถูกใช้งานแล้ว" });
+  }
+
+  res.json({ message: "✅ ใช้เบอร์นี้ได้" });
+});
+
+router.post(
+  "/customers",
+  upload.single("image_customer"),
+  async (req: Request, res: Response) => {
+    const { name, phone, email, password } = req.body;
+    let imageUrl = "";
+
+    // ดักเบอร์ซ้ำ
+    const [rows] = await db.execute<RowDataPacket[]>(
       "SELECT cid FROM customer WHERE phone = ?",
       [phone]
     );
-
     if (rows.length > 0) {
-      return res.status(400).json({ message: "❌ เบอร์โทรนี้ถูกใช้งานแล้ว" });
+      return res
+        .status(400)
+        .json({ message: "❌ เบอร์โทรนี้มีอยู่ในระบบแล้ว" });
     }
 
-    next(); // ✅ ผ่าน -> ไป upload รูป
-  } catch (error) {
-    console.error("❌ Phone check error:", error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
-
-// ✅ เรียงลำดับ middleware ให้ถูก
-router.post(
-  "/customers",
-  checkDuplicatePhone, // ⬅️ เช็กก่อน
-  upload.single("image_customer"), // ⬅️ แล้วค่อย upload
-  async (req: Request, res: Response) => {
-    try {
-      const { name, phone, email, password } = req.body;
-      let imageUrl = "";
-
-      if (req.file && req.file.buffer) {
-        const result = await uploadToCloudinary(req.file.buffer, "customers");
-        imageUrl = result.secure_url;
-      }
-
-      const sql =
-        "INSERT INTO customer (`name`, `phone`, `email`, `image_customer`, `password`) VALUES (?, ?, ?, ?, ?)";
-      const [result] = await db.execute<ResultSetHeader>(sql, [
-        name,
-        phone,
-        email,
-        imageUrl,
-        password,
-      ]);
-
-      res.json({
-        message: "✅ Customer created successfully",
-        id: (result as ResultSetHeader).insertId,
-      });
-    } catch (error: any) {
-      console.error("❌ Insert Error:", error);
-      res
-        .status(500)
-        .json({ message: "Internal Server Error", error: error.message });
+    // อัปโหลดรูป (เฉพาะถ้าไม่ซ้ำ)
+    if (req.file && req.file.buffer) {
+      const result = await uploadToCloudinary(req.file.buffer, "customers");
+      imageUrl = result.secure_url;
     }
+
+    const [insertResult] = await db.execute<ResultSetHeader>(
+      "INSERT INTO customer (name, phone, email, image_customer, password) VALUES (?, ?, ?, ?, ?)",
+      [name, phone, email, imageUrl, password]
+    );
+
+    res.json({
+      message: "✅ Customer created successfully",
+      id: insertResult.insertId,
+    });
   }
 );
 // ✅ Helper ฟังก์ชันตอบกลับ API
