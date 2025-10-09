@@ -47,7 +47,6 @@ router.get("/customers", (req: Request, res: Response) => {
 
 router.post("/customers_checkphone", async (req: Request, res: Response) => {
   const { phone } = req.body;
-
   const [rows] = await db.execute<RowDataPacket[]>(
     "SELECT cid FROM customer WHERE phone = ?",
     [phone]
