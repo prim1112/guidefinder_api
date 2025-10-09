@@ -1,4 +1,4 @@
-import { Request, Response, Router } from "express";
+import { Request, Response, Router, NextFunction } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
 import cloudinary from "../src/config/configCloud";
@@ -44,35 +44,50 @@ router.get("/customers", (req: Request, res: Response) => {
     handleResponse(res, null, sanitizedRows);
   });
 });
+// ✅ Middleware เช็กเบอร์ก่อน upload
+const checkDuplicatePhone = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { phone } = req.body;
 
-// ✅ เพิ่มลูกค้าใหม่ (ห้ามเบอร์ซ้ำ)
+    if (!phone) {
+      return res.status(400).json({ message: "❌ กรุณาระบุหมายเลขโทรศัพท์" });
+    }
+
+    const [rows] = await db.execute<any[]>(
+      "SELECT cid FROM customer WHERE phone = ?",
+      [phone]
+    );
+
+    if (rows.length > 0) {
+      return res.status(400).json({ message: "❌ เบอร์โทรนี้ถูกใช้งานแล้ว" });
+    }
+
+    next(); // ✅ ผ่าน -> ไป upload รูป
+  } catch (error) {
+    console.error("❌ Phone check error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// ✅ เรียงลำดับ middleware ให้ถูก
 router.post(
   "/customers",
-  upload.single("image_customer"),
+  checkDuplicatePhone, // ⬅️ เช็กก่อน
+  upload.single("image_customer"), // ⬅️ แล้วค่อย upload
   async (req: Request, res: Response) => {
     try {
       const { name, phone, email, password } = req.body;
       let imageUrl = "";
 
-      // ✅ 1. เช็กเบอร์ซ้ำก่อน upload รูป
-      const [rows] = await db.execute<any[]>(
-        "SELECT cid FROM customer WHERE phone = ?",
-        [phone]
-      );
-
-      if (rows.length > 0) {
-        return res.status(400).json({
-          message: "❌ เบอร์โทรนี้ถูกใช้งานแล้ว",
-        });
-      }
-
-      // ✅ 2. ถ้าเบอร์ไม่ซ้ำ ค่อยอัปโหลดรูปขึ้น Cloudinary
       if (req.file && req.file.buffer) {
         const result = await uploadToCloudinary(req.file.buffer, "customers");
         imageUrl = result.secure_url;
       }
 
-      // ✅ 3. Insert ลงฐานข้อมูล
       const sql =
         "INSERT INTO customer (`name`, `phone`, `email`, `image_customer`, `password`) VALUES (?, ?, ?, ?, ?)";
       const [result] = await db.execute<ResultSetHeader>(sql, [
@@ -83,27 +98,18 @@ router.post(
         password,
       ]);
 
-      handleResponse(res, null, {
+      res.json({
         message: "✅ Customer created successfully",
         id: (result as ResultSetHeader).insertId,
       });
     } catch (error: any) {
-      // ✅ ดัก error จาก MySQL (กรณี unique constraint)
-      if (error.code === "ER_DUP_ENTRY") {
-        return res.status(400).json({
-          message: "❌ เบอร์โทรนี้มีอยู่ในระบบแล้ว",
-        });
-      }
-
-      console.error("❌ SQL Insert Error:", error);
-      res.status(500).json({
-        message: "Internal Server Error",
-        error: error.message,
-      });
+      console.error("❌ Insert Error:", error);
+      res
+        .status(500)
+        .json({ message: "Internal Server Error", error: error.message });
     }
   }
 );
-
 // ✅ Helper ฟังก์ชันตอบกลับ API
 export function handleResponse(
   res: Response,
