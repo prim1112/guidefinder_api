@@ -42,41 +42,36 @@ exports.router.get("/customers", (req, res) => {
         handleResponse(res, null, sanitizedRows);
     });
 });
-// ✅ เพิ่มลูกค้าใหม่ (อัปโหลดรูปขึ้น Cloudinary)
-exports.router.post("/customers", upload.single("image_customer"), async (req, res) => {
-    try {
-        const { name, phone, email, password } = req.body;
-        let imageUrl = "";
-        if (req.file && req.file.buffer) {
-            // const result = await uploadToCloud(req.file.buffer, "customers");
-            const result = await uploadToCloudinary(req.file.buffer, "customers");
-            imageUrl = result.secure_url;
-        }
-        const sql = "INSERT INTO customer (`name`, `phone`, `email`, `image_customer`, `password`) VALUES (?, ?, ?, ?, ?)";
-        console.log("📦 SQL:", sql);
-        console.log("📊 VALUES:", [name, phone, email, imageUrl, password]);
-        // ✅ ใช้ execute แทน query (เพราะ db เป็น mysql2/promise)
-        const [result] = await dbconnect_1.default.execute(sql, [
-            name,
-            phone,
-            email,
-            imageUrl,
-            password,
-        ]);
-        handleResponse(res, null, {
-            message: "✅ Customer created successfully",
-            id: result.insertId,
-        });
+exports.router.post("/customers_checkphone", async (req, res) => {
+    const { phone } = req.body;
+    const [rows] = await dbconnect_1.default.execute("SELECT cid FROM customer WHERE phone = ?", [phone]);
+    if (rows.length > 0) {
+        return res.status(400).json({ message: "❌ เบอร์โทรนี้ถูกใช้งานแล้ว" });
     }
-    catch (error) {
-        console.error("❌ SQL Insert Error:", error);
-        res.status(500).json({
-            message: "Internal Server Error",
-            error: error.message,
-        });
-    }
+    res.json({ message: "✅ ใช้เบอร์นี้ได้" });
 });
-// Helper function to handle API responses
+exports.router.post("/customers", upload.single("image_customer"), async (req, res) => {
+    const { name, phone, email, password } = req.body;
+    let imageUrl = "";
+    // ดักเบอร์ซ้ำ
+    const [rows] = await dbconnect_1.default.execute("SELECT cid FROM customer WHERE phone = ?", [phone]);
+    if (rows.length > 0) {
+        return res
+            .status(400)
+            .json({ message: "❌ เบอร์โทรนี้มีอยู่ในระบบแล้ว" });
+    }
+    // อัปโหลดรูป (เฉพาะถ้าไม่ซ้ำ)
+    if (req.file && req.file.buffer) {
+        const result = await uploadToCloudinary(req.file.buffer, "customers");
+        imageUrl = result.secure_url;
+    }
+    const [insertResult] = await dbconnect_1.default.execute("INSERT INTO customer (name, phone, email, image_customer, password) VALUES (?, ?, ?, ?, ?)", [name, phone, email, imageUrl, password]);
+    res.json({
+        message: "✅ Customer created successfully",
+        id: insertResult.insertId,
+    });
+});
+// ✅ Helper ฟังก์ชันตอบกลับ API
 function handleResponse(res, err, data, notFoundStatusCode = 404, notFoundMessage = "Not found", affectedRows = null) {
     if (err) {
         res.status(500).json({ error: err.message });
