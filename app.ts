@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { router as index } from "./controller/index";
 import { router as customerRouter } from "./controller/customer";
+import { router as guideRouter } from "./controller/guide";
 export const app = express();
 
 // ✅ CORS
@@ -23,10 +24,9 @@ app.use(
 );
 
 app.use(express.json());
-
 app.use("/", index);
 app.use("/customer", customerRouter);
-
+app.use("/guide", guideRouter);
 // app.use("/", (req, res) => {
 //   res.send("Hello World!!!");
 // });
