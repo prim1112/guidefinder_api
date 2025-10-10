@@ -9,7 +9,7 @@ import { RowDataPacket, ResultSetHeader } from "mysql2";
 export const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ✅ อัปโหลดรูปขึ้น Cloudinary
+// ✅ ฟังก์ชันอัปโหลดรูปขึ้น Cloudinary
 const uploadToCloudinary = (buffer: Buffer, folder: string) =>
   new Promise<any>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -22,23 +22,20 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
-// ✅ Register Guide
+// ✅ Register Guide (อัปโหลด 3 รูป)
 router.post(
   "/register",
-  upload.single("image_guide"),
+  upload.fields([
+    { name: "image_guide", maxCount: 1 },
+    { name: "tourism_guide_license", maxCount: 1 },
+    { name: "tourism_business_license", maxCount: 1 },
+  ]),
   async (req: Request, res: Response) => {
-    const {
-      name,
-      phone,
-      email,
-      password,
-      facebook,
-      language,
-      tourism_guide_license,
-      tourism_business_license,
-    } = req.body;
+    const { name, phone, email, password, facebook, language } = req.body;
 
-    let imageUrl = "";
+    let imageGuideUrl = "";
+    let guideLicenseUrl = "";
+    let businessLicenseUrl = "";
 
     try {
       // 🔍 ตรวจสอบ email ซ้ำ
@@ -53,10 +50,33 @@ router.post(
       // ✅ Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // ✅ อัปโหลดรูป
-      if (req.file && req.file.buffer) {
-        const result = await uploadToCloudinary(req.file.buffer, "guides");
-        imageUrl = result.secure_url;
+      // ✅ อัปโหลดรูปทั้งหมด
+      const files = req.files as {
+        [fieldname: string]: Express.Multer.File[];
+      };
+
+      if (files?.image_guide?.[0]) {
+        const result = await uploadToCloudinary(
+          files.image_guide[0].buffer,
+          "guides/profile"
+        );
+        imageGuideUrl = result.secure_url;
+      }
+
+      if (files?.tourism_guide_license?.[0]) {
+        const result = await uploadToCloudinary(
+          files.tourism_guide_license[0].buffer,
+          "guides/licenses"
+        );
+        guideLicenseUrl = result.secure_url;
+      }
+
+      if (files?.tourism_business_license?.[0]) {
+        const result = await uploadToCloudinary(
+          files.tourism_business_license[0].buffer,
+          "guides/business"
+        );
+        businessLicenseUrl = result.secure_url;
       }
 
       // ✅ บันทึกข้อมูลลงฐานข้อมูล
@@ -71,9 +91,9 @@ router.post(
           hashedPassword,
           facebook,
           language,
-          imageUrl,
-          tourism_guide_license,
-          tourism_business_license,
+          imageGuideUrl,
+          guideLicenseUrl,
+          businessLicenseUrl,
           "pending", // default
         ]
       );
@@ -81,6 +101,11 @@ router.post(
       res.json({
         message: "✅ Guide registered successfully",
         gid: insertResult.insertId,
+        uploads: {
+          image_guide: imageGuideUrl,
+          tourism_guide_license: guideLicenseUrl,
+          tourism_business_license: businessLicenseUrl,
+        },
       });
     } catch (err: any) {
       console.error("Error in register guide:", err);
