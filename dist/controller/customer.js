@@ -42,7 +42,7 @@ exports.router.get("/customers", (req, res) => {
         handleResponse(res, null, sanitizedRows);
     });
 });
-exports.router.post("/customers_checkphone", async (req, res) => {
+exports.router.post("/customers_check-phone", async (req, res) => {
     const { phone } = req.body;
     const [rows] = await dbconnect_1.default.execute("SELECT cid FROM customer WHERE phone = ?", [phone]);
     if (rows.length > 0) {
