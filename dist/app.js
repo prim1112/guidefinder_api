@@ -8,6 +8,8 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const index_1 = require("./controller/index");
 const customer_1 = require("./controller/customer");
+const guide_1 = require("./controller/guide");
+const login_1 = require("./controller/login");
 exports.app = (0, express_1.default)();
 // ✅ CORS
 const allowedOrigins = [
@@ -28,6 +30,8 @@ exports.app.use((0, cors_1.default)({
 exports.app.use(express_1.default.json());
 exports.app.use("/", index_1.router);
 exports.app.use("/customer", customer_1.router);
+exports.app.use("/guide", guide_1.router);
+exports.app.use("/auth", login_1.router);
 // app.use("/", (req, res) => {
 //   res.send("Hello World!!!");
 // });

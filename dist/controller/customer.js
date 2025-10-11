@@ -53,17 +53,28 @@ exports.router.post("/customers_check-phone", async (req, res) => {
     }
     res.json({ message: "✅ ใช้เบอร์นี้ได้" });
 });
-// ✅ Register (แก้ไขตรงนี้ให้เข้ารหัสรหัสผ่าน)
+// ✅ Register Customer
 exports.router.post("/customers", upload.single("image_customer"), async (req, res) => {
     const { name, phone, email, password } = req.body;
     let imageUrl = "";
     try {
-        // ดักเบอร์ซ้ำ
-        const [rows] = await dbconnect_1.default.execute("SELECT cid FROM customer WHERE phone = ?", [phone]);
-        if (rows.length > 0) {
+        // 🔍 ตรวจเบอร์ซ้ำ
+        const [phoneRows] = await dbconnect_1.default.execute("SELECT cid FROM customer WHERE phone = ?", [phone]);
+        if (phoneRows.length > 0) {
             return res
                 .status(400)
                 .json({ message: "❌ เบอร์โทรนี้มีอยู่ในระบบแล้ว" });
+        }
+        // 🔍 ตรวจอีเมลซ้ำในทั้ง customer และ guide
+        const [emailRows] = await dbconnect_1.default.execute(`SELECT email FROM customer WHERE email = ?
+         UNION
+         SELECT email FROM guide WHERE email = ?`, [email, email]);
+        if (emailRows.length > 0) {
+            return res
+                .status(400)
+                .json({
+                message: "❌ อีเมลนี้ถูกใช้งานแล้ว (ซ้ำกับ Customer หรือ Guide)",
+            });
         }
         // ✅ เข้ารหัสรหัสผ่านก่อนบันทึก
         const hashedPassword = await bcrypt_1.default.hash(password, 10);
