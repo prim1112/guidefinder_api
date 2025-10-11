@@ -114,11 +114,11 @@ exports.router.post("/register", upload.fields([
     }
 });
 // ✅ อนุมัติไกด์ (ย้ายจาก guide_pending → guide)
-exports.router.post("/approve/:gid_pending", async (req, res) => {
+exports.router.post("/approve/:gid", async (req, res) => {
     const { gid_pending } = req.params;
     try {
         // 🔍 ตรวจว่ามีข้อมูลใน guide_pending ไหม
-        const [rows] = await dbconnect_1.default.execute("SELECT * FROM guide_pending WHERE gid_pending = ?", [gid_pending]);
+        const [rows] = await dbconnect_1.default.execute("SELECT * FROM guide_pending WHERE gid = ?", [gid_pending]);
         if (rows.length === 0) {
             return res
                 .status(404)
@@ -152,7 +152,7 @@ exports.router.post("/approve/:gid_pending", async (req, res) => {
             const { gid_pending } = req.params;
             try {
                 // 🔍 ตรวจว่ามีข้อมูลใน guide_pending หรือไม่
-                const [rows] = await dbconnect_1.default.execute("SELECT * FROM guide_pending WHERE gid_pending = ?", [gid_pending]);
+                const [rows] = await dbconnect_1.default.execute("SELECT * FROM guide_pending WHERE gid = ?", [gid_pending]);
                 if (rows.length === 0) {
                     return res
                         .status(404)
@@ -160,7 +160,7 @@ exports.router.post("/approve/:gid_pending", async (req, res) => {
                 }
                 const guide = rows[0];
                 // ✅ ลบข้อมูลออกจาก guide_pending
-                await dbconnect_1.default.execute("DELETE FROM guide_pending WHERE gid_pending = ?", [
+                await dbconnect_1.default.execute("DELETE FROM guide_pending WHERE gid = ?", [
                     gid_pending,
                 ]);
                 res.json({
@@ -180,9 +180,7 @@ exports.router.post("/approve/:gid_pending", async (req, res) => {
             }
         });
         // ✅ ลบออกจาก guide_pending
-        await dbconnect_1.default.execute("DELETE FROM guide_pending WHERE gid_pending = ?", [
-            gid_pending,
-        ]);
+        await dbconnect_1.default.execute("DELETE FROM guide_pending WHERE gid = ?", [gid_pending]);
         res.json({
             message: "✅ อนุมัติสำเร็จ และย้ายข้อมูลไปยังตาราง Guide แล้ว",
             moved_data: {
