@@ -36,6 +36,7 @@ exports.router.get("/", async (req, res) => {
         res.status(500).json({ message: "❌ Server error", error: err.message });
     }
 });
+// ✅ สมัครไกด์ (บันทึกลง guide_pending)
 exports.router.post("/register", upload.fields([
     { name: "image_guide", maxCount: 1 },
     { name: "tourism_guide_license", maxCount: 1 },
@@ -46,7 +47,7 @@ exports.router.post("/register", upload.fields([
     let guideLicenseUrl = "";
     let businessLicenseUrl = "";
     try {
-        // 🔍 ตรวจสอบอีเมลซ้ำในทั้ง guide_pending, guide และ customer
+        // 🔍 ตรวจสอบอีเมลซ้ำ
         const [emailRows] = await dbconnect_1.default.execute(`SELECT email FROM guide WHERE email = ?
          UNION
          SELECT email FROM guide_pending WHERE email = ?
@@ -57,7 +58,7 @@ exports.router.post("/register", upload.fields([
                 message: "❌ อีเมลนี้ถูกใช้งานแล้ว (ซ้ำกับ Guide, Pending หรือ Customer)",
             });
         }
-        // 🔍 ตรวจสอบเบอร์โทรซ้ำในทั้ง guide_pending, guide และ customer
+        // 🔍 ตรวจสอบเบอร์โทรซ้ำ
         const [phoneRows] = await dbconnect_1.default.execute(`SELECT phone FROM guide WHERE phone = ?
          UNION
          SELECT phone FROM guide_pending WHERE phone = ?
@@ -88,19 +89,19 @@ exports.router.post("/register", upload.fields([
         const [insertResult] = await dbconnect_1.default.execute(`INSERT INTO guide_pending 
         (name, phone, email, password, facebook, language, image_guide, tourism_guide_license, tourism_business_license)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-            name,
-            phone,
-            email,
-            hashedPassword,
-            facebook,
-            language,
-            imageGuideUrl,
-            guideLicenseUrl,
-            businessLicenseUrl,
+            name ?? null,
+            phone ?? null,
+            email ?? null,
+            hashedPassword ?? null,
+            facebook ?? null,
+            language ?? null,
+            imageGuideUrl ?? null,
+            guideLicenseUrl ?? null,
+            businessLicenseUrl ?? null,
         ]);
         res.json({
             message: "🕒 Guide registered successfully (รอการอนุมัติจากแอดมิน)",
-            gid_pending: insertResult.insertId,
+            gid: insertResult.insertId,
             uploads: {
                 image_guide: imageGuideUrl,
                 tourism_guide_license: guideLicenseUrl,
@@ -115,38 +116,29 @@ exports.router.post("/register", upload.fields([
 });
 // ✅ อนุมัติไกด์ (ย้ายจาก guide_pending → guide)
 exports.router.post("/approve/:gid", async (req, res) => {
-    const { gid_pending } = req.params;
+    const { gid } = req.params;
     try {
-        // 🔍 ตรวจว่ามีข้อมูลใน guide_pending ไหม
-        const [rows] = await dbconnect_1.default.execute("SELECT * FROM guide_pending WHERE gid = ?", [gid_pending]);
+        const [rows] = await dbconnect_1.default.execute("SELECT * FROM guide_pending WHERE gid = ?", [gid]);
         if (rows.length === 0) {
             return res
                 .status(404)
                 .json({ message: "❌ ไม่พบข้อมูลใน guide_pending" });
         }
-        // ✅ TypeScript-safe: บอกว่ามีข้อมูลแน่นอนแล้ว
         const guide = rows[0];
-        // ✅ ตรวจว่ามีอีเมลนี้ใน guide แล้วหรือยัง (กันซ้ำ)
-        const [emailRows] = await dbconnect_1.default.execute("SELECT email FROM guide WHERE email = ?", [guide.email]);
-        if (emailRows.length > 0) {
-            return res
-                .status(400)
-                .json({ message: "❌ อีเมลนี้มีอยู่ใน guide แล้ว" });
-        }
-        // ✅ ย้ายข้อมูลไปตาราง guide
         await dbconnect_1.default.execute(`INSERT INTO guide 
-        (name, phone, email, password, facebook, language, image_guide, tourism_guide_license, tourism_business_license)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-            guide.name,
-            guide.phone,
-            guide.email,
-            guide.password,
-            guide.facebook,
-            guide.language,
-            guide.image_guide,
-            guide.tourism_guide_license,
-            guide.tourism_business_license,
+      (name, phone, email, password, facebook, language, image_guide, tourism_guide_license, tourism_business_license)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+            guide.name ?? null,
+            guide.phone ?? null,
+            guide.email ?? null,
+            guide.password ?? null,
+            guide.facebook ?? null,
+            guide.language ?? null,
+            guide.image_guide ?? null,
+            guide.tourism_guide_license ?? null,
+            guide.tourism_business_license ?? null,
         ]);
+        await dbconnect_1.default.execute("DELETE FROM guide_pending WHERE gid = ?", [gid ?? null]);
         res.json({
             message: "✅ อนุมัติสำเร็จ และย้ายข้อมูลไปยังตาราง Guide แล้ว",
             moved_data: {
@@ -163,18 +155,16 @@ exports.router.post("/approve/:gid", async (req, res) => {
 });
 // ❌ ปฏิเสธไกด์ (ลบออกจาก guide_pending โดยไม่ย้ายไป guide)
 exports.router.delete("/reject/:gid", async (req, res) => {
-    const { gid_pending } = req.params;
+    const { gid } = req.params;
     try {
-        // 🔍 ตรวจว่ามีข้อมูลใน guide_pending หรือไม่
-        const [rows] = await dbconnect_1.default.execute("SELECT * FROM guide_pending WHERE gid = ?", [gid_pending]);
+        const [rows] = await dbconnect_1.default.execute("SELECT * FROM guide_pending WHERE gid = ?", [gid]);
         if (rows.length === 0) {
             return res
                 .status(404)
                 .json({ message: "❌ ไม่พบข้อมูลใน guide_pending" });
         }
         const guide = rows[0];
-        // ✅ ลบข้อมูลออกจาก guide_pending
-        await dbconnect_1.default.execute("DELETE FROM guide_pending WHERE gid = ?", [gid_pending]);
+        await dbconnect_1.default.execute("DELETE FROM guide_pending WHERE gid = ?", [gid ?? null]);
         res.json({
             message: "🗑️ ลบข้อมูลไกด์ที่สมัครมา (ไม่อนุมัติ) เรียบร้อยแล้ว",
             deleted_data: {
