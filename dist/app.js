@@ -10,6 +10,7 @@ const index_1 = require("./controller/index");
 const customer_1 = require("./controller/customer");
 const guide_1 = require("./controller/guide");
 const login_1 = require("./controller/login");
+const package_1 = require("./controller/package");
 exports.app = (0, express_1.default)();
 // ✅ CORS
 const allowedOrigins = [
@@ -32,6 +33,7 @@ exports.app.use("/", index_1.router);
 exports.app.use("/customer", customer_1.router);
 exports.app.use("/guide", guide_1.router);
 exports.app.use("/auth", login_1.router);
+exports.app.use("/package", package_1.router);
 // app.use("/", (req, res) => {
 //   res.send("Hello World!!!");
 // });
