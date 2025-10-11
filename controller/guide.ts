@@ -152,13 +152,13 @@ router.post(
 );
 
 // ✅ อนุมัติไกด์ (ย้ายจาก guide_pending → guide)
-router.post("/approve/:gid_pending", async (req: Request, res: Response) => {
+router.post("/approve/:gid", async (req: Request, res: Response) => {
   const { gid_pending } = req.params;
 
   try {
     // 🔍 ตรวจว่ามีข้อมูลใน guide_pending ไหม
     const [rows] = await db.execute<RowDataPacket[]>(
-      "SELECT * FROM guide_pending WHERE gid_pending = ?",
+      "SELECT * FROM guide_pending WHERE gid = ?",
       [gid_pending]
     );
 
@@ -219,7 +219,7 @@ router.post("/approve/:gid_pending", async (req: Request, res: Response) => {
         try {
           // 🔍 ตรวจว่ามีข้อมูลใน guide_pending หรือไม่
           const [rows] = await db.execute<RowDataPacket[]>(
-            "SELECT * FROM guide_pending WHERE gid_pending = ?",
+            "SELECT * FROM guide_pending WHERE gid = ?",
             [gid_pending]
           );
 
@@ -236,7 +236,7 @@ router.post("/approve/:gid_pending", async (req: Request, res: Response) => {
           };
 
           // ✅ ลบข้อมูลออกจาก guide_pending
-          await db.execute("DELETE FROM guide_pending WHERE gid_pending = ?", [
+          await db.execute("DELETE FROM guide_pending WHERE gid = ?", [
             gid_pending,
           ]);
 
@@ -258,9 +258,7 @@ router.post("/approve/:gid_pending", async (req: Request, res: Response) => {
     );
 
     // ✅ ลบออกจาก guide_pending
-    await db.execute("DELETE FROM guide_pending WHERE gid_pending = ?", [
-      gid_pending,
-    ]);
+    await db.execute("DELETE FROM guide_pending WHERE gid = ?", [gid_pending]);
 
     res.json({
       message: "✅ อนุมัติสำเร็จ และย้ายข้อมูลไปยังตาราง Guide แล้ว",
