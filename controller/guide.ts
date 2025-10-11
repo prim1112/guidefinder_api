@@ -210,6 +210,53 @@ router.post("/approve/:gid_pending", async (req: Request, res: Response) => {
       ]
     );
 
+    // ❌ ปฏิเสธไกด์ (ลบออกจาก guide_pending โดยไม่ย้ายไป guide)
+    router.delete(
+      "/reject/:gid_pending",
+      async (req: Request, res: Response) => {
+        const { gid_pending } = req.params;
+
+        try {
+          // 🔍 ตรวจว่ามีข้อมูลใน guide_pending หรือไม่
+          const [rows] = await db.execute<RowDataPacket[]>(
+            "SELECT * FROM guide_pending WHERE gid_pending = ?",
+            [gid_pending]
+          );
+
+          if (rows.length === 0) {
+            return res
+              .status(404)
+              .json({ message: "❌ ไม่พบข้อมูลใน guide_pending" });
+          }
+
+          const guide = rows[0] as {
+            name: string;
+            email: string;
+            phone: string;
+          };
+
+          // ✅ ลบข้อมูลออกจาก guide_pending
+          await db.execute("DELETE FROM guide_pending WHERE gid_pending = ?", [
+            gid_pending,
+          ]);
+
+          res.json({
+            message: "🗑️ ลบข้อมูลไกด์ที่สมัครมา (ไม่อนุมัติ) เรียบร้อยแล้ว",
+            deleted_data: {
+              name: guide.name,
+              email: guide.email,
+              phone: guide.phone,
+            },
+          });
+        } catch (err: any) {
+          console.error("Error in reject guide:", err);
+          res
+            .status(500)
+            .json({ message: "❌ Server Error", error: err.message });
+        }
+      }
+    );
+
     // ✅ ลบออกจาก guide_pending
     await db.execute("DELETE FROM guide_pending WHERE gid_pending = ?", [
       gid_pending,
