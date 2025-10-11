@@ -38,13 +38,18 @@ router.post(
     let businessLicenseUrl = "";
 
     try {
-      // 🔍 ตรวจสอบ email ซ้ำ
-      const [rows] = await db.execute<RowDataPacket[]>(
-        "SELECT gid FROM guide WHERE email = ?",
-        [email]
+      // 🔍 ตรวจสอบอีเมลซ้ำในทั้ง guide และ customer
+      const [emailRows] = await db.execute<RowDataPacket[]>(
+        `SELECT email FROM guide WHERE email = ?
+         UNION 
+         SELECT email FROM customer WHERE email = ?`,
+        [email, email]
       );
-      if (rows.length > 0) {
-        return res.status(400).json({ message: "❌ อีเมลนี้ถูกใช้งานแล้ว" });
+
+      if (emailRows.length > 0) {
+        return res.status(400).json({
+          message: "❌ อีเมลนี้ถูกใช้งานแล้ว (ซ้ำกับ Guide หรือ Customer)",
+        });
       }
 
       // ✅ Hash password
@@ -114,7 +119,7 @@ router.post(
   }
 );
 
-// ✅ ดึงรายชื่อไกด์ทั้งหมด (option เสริม)
+// ✅ ดึงรายชื่อไกด์ทั้งหมด
 router.get("/", async (req: Request, res: Response) => {
   try {
     const [rows] = await db.execute<RowDataPacket[]>("SELECT * FROM guide");
