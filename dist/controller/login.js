@@ -8,7 +8,7 @@ const express_1 = require("express");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const dbconnect_1 = __importDefault(require("../db/dbconnect"));
 exports.router = (0, express_1.Router)();
-// ✅ Login (แยกว่าเป็น customer หรือ guide)
+// ✅ Login (ตรวจว่าเป็น customer, guide หรือ admin)
 exports.router.post("/login", async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -19,16 +19,11 @@ exports.router.post("/login", async (req, res) => {
         }
         // 🔍 1️⃣ ค้นหาในตาราง customer
         const [customerRows] = await dbconnect_1.default.execute("SELECT * FROM customer WHERE email = ?", [email]);
-        // ถ้ามีข้อมูลใน customer
         if (customerRows.length > 0) {
             const user = customerRows[0];
-            if (!user) {
-                return res.status(400).json({ message: "❌ ไม่พบบัญชีอีเมลนี้" });
-            }
             const isPasswordValid = await bcrypt_1.default.compare(password, user.password);
-            if (!isPasswordValid) {
+            if (!isPasswordValid)
                 return res.status(400).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
-            }
             return res.json({
                 message: "✅ Login สำเร็จ (Customer)",
                 role: "customer",
@@ -43,34 +38,46 @@ exports.router.post("/login", async (req, res) => {
         }
         // 🔍 2️⃣ ถ้าไม่พบใน customer → ค้นหาใน guide
         const [guideRows] = await dbconnect_1.default.execute("SELECT * FROM guide WHERE email = ?", [email]);
-        if (guideRows.length === 0) {
-            return res.status(400).json({ message: "❌ ไม่พบบัญชีอีเมลนี้" });
+        if (guideRows.length > 0) {
+            const guide = guideRows[0];
+            const isGuidePasswordValid = await bcrypt_1.default.compare(password, guide.password);
+            if (!isGuidePasswordValid)
+                return res.status(400).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
+            return res.json({
+                message: "✅ Login สำเร็จ (Guide)",
+                role: "guide",
+                user: {
+                    gid: guide.gid,
+                    name: guide.name,
+                    phone: guide.phone,
+                    email: guide.email,
+                    facebook: guide.facebook,
+                    language: guide.language,
+                    image_guide: guide.image_guide,
+                    tourism_guide_license: guide.tourism_guide_license,
+                    tourism_business_license: guide.tourism_business_license,
+                },
+            });
         }
-        const guide = guideRows[0];
-        if (!guide) {
-            return res.status(400).json({ message: "❌ ไม่พบบัญชีอีเมลนี้" });
+        // 🔍 3️⃣ ถ้าไม่พบใน guide → ค้นหาใน admin
+        const [adminRows] = await dbconnect_1.default.execute("SELECT * FROM admin WHERE email = ?", [email]);
+        if (adminRows.length > 0) {
+            const admin = adminRows[0];
+            const isAdminPasswordValid = await bcrypt_1.default.compare(password, admin.password);
+            if (!isAdminPasswordValid)
+                return res.status(400).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
+            return res.json({
+                message: "✅ Login สำเร็จ (Admin)",
+                role: "admin",
+                user: {
+                    aid: admin.aid,
+                    name: admin.name,
+                    email: admin.email,
+                },
+            });
         }
-        const isGuidePasswordValid = await bcrypt_1.default.compare(password, guide.password);
-        if (!isGuidePasswordValid) {
-            return res.status(400).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
-        }
-        // ✅ สำเร็จ (Guide)
-        return res.json({
-            message: "✅ Login สำเร็จ (Guide)",
-            role: "guide",
-            user: {
-                gid: guide.gid,
-                name: guide.name,
-                phone: guide.phone,
-                email: guide.email,
-                facebook: guide.facebook,
-                language: guide.language,
-                image_guide: guide.image_guide,
-                tourism_guide_license: guide.tourism_guide_license,
-                tourism_business_license: guide.tourism_business_license,
-                status: guide.status,
-            },
-        });
+        // ❌ ไม่พบในทั้งสามตาราง
+        return res.status(400).json({ message: "❌ ไม่พบบัญชีอีเมลนี้" });
     }
     catch (err) {
         console.error("Error in login:", err);
