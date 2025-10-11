@@ -22,7 +22,98 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
-// ✅ Register Guide (อัปโหลด 3 รูป)
+// ✅ ดึงรายชื่อไกด์ทั้งหมด
+router.get("/", async (req: Request, res: Response) => {
+  try {
+    const [rows] = await db.execute<RowDataPacket[]>("SELECT * FROM guide");
+    const guides = rows.map((g) => {
+      const { password, ...rest } = g;
+      return rest;
+    });
+    res.json(guides);
+  } catch (err: any) {
+    res.status(500).json({ message: "❌ Server error", error: err.message });
+  }
+});
+
+// ✅ อนุมัติไกด์ (ย้ายจาก guide_pending → guide)
+router.post("/approve/:gid_pending", async (req: Request, res: Response) => {
+  const { gid_pending } = req.params;
+
+  try {
+    // 🔍 ตรวจว่ามีข้อมูลใน guide_pending ไหม
+    const [rows] = await db.execute<RowDataPacket[]>(
+      "SELECT * FROM guide_pending WHERE gid_pending = ?",
+      [gid_pending]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "❌ ไม่พบข้อมูลใน guide_pending" });
+    }
+
+    // ✅ TypeScript-safe: บอกว่ามีข้อมูลแน่นอนแล้ว
+    const guide = rows[0] as {
+      name: string;
+      phone: string;
+      email: string;
+      password: string;
+      facebook: string | null;
+      language: string | null;
+      image_guide: string | null;
+      tourism_guide_license: string | null;
+      tourism_business_license: string | null;
+    };
+
+    // ✅ ตรวจว่ามีอีเมลนี้ใน guide แล้วหรือยัง (กันซ้ำ)
+    const [emailRows] = await db.execute<RowDataPacket[]>(
+      "SELECT email FROM guide WHERE email = ?",
+      [guide.email]
+    );
+    if (emailRows.length > 0) {
+      return res
+        .status(400)
+        .json({ message: "❌ อีเมลนี้มีอยู่ใน guide แล้ว" });
+    }
+
+    // ✅ ย้ายข้อมูลไปตาราง guide
+    await db.execute(
+      `INSERT INTO guide 
+        (name, phone, email, password, facebook, language, image_guide, tourism_guide_license, tourism_business_license)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        guide.name,
+        guide.phone,
+        guide.email,
+        guide.password,
+        guide.facebook,
+        guide.language,
+        guide.image_guide,
+        guide.tourism_guide_license,
+        guide.tourism_business_license,
+      ]
+    );
+
+    // ✅ ลบออกจาก guide_pending
+    await db.execute("DELETE FROM guide_pending WHERE gid_pending = ?", [
+      gid_pending,
+    ]);
+
+    res.json({
+      message: "✅ อนุมัติสำเร็จ และย้ายข้อมูลไปยังตาราง Guide แล้ว",
+      moved_data: {
+        name: guide.name,
+        email: guide.email,
+        phone: guide.phone,
+      },
+    });
+  } catch (err: any) {
+    console.error("Error in approve guide:", err);
+    res.status(500).json({ message: "❌ Server Error", error: err.message });
+  }
+});
+
 router.post(
   "/register",
   upload.fields([
@@ -38,17 +129,20 @@ router.post(
     let businessLicenseUrl = "";
 
     try {
-      // 🔍 ตรวจสอบอีเมลซ้ำในทั้ง guide และ customer
+      // 🔍 ตรวจสอบอีเมลซ้ำในทั้ง guide_pending, guide และ customer
       const [emailRows] = await db.execute<RowDataPacket[]>(
         `SELECT email FROM guide WHERE email = ?
-         UNION 
+         UNION
+         SELECT email FROM guide_pending WHERE email = ?
+         UNION
          SELECT email FROM customer WHERE email = ?`,
-        [email, email]
+        [email, email, email]
       );
 
       if (emailRows.length > 0) {
         return res.status(400).json({
-          message: "❌ อีเมลนี้ถูกใช้งานแล้ว (ซ้ำกับ Guide หรือ Customer)",
+          message:
+            "❌ อีเมลนี้ถูกใช้งานแล้ว (ซ้ำกับ Guide, Pending หรือ Customer)",
         });
       }
 
@@ -84,11 +178,11 @@ router.post(
         businessLicenseUrl = result.secure_url;
       }
 
-      // ✅ บันทึกข้อมูลลงฐานข้อมูล
+      // ✅ บันทึกข้อมูลลง guide_pending (รออนุมัติ)
       const [insertResult] = await db.execute<ResultSetHeader>(
-        `INSERT INTO guide 
-        (name, phone, email, password, facebook, language, image_guide, tourism_guide_license, tourism_business_license, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO guide_pending 
+        (name, phone, email, password, facebook, language, image_guide, tourism_guide_license, tourism_business_license)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           name,
           phone,
@@ -99,13 +193,12 @@ router.post(
           imageGuideUrl,
           guideLicenseUrl,
           businessLicenseUrl,
-          "pending", // default
         ]
       );
 
       res.json({
-        message: "✅ Guide registered successfully",
-        gid: insertResult.insertId,
+        message: "🕒 Guide registered successfully (รอการอนุมัติจากแอดมิน)",
+        gid_pending: insertResult.insertId,
         uploads: {
           image_guide: imageGuideUrl,
           tourism_guide_license: guideLicenseUrl,
@@ -118,19 +211,5 @@ router.post(
     }
   }
 );
-
-// ✅ ดึงรายชื่อไกด์ทั้งหมด
-router.get("/", async (req: Request, res: Response) => {
-  try {
-    const [rows] = await db.execute<RowDataPacket[]>("SELECT * FROM guide");
-    const guides = rows.map((g) => {
-      const { password, ...rest } = g;
-      return rest;
-    });
-    res.json(guides);
-  } catch (err: any) {
-    res.status(500).json({ message: "❌ Server error", error: err.message });
-  }
-});
 
 export default router;
