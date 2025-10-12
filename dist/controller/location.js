@@ -23,7 +23,7 @@ const uploadToCloudinary = (buffer, folder) => new Promise((resolve, reject) => 
 });
 // ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 exports.router.post("/location", upload.single("image"), async (req, res) => {
-    const { name, address, subdistrict, district, province, typeid } = req.body;
+    const { name, address, subdistrict, district, province, type_id } = req.body;
     let imageUrl = "";
     try {
         // 🔍 ตรวจสอบค่าที่จำเป็น
@@ -32,17 +32,17 @@ exports.router.post("/location", upload.single("image"), async (req, res) => {
             !subdistrict ||
             !district ||
             !province ||
-            !typeid) {
+            !type_id) {
             return res
                 .status(400)
                 .json({ message: "❌ กรุณากรอกข้อมูลให้ครบทุกช่อง" });
         }
-        // 🔍 ตรวจสอบว่า typeid มีอยู่ในตาราง LocationType หรือไม่
-        const [typeRows] = await dbconnect_1.default.execute("SELECT type_id FROM locationtype WHERE type_id = ?", [typeid]);
+        // 🔍 ตรวจสอบว่า type_id มีอยู่ในตาราง LocationType หรือไม่
+        const [typeRows] = await dbconnect_1.default.execute("SELECT type_id FROM locationtype WHERE type_id = ?", [type_id]);
         if (typeRows.length === 0) {
             return res
                 .status(400)
-                .json({ message: "❌ typeid ไม่ถูกต้อง หรือไม่มีอยู่ในระบบ" });
+                .json({ message: "❌ type_id ไม่ถูกต้อง หรือไม่มีอยู่ในระบบ" });
         }
         // ✅ อัปโหลดรูปขึ้น Cloudinary
         if (req.file && req.file.buffer) {
@@ -50,8 +50,8 @@ exports.router.post("/location", upload.single("image"), async (req, res) => {
             imageUrl = result.secure_url;
         }
         // ✅ บันทึกข้อมูลลงฐานข้อมูล
-        const [result] = await dbconnect_1.default.execute(`INSERT INTO location (name, address, subdistrict, district, province, image, typeid)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`, [name, address, subdistrict, district, province, imageUrl, typeid]);
+        const [result] = await dbconnect_1.default.execute(`INSERT INTO location (name, address, subdistrict, district, province, image, type_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`, [name, address, subdistrict, district, province, imageUrl, type_id]);
         res.json({
             message: "✅ เพิ่มข้อมูล Location สำเร็จ",
             location_id: result.insertId,
@@ -62,7 +62,7 @@ exports.router.post("/location", upload.single("image"), async (req, res) => {
                 district,
                 province,
                 image: imageUrl,
-                typeid,
+                type_id,
             },
         });
     }

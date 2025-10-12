@@ -26,7 +26,8 @@ router.post(
   "/location",
   upload.single("image"),
   async (req: Request, res: Response) => {
-    const { name, address, subdistrict, district, province, typeid } = req.body;
+    const { name, address, subdistrict, district, province, type_id } =
+      req.body;
     let imageUrl = "";
 
     try {
@@ -37,22 +38,22 @@ router.post(
         !subdistrict ||
         !district ||
         !province ||
-        !typeid
+        !type_id
       ) {
         return res
           .status(400)
           .json({ message: "❌ กรุณากรอกข้อมูลให้ครบทุกช่อง" });
       }
 
-      // 🔍 ตรวจสอบว่า typeid มีอยู่ในตาราง LocationType หรือไม่
+      // 🔍 ตรวจสอบว่า type_id มีอยู่ในตาราง LocationType หรือไม่
       const [typeRows] = await db.execute<RowDataPacket[]>(
         "SELECT type_id FROM locationtype WHERE type_id = ?",
-        [typeid]
+        [type_id]
       );
       if (typeRows.length === 0) {
         return res
           .status(400)
-          .json({ message: "❌ typeid ไม่ถูกต้อง หรือไม่มีอยู่ในระบบ" });
+          .json({ message: "❌ type_id ไม่ถูกต้อง หรือไม่มีอยู่ในระบบ" });
       }
 
       // ✅ อัปโหลดรูปขึ้น Cloudinary
@@ -63,9 +64,9 @@ router.post(
 
       // ✅ บันทึกข้อมูลลงฐานข้อมูล
       const [result] = await db.execute<ResultSetHeader>(
-        `INSERT INTO location (name, address, subdistrict, district, province, image, typeid)
+        `INSERT INTO location (name, address, subdistrict, district, province, image, type_id)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [name, address, subdistrict, district, province, imageUrl, typeid]
+        [name, address, subdistrict, district, province, imageUrl, type_id]
       );
 
       res.json({
@@ -78,7 +79,7 @@ router.post(
           district,
           province,
           image: imageUrl,
-          typeid,
+          type_id,
         },
       });
     } catch (err: any) {
