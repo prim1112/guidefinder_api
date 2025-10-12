@@ -22,6 +22,7 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
   });
 
 // ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
+// ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 router.post(
   "/location",
   upload.single("image"),
@@ -43,6 +44,17 @@ router.post(
         return res
           .status(400)
           .json({ message: "❌ กรุณากรอกข้อมูลให้ครบทุกช่อง" });
+      }
+
+      // 🔍 ตรวจสอบว่าชื่อสถานที่ซ้ำหรือไม่
+      const [nameRows] = await db.execute<RowDataPacket[]>(
+        "SELECT name FROM location WHERE name = ?",
+        [name]
+      );
+      if (nameRows.length > 0) {
+        return res
+          .status(400)
+          .json({ message: "❌ ชื่อสถานที่นี้มีอยู่ในระบบแล้ว" });
       }
 
       // 🔍 ตรวจสอบว่า type_id มีอยู่ในตาราง LocationType หรือไม่
