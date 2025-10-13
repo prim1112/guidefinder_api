@@ -26,14 +26,22 @@ router.post(
   "/location",
   upload.single("image"),
   async (req: Request, res: Response) => {
-    const { name, address, subdistrict, district, province, type_id } =
-      req.body;
+    const {
+      name,
+      coordinate,
+      address,
+      subdistrict,
+      district,
+      province,
+      type_id,
+    } = req.body;
     let imageUrl = "";
 
     try {
       // 🔍 ตรวจสอบค่าที่จำเป็น
       if (
         !name ||
+        !coordinate ||
         !address ||
         !subdistrict ||
         !district ||
@@ -76,9 +84,18 @@ router.post(
 
       // ✅ บันทึกข้อมูลลงฐานข้อมูล
       const [result] = await db.execute<ResultSetHeader>(
-        `INSERT INTO location (name, address, subdistrict, district, province, image, type_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [name, address, subdistrict, district, province, imageUrl, type_id]
+        `INSERT INTO location (name, coordinate, address, subdistrict, district, province, image, type_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          name,
+          coordinate,
+          address,
+          subdistrict,
+          district,
+          province,
+          imageUrl,
+          type_id,
+        ]
       );
 
       res.json({
@@ -86,6 +103,7 @@ router.post(
         location_id: result.insertId,
         data: {
           name,
+          coordinate,
           address,
           subdistrict,
           district,
