@@ -85,7 +85,7 @@ router.post(
       // ✅ บันทึกข้อมูลลงฐานข้อมูล
       const [result] = await db.execute<ResultSetHeader>(
         `INSERT INTO location (name, address, subdistrict, district, province, zip_code, image, type_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           name,
           address,

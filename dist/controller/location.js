@@ -59,7 +59,7 @@ exports.router.post("/location", upload.single("image"), async (req, res) => {
         }
         // ✅ บันทึกข้อมูลลงฐานข้อมูล
         const [result] = await dbconnect_1.default.execute(`INSERT INTO location (name, address, subdistrict, district, province, zip_code, image, type_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)`, [
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
             name,
             address,
             subdistrict,
