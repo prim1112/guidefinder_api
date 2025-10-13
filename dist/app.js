@@ -12,6 +12,7 @@ const guide_1 = require("./controller/guide");
 const login_1 = require("./controller/login");
 const package_1 = require("./controller/package");
 const location_1 = require("./controller/location");
+const booking_1 = require("./controller/booking");
 exports.app = (0, express_1.default)();
 // ✅ CORS
 const allowedOrigins = [
@@ -36,6 +37,7 @@ exports.app.use("/guide", guide_1.router);
 exports.app.use("/auth", login_1.router);
 exports.app.use("/package", package_1.router);
 exports.app.use("/location", location_1.router);
+exports.app.use("/booking", booking_1.router);
 // app.use("/", (req, res) => {
 //   res.send("Hello World!!!");
 // });

@@ -6,6 +6,7 @@ import { router as guideRouter } from "./controller/guide";
 import { router as loginRouter } from "./controller/login";
 import { router as packageRouter } from "./controller/package";
 import { router as locationRouter } from "./controller/location";
+import { router as bookingRouter } from "./controller/booking";
 export const app = express();
 
 // ✅ CORS
@@ -33,6 +34,7 @@ app.use("/guide", guideRouter);
 app.use("/auth", loginRouter);
 app.use("/package", packageRouter);
 app.use("/location", locationRouter);
+app.use("/booking", bookingRouter);
 // app.use("/", (req, res) => {
 //   res.send("Hello World!!!");
 // });
