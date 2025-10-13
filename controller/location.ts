@@ -28,7 +28,6 @@ router.post(
   async (req: Request, res: Response) => {
     const {
       name,
-      coordinate,
       address,
       subdistrict,
       district,
@@ -42,7 +41,6 @@ router.post(
       // 🔍 ตรวจสอบค่าที่จำเป็น
       if (
         !name ||
-        !coordinate ||
         !address ||
         !subdistrict ||
         !district ||
@@ -86,11 +84,10 @@ router.post(
 
       // ✅ บันทึกข้อมูลลงฐานข้อมูล
       const [result] = await db.execute<ResultSetHeader>(
-        `INSERT INTO location (name, coordinate, address, subdistrict, district, province, zip_code, image, type_id)
+        `INSERT INTO location (name, address, subdistrict, district, province, zip_code, image, type_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)`,
         [
           name,
-          coordinate,
           address,
           subdistrict,
           district,
@@ -106,7 +103,6 @@ router.post(
         location_id: result.insertId,
         data: {
           name,
-          coordinate,
           address,
           subdistrict,
           district,
