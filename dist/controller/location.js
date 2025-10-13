@@ -22,7 +22,6 @@ const uploadToCloudinary = (buffer, folder) => new Promise((resolve, reject) => 
     streamifier_1.default.createReadStream(buffer).pipe(stream);
 });
 // ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
-// ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 exports.router.post("/location", upload.single("image"), async (req, res) => {
     const { name, address, subdistrict, district, province, type_id } = req.body;
     let imageUrl = "";
@@ -38,12 +37,12 @@ exports.router.post("/location", upload.single("image"), async (req, res) => {
                 .status(400)
                 .json({ message: "❌ กรุณากรอกข้อมูลให้ครบทุกช่อง" });
         }
-        // 🔍 ตรวจสอบว่าชื่อสถานที่ซ้ำหรือไม่
-        const [nameRows] = await dbconnect_1.default.execute("SELECT name FROM location WHERE name = ?", [name]);
+        // 🔍 ตรวจสอบว่าชื่อสถานที่ซ้ำหรือไม่ (ไม่สนตัวพิมพ์)
+        const [nameRows] = await dbconnect_1.default.execute("SELECT name FROM location WHERE LOWER(name) = LOWER(?)", [name]);
         if (nameRows.length > 0) {
-            return res
-                .status(400)
-                .json({ message: "❌ ชื่อสถานที่นี้มีอยู่ในระบบแล้ว" });
+            return res.status(400).json({
+                message: "❌ ชื่อสถานที่นี้มีอยู่ในระบบแล้ว (ห้ามชื่อซ้ำ)",
+            });
         }
         // 🔍 ตรวจสอบว่า type_id มีอยู่ในตาราง LocationType หรือไม่
         const [typeRows] = await dbconnect_1.default.execute("SELECT type_id FROM locationtype WHERE type_id = ?", [type_id]);
