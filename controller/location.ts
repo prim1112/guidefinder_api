@@ -33,6 +33,7 @@ router.post(
       subdistrict,
       district,
       province,
+      zip_code,
       type_id,
     } = req.body;
     let imageUrl = "";
@@ -46,6 +47,7 @@ router.post(
         !subdistrict ||
         !district ||
         !province ||
+        !zip_code ||
         !type_id
       ) {
         return res
@@ -84,8 +86,8 @@ router.post(
 
       // ✅ บันทึกข้อมูลลงฐานข้อมูล
       const [result] = await db.execute<ResultSetHeader>(
-        `INSERT INTO location (name, coordinate, address, subdistrict, district, province, image, type_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO location (name, coordinate, address, subdistrict, district, province, zip_code, image, type_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)`,
         [
           name,
           coordinate,
@@ -93,6 +95,7 @@ router.post(
           subdistrict,
           district,
           province,
+          zip_code,
           imageUrl,
           type_id,
         ]
@@ -108,6 +111,7 @@ router.post(
           subdistrict,
           district,
           province,
+          zip_code,
           image: imageUrl,
           type_id,
         },

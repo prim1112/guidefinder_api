@@ -23,7 +23,7 @@ const uploadToCloudinary = (buffer, folder) => new Promise((resolve, reject) => 
 });
 // ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 exports.router.post("/location", upload.single("image"), async (req, res) => {
-    const { name, coordinate, address, subdistrict, district, province, type_id, } = req.body;
+    const { name, coordinate, address, subdistrict, district, province, zip_code, type_id, } = req.body;
     let imageUrl = "";
     try {
         // 🔍 ตรวจสอบค่าที่จำเป็น
@@ -33,6 +33,7 @@ exports.router.post("/location", upload.single("image"), async (req, res) => {
             !subdistrict ||
             !district ||
             !province ||
+            !zip_code ||
             !type_id) {
             return res
                 .status(400)
@@ -58,14 +59,15 @@ exports.router.post("/location", upload.single("image"), async (req, res) => {
             imageUrl = result.secure_url;
         }
         // ✅ บันทึกข้อมูลลงฐานข้อมูล
-        const [result] = await dbconnect_1.default.execute(`INSERT INTO location (name, coordinate, address, subdistrict, district, province, image, type_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
+        const [result] = await dbconnect_1.default.execute(`INSERT INTO location (name, coordinate, address, subdistrict, district, province, zip_code, image, type_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)`, [
             name,
             coordinate,
             address,
             subdistrict,
             district,
             province,
+            zip_code,
             imageUrl,
             type_id,
         ]);
@@ -79,6 +81,7 @@ exports.router.post("/location", upload.single("image"), async (req, res) => {
                 subdistrict,
                 district,
                 province,
+                zip_code,
                 image: imageUrl,
                 type_id,
             },
