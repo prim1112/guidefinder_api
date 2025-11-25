@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const db: Pool = mysql.createPool({
-  host: "mysql-final-project_guidefinderapp_db.alwaysdata.net",
+  host: "mysql-final-projec.alwaysdata.net",
   user: "442588",
   password: "65011212063",
   database: "final-project_guidefinderapp_db",
