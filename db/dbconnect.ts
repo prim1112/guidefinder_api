@@ -4,10 +4,10 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const db: Pool = mysql.createPool({
-  host: "mysql-guidefinderapp.alwaysdata.net",
-  user: "427092",
+  host: "mysql-final-project_guidefinderapp_db.alwaysdata.net",
+  user: "442588",
   password: "65011212063",
-  database: "guidefinderapp_db",
+  database: "final-project_guidefinderapp_db",
   waitForConnections: true, // ✅ ป้องกัน ECONNRESET
   connectionLimit: 10, // ✅ ใช้ได้ใน Pool
   queueLimit: 0,
