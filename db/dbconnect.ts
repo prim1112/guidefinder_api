@@ -8,19 +8,11 @@ const db: Pool = mysql.createPool({
   user: "guidefinderapp",
   password: "65011212063",
   database: "guidefinderapp_db",
-  waitForConnections: true, // ✅ ป้องกัน ECONNRESET
-  connectionLimit: 10, // ✅ ใช้ได้ใน Pool
+  waitForConnections: true,
+  connectionLimit: 10,
   queueLimit: 0,
 });
 
-// db.getConnection((err, connection) => {
-//   if (err) {
-//     console.error("❌ Database connection failed:", err);
-//   } else {
-//     console.log("✅ Connected to MySQL database (pool)");
-//     connection.release();
-//   }
-// });
 db.getConnection()
   .then((connection) => {
     console.log("✅ Connected to MySQL database (pool)");

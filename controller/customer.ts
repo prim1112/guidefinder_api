@@ -1,7 +1,7 @@
 import { Request, Response, Router } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
-import bcrypt from "bcrypt"; // ✅ เพิ่ม bcrypt
+import bcrypt from "bcrypt";
 import cloudinary from "../src/config/configCloud";
 import db from "../db/dbconnect";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
@@ -17,12 +17,11 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
       (error: any, result: any) => {
         if (error) reject(error);
         else resolve(result);
-      }
+      },
     );
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
-// ✅ ทดสอบ Cloudinary
 router.get("/test-cloudinary", (req, res) => {
   res.json({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -33,49 +32,30 @@ router.get("/test-cloudinary", (req, res) => {
 
 // ✅ ดึงข้อมูลลูกค้าทั้งหมด
 router.get("/customers", (req: Request, res: Response) => {
-  const sql = "SELECT * FROM customer";
-
+  const sql = "SELECT * FROM customers";
   db.query(sql, (err: any, rows: any[]) => {
     if (err) return handleResponse(res, err);
-
     const sanitizedRows = rows.map((row) => {
       const { password, ...sanitized } = row;
       return sanitized;
     });
-
     handleResponse(res, null, sanitizedRows);
   });
 });
 
-// ✅ ตรวจสอบเบอร์โทรซ้ำ
-router.post("/customers_check-phone", async (req: Request, res: Response) => {
-  const { phone } = req.body;
-
-  const [rows] = await db.execute<RowDataPacket[]>(
-    "SELECT cid FROM customer WHERE phone = ?",
-    [phone]
-  );
-
-  if (rows.length > 0) {
-    return res.status(400).json({ message: "❌ เบอร์โทรนี้ถูกใช้งานแล้ว" });
-  }
-
-  res.json({ message: "✅ ใช้เบอร์นี้ได้" });
-});
-
 // ✅ Register Customer
 router.post(
-  "/customers",
-  upload.single("image_customer"),
+  "/register_customers",
+  upload.single("cus_imageprofile"),
   async (req: Request, res: Response) => {
-    const { name, phone, email, password } = req.body;
-    let imageUrl = "";
+    const { cus_name, cus_phonenumber, cus_email, cus_password } = req.body;
+    let cus_imageprofile = " ";
 
     try {
       // 🔍 ตรวจเบอร์ซ้ำ
       const [phoneRows] = await db.execute<RowDataPacket[]>(
-        "SELECT cid FROM customer WHERE phone = ?",
-        [phone]
+        "SELECT cus_phonenumber FROM customers WHERE cus_phonenumber = ?",
+        [cus_phonenumber],
       );
       if (phoneRows.length > 0) {
         return res
@@ -85,91 +65,91 @@ router.post(
 
       // 🔍 ตรวจอีเมลซ้ำในทั้ง customer และ guide
       const [emailRows] = await db.execute<RowDataPacket[]>(
-        `SELECT email FROM customer WHERE email = ?
-         UNION
-         SELECT email FROM guide WHERE email = ?`,
-        [email, email]
+        `SELECT cus_email FROM customer WHERE cus_email = ?`,
+
+        [cus_email, cus_email],
       );
 
       if (emailRows.length > 0) {
-        return res
-          .status(400)
-          .json({
-            message: "❌ อีเมลนี้ถูกใช้งานแล้ว (ซ้ำกับ Customer หรือ Guide)",
-          });
+        return res.status(400).json({
+          message: "❌ อีเมลนี้ถูกใช้งานแล้ว",
+        });
       }
 
       // ✅ เข้ารหัสรหัสผ่านก่อนบันทึก
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await bcrypt.hash(cus_password, 10);
 
       // ✅ อัปโหลดรูป (เฉพาะถ้าไม่ซ้ำ)
       if (req.file && req.file.buffer) {
         const result = await uploadToCloudinary(req.file.buffer, "customers");
-        imageUrl = result.secure_url;
+        cus_imageprofile = result.secure_url;
       }
 
       // ✅ บันทึกลงฐานข้อมูล
       const [insertResult] = await db.execute<ResultSetHeader>(
-        "INSERT INTO customer (name, phone, email, image_customer, password) VALUES (?, ?, ?, ?, ?)",
-        [name, phone, email, imageUrl, hashedPassword]
+        "INSERT INTO customerห (cus_name, cus_phonenumber, cus_email, cus_imageprofile, hashedPassword) VALUES (?, ?, ?, ?, ?)",
+        [
+          cus_name,
+          cus_phonenumber,
+          cus_email,
+          cus_imageprofile,
+          hashedPassword,
+        ],
       );
 
       res.json({
-        message: "✅ Register successfully",
+        message: "✅ สมัครสมาชิกสำเร็จ",
         id: insertResult.insertId,
       });
     } catch (err: any) {
       console.error("Error in register:", err);
       res.status(500).json({ message: "❌ Server Error", error: err.message });
     }
-  }
+  },
 );
 
-// ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
-router.post("/login", async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+// // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
+// router.post("/login", async (req: Request, res: Response) => {
+//   const { email, password } = req.body;
+//   try {
+//     // ✅ ตรวจว่ากรอกครบไหม
+//     if (!email || !password) {
+//       return res
+//         .status(400)
+//         .json({ message: "❌ กรุณากรอก Email และ Password" });
+//     }
+//     // ✅ ค้นหาผู้ใช้จาก Email
+//     const [rows] = await db.execute<RowDataPacket[]>(
+//       "SELECT * FROM customer WHERE email = ?",
+//       [email],
+//     );
+//     const user = rows[0];
+//     if (!user) {
+//       return res.status(400).json({ message: "❌ ไม่พบบัญชีอีเมลนี้" });
+//     }
 
-  try {
-    // ✅ ตรวจว่ากรอกครบไหม
-    if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "❌ กรุณากรอก Email และ Password" });
-    }
+//     // ✅ ตรวจสอบรหัสผ่าน
+//     const isPasswordValid = await bcrypt.compare(password, user.password);
+//     if (!isPasswordValid) {
+//       return res.status(400).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
+//     }
 
-    // ✅ ค้นหาผู้ใช้จาก Email
-    const [rows] = await db.execute<RowDataPacket[]>(
-      "SELECT * FROM customer WHERE email = ?",
-      [email]
-    );
-
-    const user = rows[0];
-    if (!user) {
-      return res.status(400).json({ message: "❌ ไม่พบบัญชีอีเมลนี้" });
-    }
-
-    // ✅ ตรวจสอบรหัสผ่าน
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(400).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
-    }
-
-    // ✅ สำเร็จ → ส่งข้อมูลกลับ (ไม่ส่งรหัสผ่าน)
-    res.json({
-      message: "✅ Login สำเร็จ",
-      user: {
-        cid: user.cid,
-        name: user.name,
-        phone: user.phone,
-        email: user.email,
-        image_customer: user.image_customer,
-      },
-    });
-  } catch (err: any) {
-    console.error("Error in login:", err);
-    res.status(500).json({ message: "❌ Server Error", error: err.message });
-  }
-});
+//     // ✅ สำเร็จ → ส่งข้อมูลกลับ (ไม่ส่งรหัสผ่าน)
+//     res.json({
+//       message: "✅ Login สำเร็จ",
+//       user: {
+//         cid: user.cid,
+//         name: user.name,
+//         phone: user.phone,
+//         email: user.email,
+//         image_customer: user.image_customer,
+//       },
+//     });
+//   } catch (err: any) {
+//     console.error("Error in login:", err);
+//     res.status(500).json({ message: "❌ Server Error", error: err.message });
+//   }
+// });
 
 // ✅ Helper ฟังก์ชันตอบกลับ API
 export function handleResponse(
@@ -178,7 +158,7 @@ export function handleResponse(
   data?: any,
   notFoundStatusCode: number = 404,
   notFoundMessage: string = "Not found",
-  affectedRows: number | null = null
+  affectedRows: number | null = null,
 ): void {
   if (err) {
     res.status(500).json({ error: err.message });
