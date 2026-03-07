@@ -7,8 +7,8 @@ const promise_1 = __importDefault(require("mysql2/promise"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const db = promise_1.default.createPool({
-    host: "mysql-guidefinderapp.alwaysdata.net",
-    user: "442588",
+    host: "mysql-final-project.alwaysdata.net",
+    user: "guidefinderapp",
     password: "65011212063",
     database: "final-project_guidefinderapp_db",
     waitForConnections: true, // ✅ ป้องกัน ECONNRESET
