@@ -25,7 +25,7 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
 // ✅ ดึงรายชื่อไกด์ทั้งหมด
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const [rows] = await db.execute<RowDataPacket[]>("SELECT * FROM guide");
+    const [rows] = await db.execute<RowDataPacket[]>("SELECT * FROM guides");
     const guides = rows.map((g) => {
       const { password, ...rest } = g;
       return rest;
