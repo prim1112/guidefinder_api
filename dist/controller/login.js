@@ -18,7 +18,7 @@ exports.router.post("/login", async (req, res) => {
                 .json({ message: "❌ กรุณากรอก Email และ Password" });
         }
         // 🔍 1️⃣ ค้นหาในตาราง customer
-        const [customerRows] = await dbconnect_1.default.execute("SELECT * FROM customer WHERE email = ?", [email]);
+        const [customerRows] = await dbconnect_1.default.execute("SELECT * FROM customers WHERE email = ?", [email]);
         if (customerRows.length > 0) {
             const user = customerRows[0];
             const isPasswordValid = await bcrypt_1.default.compare(password, user.password);

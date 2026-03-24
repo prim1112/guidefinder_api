@@ -29,7 +29,6 @@ router.post("/login", async (req: Request, res: Response) => {
         cus_password: string;
         cus_imageprofile: string | null;
       };
-
       const isPasswordValid = await bcrypt.compare(password, user.cus_password);
       if (!isPasswordValid)
         return res.status(400).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
