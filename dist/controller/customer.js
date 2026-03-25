@@ -13,7 +13,6 @@ const configCloud_1 = __importDefault(require("../src/config/configCloud"));
 const dbconnect_1 = __importDefault(require("../db/dbconnect"));
 exports.router = (0, express_1.Router)();
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
-// ✅ ฟังก์ชันอัปโหลดภาพขึ้น Cloudinary
 const uploadToCloudinary = (buffer, folder) => new Promise((resolve, reject) => {
     const stream = configCloud_1.default.uploader.upload_stream({ folder, resource_type: "image" }, (error, result) => {
         if (error)
@@ -30,61 +29,79 @@ exports.router.get("/test-cloudinary", (req, res) => {
         api_secret: process.env.CLOUDINARY_API_SECRET ? "✅ Loaded" : "❌ Missing",
     });
 });
-// ✅ ดึงข้อมูลลูกค้าทั้งหมด
-exports.router.get("/customers", (req, res) => {
-    const sql = "SELECT * FROM customers";
-    dbconnect_1.default.query(sql, (err, rows) => {
-        if (err)
-            return handleResponse(res, err);
-        const sanitizedRows = rows.map((row) => {
-            const { password, ...sanitized } = row;
-            return sanitized;
+// get all customers
+exports.router.get("/customers", async (req, res) => {
+    try {
+        const [rows] = await dbconnect_1.default.query("SELECT * FROM customers");
+        const customers = rows.map(({ password, ...rest }) => rest);
+        return res.json({
+            message: "ดึงข้อมูล Customers สำเร็จ",
+            count: customers.length,
+            data: customers,
         });
-        handleResponse(res, null, sanitizedRows);
-    });
+    }
+    catch (error) {
+        console.error("GET /customers error:", error);
+        return res.status(500).json({
+            message: "Server Error",
+            error: error.message,
+        });
+    }
 });
-// ✅ Register Customer
+// register customers
 exports.router.post("/register_customers", upload.single("cus_imageprofile"), async (req, res) => {
     const { cus_name, cus_phonenumber, cus_email, cus_password } = req.body;
-    let cus_imageprofile = " ";
     try {
-        // 🔍 ตรวจเบอร์ซ้ำ
-        const [phoneRows] = await dbconnect_1.default.execute("SELECT cus_phonenumber FROM customers WHERE cus_phonenumber = ?", [cus_phonenumber]);
-        if (phoneRows.length > 0) {
-            return res
-                .status(400)
-                .json({ message: "❌ เบอร์โทรนี้มีอยู่ในระบบแล้ว" });
-        }
-        // 🔍 ตรวจอีเมลซ้ำในทั้ง customer และ guide
-        const [emailRows] = await dbconnect_1.default.execute(`SELECT cus_email FROM customer WHERE cus_email = ?`, [cus_email, cus_email]);
-        if (emailRows.length > 0) {
+        // validate
+        if (!cus_email || !cus_password || !cus_phonenumber) {
             return res.status(400).json({
-                message: "❌ อีเมลนี้ถูกใช้งานแล้ว",
+                message: "กรุณากรอก email, password และเบอร์โทร",
             });
         }
-        // ✅ เข้ารหัสรหัสผ่านก่อนบันทึก
+        const email = cus_email.toLowerCase();
+        // check phone 
+        const [phoneRows] = await dbconnect_1.default.query("SELECT cus_phonenumber FROM customers WHERE cus_phonenumber = ?", [cus_phonenumber]);
+        if (phoneRows.length) {
+            return res.status(400).json({
+                message: "เบอร์โทรนี้มีอยู่ในระบบแล้ว",
+            });
+        }
+        // check email
+        const [emailRows] = await dbconnect_1.default.query("SELECT cus_email FROM customers WHERE cus_email = ?", [email]);
+        if (emailRows.length) {
+            return res.status(400).json({
+                message: "อีเมลนี้ถูกใช้งานแล้ว",
+            });
+        }
+        //hash password
         const hashedPassword = await bcrypt_1.default.hash(cus_password, 10);
-        // ✅ อัปโหลดรูป (เฉพาะถ้าไม่ซ้ำ)
-        if (req.file && req.file.buffer) {
+        // upload image
+        let cus_imageprofile = null;
+        if (req.file?.buffer) {
             const result = await uploadToCloudinary(req.file.buffer, "customers");
             cus_imageprofile = result.secure_url;
         }
-        // ✅ บันทึกลงฐานข้อมูล
-        const [insertResult] = await dbconnect_1.default.execute("INSERT INTO customerห (cus_name, cus_phonenumber, cus_email, cus_imageprofile, hashedPassword) VALUES (?, ?, ?, ?, ?)", [
-            cus_name,
+        //insert
+        const [result] = await dbconnect_1.default.query(`INSERT INTO customers 
+        (cus_name, cus_phonenumber, cus_email, cus_password, cus_imageprofile)
+        VALUES (?, ?, ?, ?, ?)`, [
+            cus_name || null,
             cus_phonenumber,
-            cus_email,
-            cus_imageprofile,
+            email,
             hashedPassword,
+            cus_imageprofile,
         ]);
-        res.json({
-            message: "✅ สมัครสมาชิกสำเร็จ",
-            id: insertResult.insertId,
+        return res.status(201).json({
+            message: "สมัครสมาชิกสำเร็จ",
+            cid: result.insertId,
         });
     }
-    catch (err) {
-        console.error("Error in register:", err);
-        res.status(500).json({ message: "❌ Server Error", error: err.message });
+    catch (error) {
+        console.error("POST /register_customers error:", error);
+        return res.status(500).json({
+            message: "Server Error",
+            error: error.message,
+        });
     }
 });
 // // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
