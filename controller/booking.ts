@@ -4,56 +4,68 @@ import { RowDataPacket, ResultSetHeader } from "mysql2";
 
 export const router = Router();
 
-// ✅ GET: ดึงข้อมูล Booking ทั้งหมด
+// get all booking
 router.get("/booking", async (req: Request, res: Response) => {
   try {
-    const [rows] = await db.execute<RowDataPacket[]>("SELECT * FROM booking");
-    res.json(rows);
-  } catch (err: any) {
-    console.error("Error in GET /booking:", err);
-    res.status(500).json({ message: "❌ Server Error", error: err.message });
+    const [rows]: any = await db.query("SELECT * FROM booking");
+
+    return res.json({
+      message: "ดึงข้อมูล Booking สำเร็จ",
+      count: rows.length,
+      data: rows,
+    });
+  } catch (error: any) {
+    console.error("GET /booking error:", error);
+
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
   }
 });
 
-// ✅ GET: ดึงข้อมูล Booking ตาม gid (เฉพาะไกด์คนนั้น)
+
 router.get("/booking/:gid", async (req: Request, res: Response) => {
-  const { gid } = req.params;
+  const gid = req.params.gid;
 
   try {
-    // 🔍 ตรวจว่า gid มีอยู่ในระบบ guide หรือไม่
-    const [guideRows] = await db.execute<RowDataPacket[]>(
-      "SELECT gid FROM guide WHERE gid = ?",
-      [gid]
+    // check gid is existd
+    const [guideRows]: any = await db.query(
+      `SELECT gid FROM guide WHERE gid = '${gid}'`
     );
 
-    if (guideRows.length === 0) {
-      return res.status(400).json({ message: "❌ ไม่พบ gid ในระบบ guide" });
+    if (!guideRows.length) {
+      return res.status(400).json({
+        message: "ไม่พบ gid ในระบบ guide",
+      });
     }
 
-    // ✅ ดึง booking ทั้งหมดของไกด์คนนั้น
-    const [bookings] = await db.execute<RowDataPacket[]>(
-      "SELECT * FROM booking WHERE gid = ?",
-      [gid]
+    const [bookings]: any = await db.query(
+      `SELECT * FROM booking WHERE gid = '${gid}'`
     );
 
-    if (bookings.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "ℹ️ ยังไม่มีการจองสำหรับไกด์คนนี้" });
+    if (!bookings.length) {
+      return res.status(404).json({
+        message: "ยังไม่มีการจองสำหรับไกด์คนนี้",
+      });
     }
 
-    res.json({
-      message: "✅ ดึงข้อมูล Booking ของไกด์สำเร็จ",
+    return res.json({
+      message: "ดึงข้อมูล Booking ของไกด์สำเร็จ",
       count: bookings.length,
       data: bookings,
     });
-  } catch (err: any) {
-    console.error("Error in GET /booking/:gid:", err);
-    res.status(500).json({ message: "❌ Server Error", error: err.message });
+  } catch (error: any) {
+    console.error("GET /booking/:gid error:", error);
+
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
   }
 });
 
-// ✅ POST: เพิ่มข้อมูลใหม่ใน Booking
+
 router.post("/booking", async (req: Request, res: Response) => {
   const {
     gid,
@@ -67,7 +79,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
-    // 🔍 ตรวจสอบค่าที่จำเป็น
+    // required fields
     if (
       !gid ||
       !cid ||
@@ -78,50 +90,45 @@ router.post("/booking", async (req: Request, res: Response) => {
       !status ||
       !total_price
     ) {
+      return res.status(400).json({
+        message: "กรุณากรอกข้อมูลให้ครบทุกช่อง",
+      });
+    }
+
+    const checkExist = async (sql: string, value: any) => {
+      const [rows]: any = await db.query(sql, [value]);
+      return rows.length > 0;
+    };
+
+    if (!(await checkExist("SELECT gid FROM guide WHERE gid = ?", gid))) {
+      return res.status(400).json({ message: "ไม่พบ gid ในระบบ guide" });
+    }
+
+    if (!(await checkExist("SELECT cid FROM customer WHERE cid = ?", cid))) {
+      return res.status(400).json({ message: "ไม่พบ cid ในระบบ customer" });
+    }
+
+    if (
+      !(await checkExist(
+        "SELECT location_id FROM location WHERE location_id = ?",
+        location_id
+      ))
+    ) {
       return res
         .status(400)
-        .json({ message: "❌ กรุณากรอกข้อมูลให้ครบทุกช่อง" });
+        .json({ message: "ไม่พบ location_id ในระบบ location" });
     }
 
-    // 🔍 ตรวจว่า gid มีในตาราง guide หรือไม่
-    const [guideRows] = await db.execute<RowDataPacket[]>(
-      "SELECT gid FROM guide WHERE gid = ?",
-      [gid]
-    );
-    if (guideRows.length === 0) {
-      return res.status(400).json({ message: "❌ ไม่พบ gid ในระบบ guide" });
-    }
-
-    // 🔍 ตรวจว่า cid มีในตาราง customer หรือไม่
-    const [customerRows] = await db.execute<RowDataPacket[]>(
-      "SELECT cid FROM customer WHERE cid = ?",
-      [cid]
-    );
-    if (customerRows.length === 0) {
-      return res.status(400).json({ message: "❌ ไม่พบ cid ในระบบ customer" });
-    }
-
-    // 🔍 ตรวจว่า location_id มีในตาราง location หรือไม่
-    const [locationRows] = await db.execute<RowDataPacket[]>(
-      "SELECT location_id FROM location WHERE location_id = ?",
-      [location_id]
-    );
-    if (locationRows.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "❌ ไม่พบ location_id ในระบบ location" });
-    }
-
-    // ✅ บันทึกข้อมูลลงฐานข้อมูล
-    const [result] = await db.execute<ResultSetHeader>(
+    // insert booking database 
+    const [result]: any = await db.query(
       `INSERT INTO booking 
       (gid, cid, location_id, people, start_date, end_date, status, total_price)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [gid, cid, location_id, people, start_date, end_date, status, total_price]
     );
 
-    res.json({
-      message: "✅ เพิ่มข้อมูล Booking สำเร็จ",
+    return res.json({
+      message: "เพิ่มข้อมูล Booking สำเร็จ",
       booking_id: result.insertId,
       data: {
         gid,
@@ -134,9 +141,13 @@ router.post("/booking", async (req: Request, res: Response) => {
         total_price,
       },
     });
-  } catch (err: any) {
-    console.error("Error in POST /booking:", err);
-    res.status(500).json({ message: "❌ Server Error", error: err.message });
+  } catch (error: any) {
+    console.error("POST /booking error:", error);
+
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
   }
 });
 

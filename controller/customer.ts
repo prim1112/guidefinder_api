@@ -9,7 +9,6 @@ import { RowDataPacket, ResultSetHeader } from "mysql2";
 export const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ✅ ฟังก์ชันอัปโหลดภาพขึ้น Cloudinary
 const uploadToCloudinary = (buffer: Buffer, folder: string) =>
   new Promise<any>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -30,82 +29,108 @@ router.get("/test-cloudinary", (req, res) => {
   });
 });
 
-// ✅ ดึงข้อมูลลูกค้าทั้งหมด
-router.get("/customers", (req: Request, res: Response) => {
-  const sql = "SELECT * FROM customers";
-  db.query(sql, (err: any, rows: any[]) => {
-    if (err) return handleResponse(res, err);
-    const sanitizedRows = rows.map((row) => {
-      const { password, ...sanitized } = row;
-      return sanitized;
+// get all customers
+router.get("/customers", async (req: Request, res: Response) => {
+  try {
+    const [rows]: any = await db.query("SELECT * FROM customers");
+
+    const customers = rows.map(({ password, ...rest }: any) => rest);
+
+    return res.json({
+      message: "ดึงข้อมูล Customers สำเร็จ",
+      count: customers.length,
+      data: customers,
     });
-    handleResponse(res, null, sanitizedRows);
-  });
+  } catch (error: any) {
+    console.error("GET /customers error:", error);
+
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
 });
 
-// ✅ Register Customer
+
+// register customers
 router.post(
   "/register_customers",
   upload.single("cus_imageprofile"),
   async (req: Request, res: Response) => {
     const { cus_name, cus_phonenumber, cus_email, cus_password } = req.body;
-    let cus_imageprofile = " ";
 
     try {
-      // 🔍 ตรวจเบอร์ซ้ำ
-      const [phoneRows] = await db.execute<RowDataPacket[]>(
-        "SELECT cus_phonenumber FROM customers WHERE cus_phonenumber = ?",
-        [cus_phonenumber],
-      );
-      if (phoneRows.length > 0) {
-        return res
-          .status(400)
-          .json({ message: "❌ เบอร์โทรนี้มีอยู่ในระบบแล้ว" });
-      }
-
-      // 🔍 ตรวจอีเมลซ้ำในทั้ง customer และ guide
-      const [emailRows] = await db.execute<RowDataPacket[]>(
-        `SELECT cus_email FROM customer WHERE cus_email = ?`,
-
-        [cus_email, cus_email],
-      );
-
-      if (emailRows.length > 0) {
+      // validate
+      if (!cus_email || !cus_password || !cus_phonenumber) {
         return res.status(400).json({
-          message: "❌ อีเมลนี้ถูกใช้งานแล้ว",
+          message: "กรุณากรอก email, password และเบอร์โทร",
         });
       }
 
-      // ✅ เข้ารหัสรหัสผ่านก่อนบันทึก
+      const email = cus_email.toLowerCase();
+
+      // check phone 
+      const [phoneRows]: any = await db.query(
+        "SELECT cus_phonenumber FROM customers WHERE cus_phonenumber = ?",
+        [cus_phonenumber]
+      );
+
+      if (phoneRows.length) {
+        return res.status(400).json({
+          message: "เบอร์โทรนี้มีอยู่ในระบบแล้ว",
+        });
+      }
+
+      // check email
+      const [emailRows]: any = await db.query(
+        "SELECT cus_email FROM customers WHERE cus_email = ?",
+        [email]
+      );
+
+      if (emailRows.length) {
+        return res.status(400).json({
+          message: "อีเมลนี้ถูกใช้งานแล้ว",
+        });
+      }
+
+      //hash password
       const hashedPassword = await bcrypt.hash(cus_password, 10);
 
-      // ✅ อัปโหลดรูป (เฉพาะถ้าไม่ซ้ำ)
-      if (req.file && req.file.buffer) {
+      // upload image
+      let cus_imageprofile: string | null = null;
+
+      if (req.file?.buffer) {
         const result = await uploadToCloudinary(req.file.buffer, "customers");
         cus_imageprofile = result.secure_url;
       }
 
-      // ✅ บันทึกลงฐานข้อมูล
-      const [insertResult] = await db.execute<ResultSetHeader>(
-        "INSERT INTO customerห (cus_name, cus_phonenumber, cus_email, cus_imageprofile, hashedPassword) VALUES (?, ?, ?, ?, ?)",
+      //insert
+      const [result]: any = await db.query(
+        `INSERT INTO customers 
+        (cus_name, cus_phonenumber, cus_email, cus_password, cus_imageprofile)
+        VALUES (?, ?, ?, ?, ?)`,
         [
-          cus_name,
+          cus_name || null,
           cus_phonenumber,
-          cus_email,
-          cus_imageprofile,
+          email,
           hashedPassword,
-        ],
+          cus_imageprofile,
+        ]
       );
 
-      res.json({
-        message: "✅ สมัครสมาชิกสำเร็จ",
-        id: insertResult.insertId,
+      return res.status(201).json({
+        message: "สมัครสมาชิกสำเร็จ",
+        cid: result.insertId,
       });
-    } catch (err: any) {
-      console.error("Error in register:", err);
-      res.status(500).json({ message: "❌ Server Error", error: err.message });
+    } catch (error: any) {
+      console.error("POST /register_customers error:", error);
+
+      return res.status(500).json({
+        message: "Server Error",
+        error: error.message,
+      });
     }
-  },
+  }
 );
 
 // // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
