@@ -1,3 +1,4 @@
+// ❌ ไม่ใช้แล้ว (hardcode key อันตราย + ไม่ใช้ .env)
 // import { v2 as cloudinary } from "cloudinary";
 
 // cloudinary.config({
@@ -7,18 +8,21 @@
 // });
 
 // export default cloudinary;
+
+
 import { v2 as cloudinary } from "cloudinary";
 import dotenv from "dotenv";
 
-// โหลด .env เฉพาะตอนรันในเครื่อง (Render ไม่ต้อง)
+// ❌ ไม่ต้องเช็ค production แล้ว (ทำให้ env ไม่โหลด)
 // if (process.env.NODE_ENV !== "production") {
 //   dotenv.config();
 // }
 
-//โหลดตลอดไม่ต้องเช็ค
+// ✅ ใช้อันนี้ตัวเดียว โหลด .env ตลอด
 dotenv.config();
 
-// ใช้ชื่อ Key ตามที่ตั้งใน Render
+
+// ✅ ใช้ค่าจาก .env เท่านั้น
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME as string,
   api_key: process.env.CLOUDINARY_API_KEY as string,
@@ -26,10 +30,13 @@ cloudinary.config({
   secure: true,
 });
 
-console.log("🧩 Render Cloudinary Config:", {
+
+// ✅ log เช็ค (เอาไว้ debug)
+console.log("🧩 Cloudinary Config:", {
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY ? "✅ Loaded" : "❌ Missing",
   api_secret: process.env.CLOUDINARY_API_SECRET ? "✅ Loaded" : "❌ Missing",
 });
+
 
 export default cloudinary;
