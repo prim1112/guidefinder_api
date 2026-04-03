@@ -11,9 +11,12 @@ import { v2 as cloudinary } from "cloudinary";
 import dotenv from "dotenv";
 
 // โหลด .env เฉพาะตอนรันในเครื่อง (Render ไม่ต้อง)
-if (process.env.NODE_ENV !== "production") {
-  dotenv.config();
-}
+// if (process.env.NODE_ENV !== "production") {
+//   dotenv.config();
+// }
+
+//โหลดตลอดไม่ต้องเช็ค
+dotenv.config();
 
 // ใช้ชื่อ Key ตามที่ตั้งใน Render
 cloudinary.config({
