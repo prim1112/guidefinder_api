@@ -2,9 +2,9 @@ import { Request, Response, Router } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
 import bcrypt from "bcrypt";
-import cloudinary from "../src/config/configCloud";
 import db from "../db/dbconnect";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
+import cloudinary from "../src/config/configCloud";
 
 export const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
