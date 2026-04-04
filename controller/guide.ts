@@ -87,7 +87,6 @@ router.post(
 
       const files = req.files as any;
 
-      //upload image
       const uploadImage = async (file: any, path: string) => {
         if (!file) return null;
         const result = await uploadToCloudinary(file.buffer, path);
@@ -108,14 +107,13 @@ router.post(
         "guides/business"
       );
 
-      //hash password
       const hashedPassword = await bcrypt.hash(guides_password, 10);
 
-      // insert
+      // --- จุดที่แก้ไข: ปรับลำดับคอลัมน์ให้ตรงกับที่ระบุมา ---
       const [result]: any = await db.query(
         `INSERT INTO guides 
         (guides_name, guides_phonenumber, guides_email, guides_password, 
-        guides_facebook, guides_language, guides_imageprofile, guides_imagelicense, 
+        guides_language, guides_facebook, guides_imageprofile, guides_imagelicense, 
         guides_image_business_license, guides_province, guides_maxcus, guides_pricepercusperday, guides_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -123,10 +121,10 @@ router.post(
           guides_phonenumber,
           guides_email,
           hashedPassword,
-          guides_facebook || null,
-          guides_language || null,
+          guides_language || null,          // สลับลำดับให้ตรงกับที่ระบุ
+          guides_facebook || null,          // สลับลำดับให้ตรงกับที่ระบุ
           imageGuideUrl,
-          guideLicenseUrl,
+          guideLicenseUrl,                  // ตรวจสอบว่าใน DB ชื่อคอลัมน์นี้เป๊ะๆ หรือไม่
           businessLicenseUrl,
           guides_province || null,
           guides_maxcus ?? 0,
@@ -141,7 +139,6 @@ router.post(
       });
     } catch (error: any) {
       console.error("POST /register_guides error:", error);
-
       return res.status(500).json({
         message: "Server Error",
         error: error.message,
