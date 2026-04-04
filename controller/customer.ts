@@ -7,6 +7,7 @@ import { RowDataPacket, ResultSetHeader } from "mysql2";
 import cloudinary from "../src/config/configCloud";
 
 
+
 export const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
