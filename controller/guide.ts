@@ -66,50 +66,41 @@ router.post(
     } = req.body;
 
     try {
-      // 🔍 validate
+      // 🔍 1. Validate ข้อมูลพื้นฐาน
       if (!guides_email || !guides_password || !guides_phonenumber) {
-        return res.status(400).json({
-          message: "กรุณากรอก email, password และเบอร์โทร",
-        });
+        return res.status(400).json({ message: "กรุณากรอก email, password และเบอร์โทร" });
       }
 
-      // 🔍 check duplicate
+      // 🔍 2. Check อีเมล/เบอร์โทรซ้ำ
       const [existing]: any = await db.query(
         "SELECT guides_email FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
         [guides_email, guides_phonenumber]
       );
 
       if (existing.length) {
-        return res.status(400).json({
-          message: "อีเมลหรือเบอร์โทรนี้มีในระบบแล้ว",
-        });
+        return res.status(400).json({ message: "อีเมลหรือเบอร์โทรนี้มีในระบบแล้ว" });
       }
 
       const files = req.files as any;
 
+      // ฟังก์ชันช่วยอัปโหลดรูป
       const uploadImage = async (file: any, path: string) => {
         if (!file) return null;
         const result = await uploadToCloudinary(file.buffer, path);
         return result.secure_url;
       };
 
-      const imageGuideUrl =
-        (await uploadImage(files?.guides_imageprofile?.[0], "guides/profile")) ||
+      // 🔍 3. อัปโหลดรูปภาพไปยัง Cloudinary
+      const imageGuideUrl = (await uploadImage(files?.guides_imageprofile?.[0], "guides/profile")) || 
         "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
 
-      const guideLicenseUrl = await uploadImage(
-        files?.guides_imagelicense?.[0],
-        "guides/licenses"
-      );
+      const guideLicenseUrl = await uploadImage(files?.guides_imagelicense?.[0], "guides/licenses");
+      const businessLicenseUrl = await uploadImage(files?.guides_image_business_license?.[0], "guides/business");
 
-      const businessLicenseUrl = await uploadImage(
-        files?.guides_image_business_license?.[0],
-        "guides/business"
-      );
-
+      // 🔍 4. Hash Password
       const hashedPassword = await bcrypt.hash(guides_password, 10);
 
-      // --- จุดที่แก้ไข: ปรับลำดับคอลัมน์ให้ตรงกับที่ระบุมา ---
+      // 🔍 5. Insert ลง Database (ตรวจสอบชื่อ Column ให้ตรงเป๊ะ!)
       const [result]: any = await db.query(
         `INSERT INTO guides 
         (guides_name, guides_phonenumber, guides_email, guides_password, 
@@ -121,15 +112,15 @@ router.post(
           guides_phonenumber,
           guides_email,
           hashedPassword,
-          guides_language || null,          // สลับลำดับให้ตรงกับที่ระบุ
-          guides_facebook || null,          // สลับลำดับให้ตรงกับที่ระบุ
+          guides_language || null,
+          guides_facebook || null,
           imageGuideUrl,
-          guideLicenseUrl,                  // ตรวจสอบว่าใน DB ชื่อคอลัมน์นี้เป๊ะๆ หรือไม่
+          guideLicenseUrl,      // ตรวจสอบใน DB ว่าชื่อ guides_imagelicense (ตัว s) หรือไม่
           businessLicenseUrl,
           guides_province || null,
           guides_maxcus ?? 0,
           guides_pricepercusperday ?? 0,
-          0,
+          0, // guides_status เริ่มต้นที่ 0 (รออนุมัติ)
         ]
       );
 
@@ -139,10 +130,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("POST /register_guides error:", error);
-      return res.status(500).json({
-        message: "Server Error",
-        error: error.message,
-      });
+      return res.status(500).json({ message: "Server Error", error: error.message });
     }
   }
 );
