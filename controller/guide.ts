@@ -67,22 +67,15 @@ router.post(
 
       const files = req.files as any;
 
-      // 🔍 1. บังคับกรอกข้อมูลทุกช่อง (Validation)
-      if (
-        !guides_name || !guides_phonenumber || !guides_email || !guides_password ||
-        !guides_language || !guides_facebook || !guides_province ||
-        !guides_maxcus || !guides_pricepercusperday
-      ) {
-        return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบทุกช่อง" });
+      // 🔍 1. Validation: เช็กข้อมูล Text (ห้ามว่าง)
+      if (!guides_name || !guides_phonenumber || !guides_email || !guides_password || 
+          !guides_province || !guides_maxcus || !guides_pricepercusperday) {
+        return res.status(400).json({ message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน" });
       }
 
-      // 🔍 2. บังคับอัปโหลดรูปภาพครบทั้ง 3 รูป
-      if (
-        !files?.guides_imageprofile?.[0] || 
-        !files?.guides_imagelicense?.[0] || 
-        !files?.guides_image_business_license?.[0]
-      ) {
-        return res.status(400).json({ message: "กรุณาอัปโหลดรูปภาพให้ครบทั้ง 3 รายการ" });
+      // 🔍 2. Validation: เช็กไฟล์ (บังคับใบอนุญาต 2 ใบ ส่วนรูปโปรไฟล์ถ้าไม่มีใช้ Default)
+      if (!files?.guides_imagelicense?.[0] || !files?.guides_image_business_license?.[0]) {
+        return res.status(400).json({ message: "กรุณาอัปโหลดใบอนุญาตให้ครบถ้วน" });
       }
 
       // 🔍 3. Check อีเมล/เบอร์โทรซ้ำ
@@ -90,29 +83,28 @@ router.post(
         "SELECT guides_email FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
         [guides_email, guides_phonenumber]
       );
-
       if (existing.length) {
         return res.status(400).json({ message: "อีเมลหรือเบอร์โทรนี้มีในระบบแล้ว" });
       }
 
-      // ฟังก์ชันช่วยอัปโหลดรูป (ถ้าพลาดให้ throw error เพื่อเข้า catch ใหญ่)
+      // ฟังก์ชันช่วยอัปโหลด
       const uploadImage = async (file: any, folderPath: string) => {
         const result = await uploadToCloudinary(file.buffer, folderPath);
-        if (!result || !result.secure_url) {
-          throw new Error(`Failed to upload image to ${folderPath}`);
-        }
         return result.secure_url;
       };
 
-      // 🔍 4. อัปโหลดรูปภาพ (ถ้ามีอันไหนพลาด ระบบจะเด้งไป catch ด้านล่างทันที)
-      const imageGuideUrl = await uploadImage(files.guides_imageprofile[0], "guides/profile");
+      // 🔍 4. ดำเนินการอัปโหลด
+      const imageGuideUrl = files?.guides_imageprofile?.[0] 
+        ? await uploadImage(files.guides_imageprofile[0], "guides/profile")
+        : "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
+
       const guideLicenseUrl = await uploadImage(files.guides_imagelicense[0], "guides/licenses");
       const businessLicenseUrl = await uploadImage(files.guides_image_business_license[0], "guides/business");
 
       // 🔍 5. Hash Password
       const hashedPassword = await bcrypt.hash(guides_password, 10);
 
-      // 🔍 6. Insert ลง Database
+      // 🔍 6. Insert ลง Database (ใช้ค่าที่ผ่านการตรวจสอบแล้ว)
       const sql = `
         INSERT INTO guides 
         (
@@ -127,31 +119,26 @@ router.post(
         guides_phonenumber,
         guides_email,
         hashedPassword,
-        guides_language,
-        guides_facebook,
+        guides_language || "",
+        guides_facebook || "",
         imageGuideUrl,
         guideLicenseUrl,      
         businessLicenseUrl,
         guides_province,
-        Number(guides_maxcus),
-        Number(guides_pricepercusperday),
-        0 // guides_status
+        Number(guides_maxcus) || 0,
+        Number(guides_pricepercusperday) || 0,
+        0 // guides_status: 0 (Pending)
       ];
 
       const [result]: any = await db.query(sql, values);
-
-      return res.status(201).json({
-        message: "ลงทะเบียนสำเร็จ! รอการอนุมัติ",
-        gid: result.insertId,
-      });
+      return res.status(201).json({ message: "ลงทะเบียนสำเร็จ! รอการอนุมัติ", gid: result.insertId });
 
     } catch (error: any) {
       console.error("POST /register_guides error:", error);
-      
-      // ถ้า Error มาจาก Cloudinary หรือ Database จะถูกส่งกลับที่นี่
       return res.status(500).json({ 
-        message: "เกิดข้อผิดพลาดภายในระบบ", 
-        error: error.message 
+        message: "Server Error", 
+        error: error.message,
+        sqlError: error.sqlMessage // เพิ่มเพื่อให้รู้ว่า DB พังเพราะ Field ไหน
       });
     }
   }
