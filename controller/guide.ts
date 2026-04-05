@@ -123,7 +123,7 @@ router.post(
         guides_language || null,
         guides_facebook || null,
         imageGuideUrl,
-        guideLicenseUrl || null,      // ต้องมั่นใจว่าใน DB คอลัมน์นี้ยอมรับ NULL ได้
+        guideLicenseUrl || null,      
         businessLicenseUrl || null,
         guides_province || null,
         guides_maxcus || 0,
