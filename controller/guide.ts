@@ -52,25 +52,40 @@ router.post(
     { name: "guides_image_business_license", maxCount: 1 },
   ]),
   async (req: Request, res: Response) => {
-    const {
-      guides_name,
-      guides_phonenumber,
-      guides_email,
-      guides_password,
-      guides_facebook,
-      guides_language,
-      guides_maxcus,
-      guides_pricepercusperday,
-      guides_province,
-    } = req.body;
-
     try {
-      // 🔍 1. Validate ข้อมูลพื้นฐาน
-      if (!guides_email || !guides_password || !guides_phonenumber) {
-        return res.status(400).json({ message: "กรุณากรอก email, password และเบอร์โทร" });
+      const {
+        guides_name,
+        guides_phonenumber,
+        guides_email,
+        guides_password,
+        guides_facebook,
+        guides_language,
+        guides_maxcus,
+        guides_pricepercusperday,
+        guides_province,
+      } = req.body;
+
+      const files = req.files as any;
+
+      // 🔍 1. บังคับกรอกข้อมูลทุกช่อง (Validation)
+      if (
+        !guides_name || !guides_phonenumber || !guides_email || !guides_password ||
+        !guides_language || !guides_facebook || !guides_province ||
+        !guides_maxcus || !guides_pricepercusperday
+      ) {
+        return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบทุกช่อง" });
       }
 
-      // 🔍 2. Check อีเมล/เบอร์โทรซ้ำ
+      // 🔍 2. บังคับอัปโหลดรูปภาพครบทั้ง 3 รูป
+      if (
+        !files?.guides_imageprofile?.[0] || 
+        !files?.guides_imagelicense?.[0] || 
+        !files?.guides_image_business_license?.[0]
+      ) {
+        return res.status(400).json({ message: "กรุณาอัปโหลดรูปภาพให้ครบทั้ง 3 รายการ" });
+      }
+
+      // 🔍 3. Check อีเมล/เบอร์โทรซ้ำ
       const [existing]: any = await db.query(
         "SELECT guides_email FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
         [guides_email, guides_phonenumber]
@@ -80,32 +95,24 @@ router.post(
         return res.status(400).json({ message: "อีเมลหรือเบอร์โทรนี้มีในระบบแล้ว" });
       }
 
-      const files = req.files as any;
-
-      // ฟังก์ชันช่วยอัปโหลดรูป (ปรับให้รองรับ Error ภายใน)
+      // ฟังก์ชันช่วยอัปโหลดรูป (ถ้าพลาดให้ throw error เพื่อเข้า catch ใหญ่)
       const uploadImage = async (file: any, folderPath: string) => {
-        if (!file) return null;
-        try {
-          const result = await uploadToCloudinary(file.buffer, folderPath);
-          return result.secure_url;
-        } catch (err) {
-          console.error(`Cloudinary Upload Error (${folderPath}):`, err);
-          return null;
+        const result = await uploadToCloudinary(file.buffer, folderPath);
+        if (!result || !result.secure_url) {
+          throw new Error(`Failed to upload image to ${folderPath}`);
         }
+        return result.secure_url;
       };
 
-      // 🔍 3. อัปโหลดรูปภาพไปยัง Cloudinary
-      const imageGuideUrl = (await uploadImage(files?.guides_imageprofile?.[0], "guides/profile")) || 
-        "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
+      // 🔍 4. อัปโหลดรูปภาพ (ถ้ามีอันไหนพลาด ระบบจะเด้งไป catch ด้านล่างทันที)
+      const imageGuideUrl = await uploadImage(files.guides_imageprofile[0], "guides/profile");
+      const guideLicenseUrl = await uploadImage(files.guides_imagelicense[0], "guides/licenses");
+      const businessLicenseUrl = await uploadImage(files.guides_image_business_license[0], "guides/business");
 
-      const guideLicenseUrl = await uploadImage(files?.guides_imagelicense?.[0], "guides/licenses");
-      const businessLicenseUrl = await uploadImage(files?.guides_image_business_license?.[0], "guides/business");
-
-      // 🔍 4. Hash Password
+      // 🔍 5. Hash Password
       const hashedPassword = await bcrypt.hash(guides_password, 10);
 
-      // 🔍 5. Insert ลง Database
-      // ใช้ Backtick (`) ครอบชื่อคอลัมน์ทุุกตัวเพื่อป้องกัน Unknown Column Error
+      // 🔍 6. Insert ลง Database
       const sql = `
         INSERT INTO guides 
         (
@@ -116,18 +123,18 @@ router.post(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
       const values = [
-        guides_name || null,
+        guides_name,
         guides_phonenumber,
         guides_email,
         hashedPassword,
-        guides_language || null,
-        guides_facebook || null,
+        guides_language,
+        guides_facebook,
         imageGuideUrl,
-        guideLicenseUrl || null,      
-        businessLicenseUrl || null,
-        guides_province || null,
-        guides_maxcus || 0,
-        guides_pricepercusperday || 0,
+        guideLicenseUrl,      
+        businessLicenseUrl,
+        guides_province,
+        Number(guides_maxcus),
+        Number(guides_pricepercusperday),
         0 // guides_status
       ];
 
@@ -140,11 +147,11 @@ router.post(
 
     } catch (error: any) {
       console.error("POST /register_guides error:", error);
-      // ส่ง Error Message ที่ละเอียดขึ้นกลับไปเพื่อ Debug
+      
+      // ถ้า Error มาจาก Cloudinary หรือ Database จะถูกส่งกลับที่นี่
       return res.status(500).json({ 
-        message: "Server Error", 
-        error: error.message,
-        sqlMessage: error.sqlMessage // จะช่วยให้เห็นว่าฟิลด์ไหนที่ DB ปฏิเสธ
+        message: "เกิดข้อผิดพลาดภายในระบบ", 
+        error: error.message 
       });
     }
   }
