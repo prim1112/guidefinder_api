@@ -24,105 +24,93 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
 // ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 router.post(
   "/location",
-  upload.single("location_images"), // เปลี่ยนชื่อ key รูปภาพให้สื่อความหมาย
+  upload.single("location_images"), 
   async (req: Request, res: Response) => {
-    const {
-      location_name,
-      location_province,
-      location_district,
-      location_subdistrict,
-      location_lat,
-      location_long,
-      type_id,
-      // เพิ่มฟิลด์อื่นๆ ที่จำเป็น เช่น address หรือ zip_code ถ้าใน DB ยังต้องใช้
-    } = req.body;
-
-    let imageUrl = "";
-
     try {
+      const {
+        location_name,
+        location_province,
+        location_district,
+        location_subdistrict,
+        location_lat,
+        location_long,
+        type_id,
+      } = req.body;
+
       // 🔍 1. ตรวจสอบค่าที่จำเป็น (Validation)
-      if (
-        !location_name ||
-        !location_province ||
-        !location_district ||
-        !location_subdistrict ||
-        !type_id
-      ) {
-        return res
-          .status(400)
-          .json({ message: "❌ กรุณากรอกข้อมูลหลักให้ครบถ้วน" });
+      if (!location_name || !location_province || !location_district || !location_subdistrict || !type_id) {
+        return res.status(400).json({ message: "❌ กรุณากรอกข้อมูลหลักให้ครบถ้วน" });
       }
 
-      // 🔍 2. ตรวจสอบชื่อสถานที่ซ้ำ (ใช้ชื่อฟิลด์ใหม่: location_name)
-      const [nameRows] = await db.execute<RowDataPacket[]>(
+      // 🔍 2. ตรวจสอบชื่อสถานที่ซ้ำ
+      const [nameRows]: any = await db.execute(
         "SELECT location_name FROM location WHERE LOWER(location_name) = LOWER(?)",
         [location_name]
       );
 
       if (nameRows.length > 0) {
-        return res.status(400).json({
-          message: "❌ ชื่อสถานที่นี้มีอยู่ในระบบแล้ว",
-        });
+        return res.status(400).json({ message: "❌ ชื่อสถานที่นี้มีอยู่ในระบบแล้ว" });
       }
 
-      // 🔍 3. ตรวจสอบ type_id
-      const [typeRows] = await db.execute<RowDataPacket[]>(
+      // 🔍 3. ตรวจสอบ type_id ว่ามีในตาราง locationtype จริงไหม
+      const [typeRows]: any = await db.execute(
         "SELECT type_id FROM locationtype WHERE type_id = ?",
         [type_id]
       );
       if (typeRows.length === 0) {
-        return res
-          .status(400)
-          .json({ message: "❌ ประเภทสถานที่ (type_id) ไม่ถูกต้อง" });
+        return res.status(400).json({ message: "❌ type_id นี้ไม่มีอยู่ในระบบ" });
       }
 
-      // ✅ 4. อัปโหลดรูปขึ้น Cloudinary
-      if (req.file && req.file.buffer) {
-        const result = await uploadToCloudinary(req.file.buffer, "locations");
-        imageUrl = result.secure_url;
+      // ✅ 4. จัดการเรื่องรูปภาพ (Cloudinary)
+      let imageUrl = "";
+      if (req.file) {
+        try {
+          const result = await uploadToCloudinary(req.file.buffer, "locations");
+          imageUrl = result.secure_url;
+        } catch (uploadErr) {
+          console.error("Cloudinary Upload Error:", uploadErr);
+          return res.status(500).json({ message: "❌ เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ" });
+        }
       }
 
-      // ✅ 5. บันทึกข้อมูลลงฐานข้อมูล (ใช้ชื่อ Column ตามที่คุณให้มา)
-      const [result] = await db.execute<ResultSetHeader>(
-        `INSERT INTO location (
+      // ✅ 5. บันทึกข้อมูล (ตรวจสอบชื่อ Column ใน DB ของคุณให้ตรงเป๊ะ)
+      // หมายเหตุ: ผมใส่ชื่อ column ตามที่คุณพิมพ์มาให้ล่าสุด
+      const sql = `INSERT INTO location (
           location_name, 
-          location_images, 
+          location_imges, 
           location_province, 
           location_district, 
           location_subdistrict, 
           location_lat, 
           location_long, 
           type_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          location_name,
-          imageUrl,
-          location_province,
-          location_district,
-          location_subdistrict,
-          location_lat || null, // ถ้าไม่มีให้เป็น null
-          location_long || null,
-          type_id,
-        ]
-      );
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 
-      res.status(201).json({
+      const [result]: any = await db.execute(sql, [
+        location_name,
+        imageUrl || null,
+        location_province,
+        location_district,
+        location_subdistrict,
+        location_lat || null,
+        location_long || null,
+        type_id,
+      ]);
+
+      return res.status(201).json({
         message: "✅ เพิ่มข้อมูล Location สำเร็จ",
         location_id: result.insertId,
-        data: {
-          location_name,
-          location_images: imageUrl,
-          location_province,
-          location_district,
-          location_subdistrict,
-          location_lat,
-          location_long,
-          type_id
-        },
+        data: { location_name, imageUrl }
       });
+
     } catch (err: any) {
-      console.error("Error in POST /location:", err);
-      res.status(500).json({ message: "❌ Server Error", error: err.message });
+      // 🚩 จุดนี้จะบอกเราว่าทำไมถึง 500
+      console.error("--- ERROR LOG ---");
+      console.error(err); 
+      return res.status(500).json({ 
+        message: "❌ Server Error", 
+        error: err.message 
+      });
     }
   }
 );
