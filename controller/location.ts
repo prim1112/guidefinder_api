@@ -24,48 +24,48 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
 // ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 router.post(
   "/location",
-  upload.single("image"),
+  upload.single("location_images"), // เปลี่ยนชื่อ key รูปภาพให้สื่อความหมาย
   async (req: Request, res: Response) => {
     const {
-      name,
-      address,
-      subdistrict,
-      district,
-      province,
-      zip_code,
+      location_name,
+      location_province,
+      location_district,
+      location_subdistrict,
+      location_lat,
+      location_long,
       type_id,
+      // เพิ่มฟิลด์อื่นๆ ที่จำเป็น เช่น address หรือ zip_code ถ้าใน DB ยังต้องใช้
     } = req.body;
+
     let imageUrl = "";
 
     try {
-      // 🔍 ตรวจสอบค่าที่จำเป็น
+      // 🔍 1. ตรวจสอบค่าที่จำเป็น (Validation)
       if (
-        !name ||
-        !address ||
-        !subdistrict ||
-        !district ||
-        !province ||
-        !zip_code ||
+        !location_name ||
+        !location_province ||
+        !location_district ||
+        !location_subdistrict ||
         !type_id
       ) {
         return res
           .status(400)
-          .json({ message: "❌ กรุณากรอกข้อมูลให้ครบทุกช่อง" });
+          .json({ message: "❌ กรุณากรอกข้อมูลหลักให้ครบถ้วน" });
       }
 
-      // 🔍 ตรวจสอบว่าชื่อสถานที่ซ้ำหรือไม่ (ไม่สนตัวพิมพ์)
+      // 🔍 2. ตรวจสอบชื่อสถานที่ซ้ำ (ใช้ชื่อฟิลด์ใหม่: location_name)
       const [nameRows] = await db.execute<RowDataPacket[]>(
-        "SELECT name FROM location WHERE LOWER(name) = LOWER(?)",
-        [name]
+        "SELECT location_name FROM location WHERE LOWER(location_name) = LOWER(?)",
+        [location_name]
       );
 
       if (nameRows.length > 0) {
         return res.status(400).json({
-          message: "❌ ชื่อสถานที่นี้มีอยู่ในระบบแล้ว (ห้ามชื่อซ้ำ)",
+          message: "❌ ชื่อสถานที่นี้มีอยู่ในระบบแล้ว",
         });
       }
 
-      // 🔍 ตรวจสอบว่า type_id มีอยู่ในตาราง LocationType หรือไม่
+      // 🔍 3. ตรวจสอบ type_id
       const [typeRows] = await db.execute<RowDataPacket[]>(
         "SELECT type_id FROM locationtype WHERE type_id = ?",
         [type_id]
@@ -73,43 +73,51 @@ router.post(
       if (typeRows.length === 0) {
         return res
           .status(400)
-          .json({ message: "❌ type_id ไม่ถูกต้อง หรือไม่มีอยู่ในระบบ" });
+          .json({ message: "❌ ประเภทสถานที่ (type_id) ไม่ถูกต้อง" });
       }
 
-      // ✅ อัปโหลดรูปขึ้น Cloudinary
+      // ✅ 4. อัปโหลดรูปขึ้น Cloudinary
       if (req.file && req.file.buffer) {
         const result = await uploadToCloudinary(req.file.buffer, "locations");
         imageUrl = result.secure_url;
       }
 
-      // ✅ บันทึกข้อมูลลงฐานข้อมูล
+      // ✅ 5. บันทึกข้อมูลลงฐานข้อมูล (ใช้ชื่อ Column ตามที่คุณให้มา)
       const [result] = await db.execute<ResultSetHeader>(
-        `INSERT INTO location (name, address, subdistrict, district, province, zip_code, image, type_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO location (
+          location_name, 
+          location_images, 
+          location_province, 
+          location_district, 
+          location_subdistrict, 
+          location_lat, 
+          location_long, 
+          type_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          name,
-          address,
-          subdistrict,
-          district,
-          province,
-          zip_code,
+          location_name,
           imageUrl,
+          location_province,
+          location_district,
+          location_subdistrict,
+          location_lat || null, // ถ้าไม่มีให้เป็น null
+          location_long || null,
           type_id,
         ]
       );
 
-      res.json({
+      res.status(201).json({
         message: "✅ เพิ่มข้อมูล Location สำเร็จ",
         location_id: result.insertId,
         data: {
-          name,
-          address,
-          subdistrict,
-          district,
-          province,
-          zip_code,
-          image: imageUrl,
-          type_id,
+          location_name,
+          location_images: imageUrl,
+          location_province,
+          location_district,
+          location_subdistrict,
+          location_lat,
+          location_long,
+          type_id
         },
       });
     } catch (err: any) {
