@@ -24,9 +24,14 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
 // ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 router.post(
   "/location",
-  upload.single("location_images"), // 🚩 ใน Postman ช่อง Key ต้องชื่อ "location_images"
+  upload.single("location_images"), 
   async (req: Request, res: Response) => {
     try {
+      // 🚩 เพิ่ม Log ตรงนี้เพื่อเช็คว่าไฟล์มาไหม (ดูที่ Terminal ของ VS Code)
+      console.log("--- DEBUG START ---");
+      console.log("File received:", req.file); 
+      console.log("Body received:", req.body);
+
       const {
         location_name,
         location_province,
@@ -36,36 +41,28 @@ router.post(
         location_long
       } = req.body;
 
-      // 🔍 1. ตรวจสอบค่าที่จำเป็น (Validation)
       if (!location_name || !location_province || !location_district || !location_subdistrict) {
         return res.status(400).json({ message: "❌ กรุณากรอกข้อมูลสถานที่ให้ครบถ้วน" });
       }
 
-      // 🔍 2. ตรวจสอบชื่อสถานที่ซ้ำ
-      const [nameRows]: any = await db.execute(
-        "SELECT location_name FROM location WHERE LOWER(location_name) = LOWER(?)",
-        [location_name]
-      );
-
-      if (nameRows.length > 0) {
-        return res.status(400).json({ message: "❌ ชื่อสถานที่นี้มีอยู่ในระบบแล้ว" });
-      }
-
-      // ✅ 3. จัดการรูปภาพ (Cloudinary)
-      let imageUrl: string | null = null; // เริ่มต้นเป็น null
+      // ✅ 3. จัดการรูปภาพ (ปรับปรุงการเช็ค)
+      let imageUrl: string | null = null;
 
       if (req.file) {
         try {
           const result = await uploadToCloudinary(req.file.buffer, "locations");
           imageUrl = result.secure_url;
+          console.log("Cloudinary Upload Success:", imageUrl);
         } catch (uploadErr: any) {
           console.error("Cloudinary Error:", uploadErr);
-          return res.status(500).json({ message: "❌ เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ", error: uploadErr.message });
+          return res.status(500).json({ message: "❌ พังที่ Cloudinary", error: uploadErr.message });
         }
+      } else {
+        // 🚩 ถ้าเลือกรูปใน Postman แล้วแต่ยังตกมาที่นี่ แสดงว่าชื่อ Key ใน Postman ผิด!
+        console.log("No file found in req.file");
       }
 
-      // ✅ 4. บันทึกข้อมูลลง Database
-      // ใช้ชื่อ "location_imges" ตามโครงสร้าง DB ของคุณ
+      // ✅ 4. บันทึกข้อมูล
       const sql = `INSERT INTO location (
           location_name, 
           location_imges, 
@@ -78,7 +75,7 @@ router.post(
 
       const [result]: any = await db.execute(sql, [
         location_name,
-        imageUrl, // จะเป็น Link หรือ null ขึ้นอยู่กับว่าส่งรูปมาไหม
+        imageUrl, 
         location_province,
         location_district,
         location_subdistrict,
@@ -89,20 +86,15 @@ router.post(
       return res.status(201).json({
         message: "✅ เพิ่มข้อมูล Location สำเร็จ",
         location_id: result.insertId,
-        data: {
-          location_name,
-          location_imges: imageUrl,
-          location_province
-        }
+        imageUrl: imageUrl
       });
 
     } catch (err: any) {
-      console.error("DEBUG ERROR:", err);
-      // ส่งรายละเอียด error กลับไปให้ Postman ดูเพื่อความชัดเจน
+      console.error("SQL or System Error:", err);
       return res.status(500).json({ 
         message: "❌ Server Error", 
         error: err.message,
-        sqlMessage: err.sqlMessage || null
+        sqlMessage: err.sqlMessage
       });
     }
   }
