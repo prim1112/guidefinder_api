@@ -24,7 +24,7 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
 // ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 router.post(
   "/location",
-  upload.single("location_images"), // ชื่อ Key ใน Postman ที่ใช้แนบไฟล์รูป
+  upload.single("location_images"), // 🚩 ใน Postman ช่อง Key ต้องชื่อ "location_images"
   async (req: Request, res: Response) => {
     try {
       const {
@@ -36,8 +36,7 @@ router.post(
         location_long
       } = req.body;
 
-      // 🔍 1. ตรวจสอบค่าที่จำเป็น (Validation) 
-      // ตัด type_id ออกจากการเช็ค
+      // 🔍 1. ตรวจสอบค่าที่จำเป็น (Validation)
       if (!location_name || !location_province || !location_district || !location_subdistrict) {
         return res.status(400).json({ message: "❌ กรุณากรอกข้อมูลสถานที่ให้ครบถ้วน" });
       }
@@ -53,14 +52,20 @@ router.post(
       }
 
       // ✅ 3. จัดการรูปภาพ (Cloudinary)
-      let imageUrl = "";
+      let imageUrl: string | null = null; // เริ่มต้นเป็น null
+
       if (req.file) {
-        const result = await uploadToCloudinary(req.file.buffer, "locations");
-        imageUrl = result.secure_url;
+        try {
+          const result = await uploadToCloudinary(req.file.buffer, "locations");
+          imageUrl = result.secure_url;
+        } catch (uploadErr: any) {
+          console.error("Cloudinary Error:", uploadErr);
+          return res.status(500).json({ message: "❌ เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ", error: uploadErr.message });
+        }
       }
 
-      // ✅ 4. บันทึกข้อมูล (ใช้ชื่อ Column ตามที่คุณให้มา 8 ตัว)
-      // สังเกต: location_imges (ไม่มีตัว a ตามที่คุณพิมพ์มา)
+      // ✅ 4. บันทึกข้อมูลลง Database
+      // ใช้ชื่อ "location_imges" ตามโครงสร้าง DB ของคุณ
       const sql = `INSERT INTO location (
           location_name, 
           location_imges, 
@@ -73,7 +78,7 @@ router.post(
 
       const [result]: any = await db.execute(sql, [
         location_name,
-        imageUrl || null,
+        imageUrl, // จะเป็น Link หรือ null ขึ้นอยู่กับว่าส่งรูปมาไหม
         location_province,
         location_district,
         location_subdistrict,
@@ -86,16 +91,18 @@ router.post(
         location_id: result.insertId,
         data: {
           location_name,
-          location_province,
-          location_imges: imageUrl
+          location_imges: imageUrl,
+          location_province
         }
       });
 
     } catch (err: any) {
       console.error("DEBUG ERROR:", err);
+      // ส่งรายละเอียด error กลับไปให้ Postman ดูเพื่อความชัดเจน
       return res.status(500).json({ 
         message: "❌ Server Error", 
-        error: err.message 
+        error: err.message,
+        sqlMessage: err.sqlMessage || null
       });
     }
   }
