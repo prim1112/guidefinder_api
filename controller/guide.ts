@@ -46,13 +46,10 @@ router.get("/", async (req: Request, res: Response) => {
 
 router.post(
   "/register_guides",
-  upload.fields([
-    { name: "guides_imageprofile", maxCount: 1 },
-    { name: "guides_imagelicense", maxCount: 1 },
-    { name: "guides_image_business_license", maxCount: 1 },
-  ]),
+  upload.any(), // รับไฟล์ทุกฟิลด์ที่ส่งมา
   async (req: Request, res: Response): Promise<any> => {
     try {
+      // 1. ดึงข้อมูลจาก Body
       const {
         guides_name,
         guides_phonenumber,
@@ -65,52 +62,58 @@ router.post(
         guides_province,
       } = req.body;
 
-      // 1. จัดการ Files ด้วย Type Assertion
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      // 2. จัดการเรื่องไฟล์ (Type Assertion)
+      const files = req.files as Express.Multer.File[];
 
-      // 2. Validation ข้อมูลพื้นฐาน
+      // ค้นหาไฟล์จาก fieldname ที่ส่งมาจาก Frontend
+      const profileFile = files.find(f => f.fieldname === 'guides_imageprofile');
+      const licenseFile = files.find(f => f.fieldname === 'guides_imagelicense');
+      const businessFile = files.find(f => f.fieldname === 'guides_image_business_license');
+
+      // 3. Validation: ตรวจสอบข้อมูลที่จำเป็น (Text)
       if (!guides_name || !guides_phonenumber || !guides_email || !guides_password || 
           !guides_province || !guides_maxcus || !guides_pricepercusperday) {
         return res.status(400).json({ message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน" });
       }
 
-      // 3. Validation ไฟล์บังคับ (License)
-      if (!files?.["guides_imagelicense"]?.[0] || !files?.["guides_image_business_license"]?.[0]) {
+      // 4. Validation: ตรวจสอบไฟล์บังคับ (Licenses)
+      if (!licenseFile || !businessFile) {
         return res.status(400).json({ message: "กรุณาอัปโหลดใบอนุญาตให้ครบถ้วน" });
       }
 
-      // 4. เช็กข้อมูลซ้ำใน Database
-      const [existingRows]: any = await db.query(
+      // 5. ตรวจสอบข้อมูลซ้ำใน Database
+      const [existing]: any = await db.query(
         "SELECT guides_id FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
         [guides_email, guides_phonenumber]
       );
       
-      if (existingRows.length > 0) {
+      if (Array.isArray(existing) && existing.length > 0) {
         return res.status(400).json({ message: "อีเมลหรือเบอร์โทรนี้มีในระบบแล้ว" });
       }
 
-      // 5. Helper Function สำหรับการอัปโหลด (แนะนำให้ย้ายไปข้างนอกฟังก์ชันหลักเพื่อความสะอาด)
+      // 6. Helper Function สำหรับอัปโหลดไป Cloudinary
       const uploadImage = async (file: Express.Multer.File, folderPath: string): Promise<string> => {
         const result = await uploadToCloudinary(file.buffer, folderPath);
-        if (!result || !result.secure_url) throw new Error(`Upload to ${folderPath} failed`);
+        if (!result || !result.secure_url) throw new Error(`Upload failed: ${folderPath}`);
         return result.secure_url;
       };
 
-      // 6. อัปโหลดรูปภาพทั้งหมด
-      // Profile Image (ถ้าไม่มีใช้ Default)
-      let imageGuideUrl = "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
-      if (files["guides_imageprofile"]?.[0]) {
-        imageGuideUrl = await uploadImage(files["guides_imageprofile"][0], "guides/profile");
+      // 7. เริ่มอัปโหลดรูปภาพ (ตั้งชื่อตัวแปรให้ตรงกับ Column ใน Database)
+      
+      // -- รูปโปรไฟล์ (ถ้าไม่มีใช้รูป Default) --
+      let guides_imageprofile = "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
+      if (profileFile) {
+        guides_imageprofile = await uploadImage(profileFile, "guides/profile");
       }
 
-      // License Images (บังคับมีค่าจากข้อ 3 แล้ว)
-      const guideLicenseUrl = await uploadImage(files["guides_imagelicense"][0], "guides/licenses");
-      const businessLicenseUrl = await uploadImage(files["guides_image_business_license"][0], "guides/business");
+      // -- รูปใบอนุญาต (บังคับมีค่าจากข้อ 4 แล้ว) --
+      const guides_imagelicense = await uploadImage(licenseFile, "guides/licenses");
+      const guides_image_business_license = await uploadImage(businessFile, "guides/business");
 
-      // 7. Hash Password
+      // 8. Hash Password
       const hashedPassword = await bcrypt.hash(guides_password, 10);
 
-      // 8. เตรียม Query และ Values (ลำดับต้องตรงกัน 100%)
+      // 9. เตรียม Query และ Values (ลำดับ 1-13 ต้องแม่นยำ)
       const sql = `
         INSERT INTO guides (
           guides_name, 
@@ -126,37 +129,36 @@ router.post(
           guides_maxcus, 
           guides_pricepercusperday, 
           guides_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `;
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
       const values = [
         guides_name,                          // 1
         guides_phonenumber,                   // 2
         guides_email,                         // 3
-        hashedPassword,                       // 4 (แมตช์กับ guides_password)
+        hashedPassword,                       // 4 (แทน guides_password)
         guides_language || "",                // 5
         guides_facebook || "",                // 6
-        imageGuideUrl,                        // 7 (guides_imageprofile)
-        guideLicenseUrl,                      // 8 (guides_imagelicense)
-        businessLicenseUrl,                   // 9 (guides_image_business_license)
+        guides_imageprofile,                  // 7 ตรงเป๊ะ
+        guides_imagelicense,                  // 8 ตรงเป๊ะ
+        guides_image_business_license,         // 9 ตรงเป๊ะ
         guides_province,                      // 10
         Number(guides_maxcus) || 0,           // 11
         Number(guides_pricepercusperday) || 0,// 12
-        0                                     // 13 (guides_status: 0 = รออนุมัติ)
+        0                                     // 13 (สถานะเริ่มต้น: 0)
       ];
 
-      // 9. Execute Query
+      // 10. บันทึกลง Database
       const [result]: any = await db.query(sql, values);
-
+      
       return res.status(201).json({ 
         message: "ลงทะเบียนสำเร็จ! รอการอนุมัติ", 
         guideId: result.insertId 
       });
 
     } catch (error: any) {
-      console.error("Registration Error:", error);
+      console.error("Registration error:", error);
       return res.status(500).json({ 
-        message: "เกิดข้อผิดพลาดภายในระบบ", 
+        message: "Server Error", 
         error: error.message 
       });
     }
