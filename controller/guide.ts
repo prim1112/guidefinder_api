@@ -51,7 +51,7 @@ router.post(
     { name: "guides_imagelicense", maxCount: 1 },
     { name: "guides_image_business_license", maxCount: 1 },
   ]),
-  async (req: Request, res: Response): Promise<any> => { // ใช้ Promise<any> หรือ void เพื่อเลี่ยงปัญหา Error return type
+  async (req: Request, res: Response): Promise<any> => {
     try {
       const {
         guides_name,
@@ -65,85 +65,99 @@ router.post(
         guides_province,
       } = req.body;
 
-      // ✅ 2. วิธีจัดการกับ Error "Property 'guides_imageprofile' does not exist on type..."
-      // เราต้องทำการ Type Assertion (as)
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] | undefined };
+      // 1. จัดการ Files ด้วย Type Assertion
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
-      // 🔍 1. Validation ข้อมูลทั่วไป
+      // 2. Validation ข้อมูลพื้นฐาน
       if (!guides_name || !guides_phonenumber || !guides_email || !guides_password || 
           !guides_province || !guides_maxcus || !guides_pricepercusperday) {
         return res.status(400).json({ message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน" });
       }
 
-      // 🔍 2. Validation เช็กไฟล์ (ใช้ Optional Chaining ?. ป้องกัน Error)
-      if (!files?.['guides_imagelicense']?.[0] || !files?.['guides_image_business_license']?.[0]) {
+      // 3. Validation ไฟล์บังคับ (License)
+      if (!files?.["guides_imagelicense"]?.[0] || !files?.["guides_image_business_license"]?.[0]) {
         return res.status(400).json({ message: "กรุณาอัปโหลดใบอนุญาตให้ครบถ้วน" });
       }
 
-      // 🔍 3. Check อีเมล/เบอร์โทรซ้ำ
-      const [existing]: any = await db.query(
-        "SELECT guides_email FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
+      // 4. เช็กข้อมูลซ้ำใน Database
+      const [existingRows]: any = await db.query(
+        "SELECT guides_id FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
         [guides_email, guides_phonenumber]
       );
       
-      if (Array.isArray(existing) && existing.length > 0) {
+      if (existingRows.length > 0) {
         return res.status(400).json({ message: "อีเมลหรือเบอร์โทรนี้มีในระบบแล้ว" });
       }
 
-      // ✅ 3. Helper Function สำหรับอัปโหลด
+      // 5. Helper Function สำหรับการอัปโหลด (แนะนำให้ย้ายไปข้างนอกฟังก์ชันหลักเพื่อความสะอาด)
       const uploadImage = async (file: Express.Multer.File, folderPath: string): Promise<string> => {
         const result = await uploadToCloudinary(file.buffer, folderPath);
         if (!result || !result.secure_url) throw new Error(`Upload to ${folderPath} failed`);
         return result.secure_url;
       };
 
-      // 🔍 4. เริ่มอัปโหลดรูปภาพ
-      let imageGuideUrl: string = "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
-      if (files['guides_imageprofile']?.[0]) {
-        imageGuideUrl = await uploadImage(files['guides_imageprofile'][0], "guides/profile");
+      // 6. อัปโหลดรูปภาพทั้งหมด
+      // Profile Image (ถ้าไม่มีใช้ Default)
+      let imageGuideUrl = "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
+      if (files["guides_imageprofile"]?.[0]) {
+        imageGuideUrl = await uploadImage(files["guides_imageprofile"][0], "guides/profile");
       }
 
-      const guideLicenseUrl = await uploadImage(files['guides_imagelicense']![0], "guides/licenses");
-      const businessLicenseUrl = await uploadImage(files['guides_image_business_license']![0], "guides/business");
+      // License Images (บังคับมีค่าจากข้อ 3 แล้ว)
+      const guideLicenseUrl = await uploadImage(files["guides_imagelicense"][0], "guides/licenses");
+      const businessLicenseUrl = await uploadImage(files["guides_image_business_license"][0], "guides/business");
 
-      // 🔍 5. Hash Password
+      // 7. Hash Password
       const hashedPassword = await bcrypt.hash(guides_password, 10);
 
-      // 🔍 6. Insert ลง Database
+      // 8. เตรียม Query และ Values (ลำดับต้องตรงกัน 100%)
       const sql = `
-        INSERT INTO guides 
-        (
-          guides_name, guides_phonenumber, guides_email, guides_password, 
-          guides_language, guides_facebook, guides_imageprofile, guides_imagelicense, 
-          guides_image_business_license, guides_province, guides_maxcus, guides_pricepercusperday, guides_status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        INSERT INTO guides (
+          guides_name, 
+          guides_phonenumber, 
+          guides_email, 
+          guides_password, 
+          guides_language, 
+          guides_facebook, 
+          guides_imageprofile, 
+          guides_imagelicense, 
+          guides_image_business_license, 
+          guides_province, 
+          guides_maxcus, 
+          guides_pricepercusperday, 
+          guides_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
 
       const values = [
-        guides_name,
-        guides_phonenumber,
-        guides_email,
-        hashedPassword,
-        guides_language || "",
-        guides_facebook || "",
-        imageGuideUrl,
-        guideLicenseUrl,      
-        businessLicenseUrl,
-        guides_province,
-        Number(guides_maxcus) || 0,
-        Number(guides_pricepercusperday) || 0,
-        0
+        guides_name,                          // 1
+        guides_phonenumber,                   // 2
+        guides_email,                         // 3
+        hashedPassword,                       // 4 (แมตช์กับ guides_password)
+        guides_language || "",                // 5
+        guides_facebook || "",                // 6
+        imageGuideUrl,                        // 7 (guides_imageprofile)
+        guideLicenseUrl,                      // 8 (guides_imagelicense)
+        businessLicenseUrl,                   // 9 (guides_image_business_license)
+        guides_province,                      // 10
+        Number(guides_maxcus) || 0,           // 11
+        Number(guides_pricepercusperday) || 0,// 12
+        0                                     // 13 (guides_status: 0 = รออนุมัติ)
       ];
 
+      // 9. Execute Query
       const [result]: any = await db.query(sql, values);
-      return res.status(201).json({ message: "ลงทะเบียนสำเร็จ! รอการอนุมัติ", gid: result.insertId });
+
+      return res.status(201).json({ 
+        message: "ลงทะเบียนสำเร็จ! รอการอนุมัติ", 
+        guideId: result.insertId 
+      });
 
     } catch (error: any) {
-      console.error("POST /register_guides error:", error);
+      console.error("Registration Error:", error);
       return res.status(500).json({ 
-        message: "Server Error", 
-        error: error.message,
-        sqlError: error.sqlMessage 
+        message: "เกิดข้อผิดพลาดภายในระบบ", 
+        error: error.message 
       });
     }
   }
