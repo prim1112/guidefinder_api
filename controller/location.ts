@@ -27,9 +27,8 @@ router.post(
   upload.single("location_images"), 
   async (req: Request, res: Response) => {
     try {
-      // 🚩 เพิ่ม Log ตรงนี้เพื่อเช็คว่าไฟล์มาไหม (ดูที่ Terminal ของ VS Code)
       console.log("--- DEBUG START ---");
-      console.log("File received:", req.file); 
+      console.log("File received:", req.file ? "Yes" : "No"); 
       console.log("Body received:", req.body);
 
       const {
@@ -45,24 +44,21 @@ router.post(
         return res.status(400).json({ message: "❌ กรุณากรอกข้อมูลสถานที่ให้ครบถ้วน" });
       }
 
-      // ✅ 3. จัดการรูปภาพ (ปรับปรุงการเช็ค)
-      let imageUrl: string | null = null;
+      // ✅ 3. จัดการรูปภาพ (เปลี่ยนชื่อตัวแปรให้ตรงกับ DB)
+      let location_imges: string | null = null; 
 
       if (req.file) {
         try {
           const result = await uploadToCloudinary(req.file.buffer, "locations");
-          imageUrl = result.secure_url;
-          console.log("Cloudinary Upload Success:", imageUrl);
+          location_imges = result.secure_url; // เก็บลงตัวแปรชื่อเดียวกับ DB
+          console.log("Cloudinary Upload Success:", location_imges);
         } catch (uploadErr: any) {
           console.error("Cloudinary Error:", uploadErr);
           return res.status(500).json({ message: "❌ พังที่ Cloudinary", error: uploadErr.message });
         }
-      } else {
-        // 🚩 ถ้าเลือกรูปใน Postman แล้วแต่ยังตกมาที่นี่ แสดงว่าชื่อ Key ใน Postman ผิด!
-        console.log("No file found in req.file");
       }
 
-      // ✅ 4. บันทึกข้อมูล
+      // ✅ 4. บันทึกข้อมูล (ใช้ชื่อตัวแปรตรงตามที่คุณต้องการ)
       const sql = `INSERT INTO location (
           location_name, 
           location_imges, 
@@ -75,7 +71,7 @@ router.post(
 
       const [result]: any = await db.execute(sql, [
         location_name,
-        imageUrl, 
+        location_imges, // ตัวแปรนี้ต้องประกาศไว้ข้างบน (บรรทัดที่ 26)
         location_province,
         location_district,
         location_subdistrict,
@@ -86,7 +82,7 @@ router.post(
       return res.status(201).json({
         message: "✅ เพิ่มข้อมูล Location สำเร็จ",
         location_id: result.insertId,
-        imageUrl: imageUrl
+        location_imges: location_imges
       });
 
     } catch (err: any) {
