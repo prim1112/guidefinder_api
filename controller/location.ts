@@ -21,7 +21,6 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
-// ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 router.post(
   "/location",
   upload.single("location_images"), 
@@ -40,25 +39,25 @@ router.post(
         location_long
       } = req.body;
 
+      // 1. ตรวจสอบข้อมูลบังคับ
       if (!location_name || !location_province || !location_district || !location_subdistrict) {
         return res.status(400).json({ message: "❌ กรุณากรอกข้อมูลสถานที่ให้ครบถ้วน" });
       }
 
-      // ✅ 3. จัดการรูปภาพ (เปลี่ยนชื่อตัวแปรให้ตรงกับ DB)
-      let location_imges: string | null = null; 
+      // 2. จัดการรูปภาพ (ต้องไม่เป็น null เพราะ DB ตั้งค่า NOT NULL)
+      let location_imges: string = ""; 
 
       if (req.file) {
         try {
           const result = await uploadToCloudinary(req.file.buffer, "locations");
-          location_imges = result.secure_url; // เก็บลงตัวแปรชื่อเดียวกับ DB
-          console.log("Cloudinary Upload Success:", location_imges);
+          location_imges = result.secure_url;
         } catch (uploadErr: any) {
           console.error("Cloudinary Error:", uploadErr);
           return res.status(500).json({ message: "❌ พังที่ Cloudinary", error: uploadErr.message });
         }
       }
 
-      // ✅ 4. บันทึกข้อมูล (ใช้ชื่อตัวแปรตรงตามที่คุณต้องการ)
+      // 3. บันทึกข้อมูล
       const sql = `INSERT INTO location (
           location_name, 
           location_imges, 
@@ -69,14 +68,16 @@ router.post(
           location_long
         ) VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
+      // 🚩 จุดที่ต้องระวัง: DB คุณตั้งค่า Province/District/Subdistrict เป็น INT และห้าม NULL
+      // และ Lat/Long เป็น Float และห้าม NULL
       const [result]: any = await db.execute(sql, [
         location_name,
-        location_imges, // ตัวแปรนี้ต้องประกาศไว้ข้างบน (บรรทัดที่ 26)
-        location_province,
-        location_district,
-        location_subdistrict,
-        location_lat || null,
-        location_long || null
+        location_imges, // ส่งเป็น String ว่างแทน NULL เพื่อไม่ให้ SQL ฟ้อง
+        Number(location_province) || 0,    // แปลงเป็นตัวเลขตาม DB
+        Number(location_district) || 0,    // แปลงเป็นตัวเลขตาม DB
+        Number(location_subdistrict) || 0, // แปลงเป็นตัวเลขตาม DB
+        parseFloat(location_lat) || 0.0,   // ใช้ 0.0 แทน null เพราะ DB ห้าม Null
+        parseFloat(location_long) || 0.0
       ]);
 
       return res.status(201).json({
