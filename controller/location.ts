@@ -21,13 +21,15 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
+// ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 router.post(
   "/location",
   upload.single("location_images"), 
   async (req: Request, res: Response) => {
     try {
+      // 🚩 เพิ่ม Log ตรงนี้เพื่อเช็คว่าไฟล์มาไหม (ดูที่ Terminal ของ VS Code)
       console.log("--- DEBUG START ---");
-      console.log("File received:", req.file ? "Yes" : "No"); 
+      console.log("File received:", req.file); 
       console.log("Body received:", req.body);
 
       const {
@@ -39,25 +41,28 @@ router.post(
         location_long
       } = req.body;
 
-      // 1. ตรวจสอบข้อมูลบังคับ
       if (!location_name || !location_province || !location_district || !location_subdistrict) {
         return res.status(400).json({ message: "❌ กรุณากรอกข้อมูลสถานที่ให้ครบถ้วน" });
       }
 
-      // 2. จัดการรูปภาพ (ต้องไม่เป็น null เพราะ DB ตั้งค่า NOT NULL)
-      let location_imges: string = ""; 
+      // ✅ 3. จัดการรูปภาพ (ปรับปรุงการเช็ค)
+      let imageUrl: string | null = null;
 
       if (req.file) {
         try {
           const result = await uploadToCloudinary(req.file.buffer, "locations");
-          location_imges = result.secure_url;
+          imageUrl = result.secure_url;
+          console.log("Cloudinary Upload Success:", imageUrl);
         } catch (uploadErr: any) {
           console.error("Cloudinary Error:", uploadErr);
           return res.status(500).json({ message: "❌ พังที่ Cloudinary", error: uploadErr.message });
         }
+      } else {
+        // 🚩 ถ้าเลือกรูปใน Postman แล้วแต่ยังตกมาที่นี่ แสดงว่าชื่อ Key ใน Postman ผิด!
+        console.log("No file found in req.file");
       }
 
-      // 3. บันทึกข้อมูล
+      // ✅ 4. บันทึกข้อมูล
       const sql = `INSERT INTO location (
           location_name, 
           location_imges, 
@@ -68,22 +73,20 @@ router.post(
           location_long
         ) VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
-      // 🚩 จุดที่ต้องระวัง: DB คุณตั้งค่า Province/District/Subdistrict เป็น INT และห้าม NULL
-      // และ Lat/Long เป็น Float และห้าม NULL
       const [result]: any = await db.execute(sql, [
         location_name,
-        location_imges, // ส่งเป็น String ว่างแทน NULL เพื่อไม่ให้ SQL ฟ้อง
-        Number(location_province) || 0,    // แปลงเป็นตัวเลขตาม DB
-        Number(location_district) || 0,    // แปลงเป็นตัวเลขตาม DB
-        Number(location_subdistrict) || 0, // แปลงเป็นตัวเลขตาม DB
-        parseFloat(location_lat) || 0.0,   // ใช้ 0.0 แทน null เพราะ DB ห้าม Null
-        parseFloat(location_long) || 0.0
+        imageUrl, 
+        location_province,
+        location_district,
+        location_subdistrict,
+        location_lat || null,
+        location_long || null
       ]);
 
       return res.status(201).json({
         message: "✅ เพิ่มข้อมูล Location สำเร็จ",
         location_id: result.insertId,
-        location_imges: location_imges
+        imageUrl: imageUrl
       });
 
     } catch (err: any) {
