@@ -44,117 +44,107 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
+// register guide
 router.post(
   "/register_guides",
-  async (req: Request, res: Response): Promise<any> => {
+  upload.fields([
+    { name: "guides_imageprofile", maxCount: 1 },
+    { name: "guides_imagelicense", maxCount: 1 },
+    { name: "guides_image_business_license", maxCount: 1 },
+  ]),
+  async (req: Request, res: Response) => {
+    const {
+      guides_name,
+      guides_phonenumber,
+      guides_email,
+      guides_password,
+      guides_facebook,
+      guides_language,
+      guides_maxcus,
+      guides_pricepercusperday,
+      guides_province,
+    } = req.body;
+
     try {
-      const {
-        guides_name,
-        guides_phonenumber,
-        guides_email,
-        guides_password,
-        guides_facebook,
-        guides_language,
-        guides_maxcus,
-        guides_pricepercusperday,
-        guides_province,
-
-        // รับ base64
-        guides_imageprofile,
-        guides_imagelicense,
-        guides_image_business_license
-      } = req.body;
-
-      // ✅ Validate Text
-      if (!guides_name || !guides_phonenumber || !guides_email || !guides_password || 
-          !guides_province || !guides_maxcus || !guides_pricepercusperday) {
-        return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
+      // 🔍 validate
+      if (!guides_email || !guides_password || !guides_phonenumber) {
+        return res.status(400).json({
+          message: "กรุณากรอก email, password และเบอร์โทร",
+        });
       }
 
-      // ❗ Validate รูป (ต้องมี)
-      if (!guides_imagelicense || !guides_image_business_license) {
-        return res.status(400).json({ message: "กรุณาอัปโหลดใบอนุญาต" });
-      }
-
-      // 🔍 เช็คซ้ำ
+      // 🔍 check duplicate
       const [existing]: any = await db.query(
-        "SELECT guides_id FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
+        "SELECT guides_email FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
         [guides_email, guides_phonenumber]
       );
 
-      if (Array.isArray(existing) && existing.length > 0) {
-        return res.status(400).json({ message: "อีเมลหรือเบอร์นี้มีแล้ว" });
+      if (existing.length) {
+        return res.status(400).json({
+          message: "อีเมลหรือเบอร์โทรนี้มีในระบบแล้ว",
+        });
       }
 
-      // 📤 upload base64 ไป Cloudinary
-      const uploadBase64 = async (base64: string, folder: string) => {
-        const result = await cloudinary.uploader.upload(base64, {
-          folder: folder,
-        });
+      const files = req.files as any;
+
+      //upload image
+      const uploadImage = async (file: any, path: string) => {
+        if (!file) return null;
+        const result = await uploadToCloudinary(file.buffer, path);
         return result.secure_url;
       };
 
-      // 🖼️ profile (ไม่มีก็ default)
-      let profileUrl = "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
-      if (guides_imageprofile) {
-        profileUrl = await uploadBase64(guides_imageprofile, "guides/profile");
-      }
+      const imageGuideUrl =
+        (await uploadImage(files?.guides_imageprofile?.[0], "guides/profile")) ||
+        "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
 
-      // 🖼️ license
-      const licenseUrl = await uploadBase64(guides_imagelicense, "guides/licenses");
+      const guideLicenseUrl = await uploadImage(
+        files?.guides_imagelicense?.[0],
+        "guides/licenses"
+      );
 
-      // 🖼️ business
-      const businessUrl = await uploadBase64(guides_image_business_license, "guides/business");
+      const businessLicenseUrl = await uploadImage(
+        files?.guides_image_business_license?.[0],
+        "guides/business"
+      );
 
-      // 🔐 hash password
+      //hash password
       const hashedPassword = await bcrypt.hash(guides_password, 10);
 
-      // 💾 insert DB
-      const sql = `
-        INSERT INTO guides (
-          guides_name, 
-          guides_phonenumber, 
-          guides_email, 
-          guides_password, 
-          guides_language, 
-          guides_facebook, 
-          guides_imageprofile, 
-          guides_imagelicense, 
-          guides_image_business_license, 
-          guides_province, 
-          guides_maxcus, 
-          guides_pricepercusperday, 
-          guides_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-      const values = [
-        guides_name,
-        guides_phonenumber,
-        guides_email,
-        hashedPassword,
-        guides_language || "",
-        guides_facebook || "",
-        profileUrl,
-        licenseUrl,
-        businessUrl,
-        guides_province,
-        Number(guides_maxcus),
-        Number(guides_pricepercusperday),
-        0
-      ];
-
-      const [result]: any = await db.query(sql, values);
+      // insert
+      const [result]: any = await db.query(
+        `INSERT INTO guides 
+        (guides_name, guides_phonenumber, guides_email, guides_password, 
+        guides_facebook, guides_language, guides_imageprofile, guides_imagelicense, 
+        guides_image_business_license, guides_province, guides_maxcus, guides_pricepercusperday, guides_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          guides_name || null,
+          guides_phonenumber,
+          guides_email,
+          hashedPassword,
+          guides_facebook || null,
+          guides_language || null,
+          imageGuideUrl,
+          guideLicenseUrl,
+          businessLicenseUrl,
+          guides_province || null,
+          guides_maxcus ?? 0,
+          guides_pricepercusperday ?? 0,
+          0,
+        ]
+      );
 
       return res.status(201).json({
-        message: "ลงทะเบียนสำเร็จ",
-        guideId: result.insertId
+        message: "ลงทะเบียนสำเร็จ! รอการอนุมัติ",
+        gid: result.insertId,
       });
-
     } catch (error: any) {
-      console.error(error);
+      console.error("POST /register_guides error:", error);
+
       return res.status(500).json({
         message: "Server Error",
-        error: error.message
+        error: error.message,
       });
     }
   }
