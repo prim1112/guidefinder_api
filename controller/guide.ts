@@ -22,12 +22,13 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
-// get guides
+// ================= GET =================
 router.get("/", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query("SELECT * FROM guides");
 
-    const guides = rows.map(({ password, ...rest }: any) => rest);
+    // ✅ แก้ตรงนี้
+    const guides = rows.map(({ guides_password, ...rest }: any) => rest);
 
     return res.json({
       message: "ดึงข้อมูล Guides สำเร็จ",
@@ -44,7 +45,8 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
-// register guide
+
+// ================= REGISTER =================
 router.post(
   "/register_guides",
   upload.fields([
@@ -53,33 +55,32 @@ router.post(
     { name: "guides_image_business_license", maxCount: 1 },
   ]),
   async (req: Request, res: Response) => {
-    const {
-      guides_name,
-      guides_phonenumber,
-      guides_email,
-      guides_password,
-      guides_facebook,
-      guides_language,
-      guides_maxcus,
-      guides_pricepercusperday,
-      guides_province,
-    } = req.body;
-
     try {
-      // 🔍 validate
+      const {
+        guides_name,
+        guides_phonenumber,
+        guides_email,
+        guides_password,
+        guides_facebook,
+        guides_language,
+        guides_maxcus,
+        guides_pricepercusperday,
+        guides_province,
+      } = req.body;
+
+      // ✅ validate
       if (!guides_email || !guides_password || !guides_phonenumber) {
         return res.status(400).json({
           message: "กรุณากรอก email, password และเบอร์โทร",
         });
       }
 
-      // 🔍 check duplicate
       const [existing]: any = await db.query(
-        "SELECT guides_email FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
+        "SELECT guides_id FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
         [guides_email, guides_phonenumber]
       );
 
-      if (existing.length) {
+      if (existing.length > 0) {
         return res.status(400).json({
           message: "อีเมลหรือเบอร์โทรนี้มีในระบบแล้ว",
         });
@@ -87,31 +88,39 @@ router.post(
 
       const files = req.files as any;
 
-      //upload image
+      // ✅ upload function
       const uploadImage = async (file: any, path: string) => {
         if (!file) return null;
         const result = await uploadToCloudinary(file.buffer, path);
         return result.secure_url;
       };
 
+      // ✅ profile (optional)
       const imageGuideUrl =
         (await uploadImage(files?.guides_imageprofile?.[0], "guides/profile")) ||
         "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
 
+      // ❗ license (required)
+      if (!files?.guides_imagelicense?.[0] || !files?.guides_image_business_license?.[0]) {
+        return res.status(400).json({
+          message: "กรุณาอัปโหลดใบอนุญาตให้ครบ",
+        });
+      }
+
       const guideLicenseUrl = await uploadImage(
-        files?.guides_imagelicense?.[0],
+        files.guides_imagelicense[0],
         "guides/licenses"
       );
 
       const businessLicenseUrl = await uploadImage(
-        files?.guides_image_business_license?.[0],
+        files.guides_image_business_license[0],
         "guides/business"
       );
 
-      //hash password
+      // 🔐 hash password
       const hashedPassword = await bcrypt.hash(guides_password, 10);
 
-      // insert
+      // 💾 insert (ตรง DB 100%)
       const [result]: any = await db.query(
         `INSERT INTO guides 
         (guides_name, guides_phonenumber, guides_email, guides_password, 
@@ -129,8 +138,8 @@ router.post(
           guideLicenseUrl,
           businessLicenseUrl,
           guides_province || null,
-          guides_maxcus ?? 0,
-          guides_pricepercusperday ?? 0,
+          Number(guides_maxcus) || 0,
+          Number(guides_pricepercusperday) || 0,
           0,
         ]
       );
@@ -139,6 +148,7 @@ router.post(
         message: "ลงทะเบียนสำเร็จ! รอการอนุมัติ",
         gid: result.insertId,
       });
+
     } catch (error: any) {
       console.error("POST /register_guides error:", error);
 
