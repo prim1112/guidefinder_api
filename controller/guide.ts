@@ -45,12 +45,12 @@ router.get("/", async (req: Request, res: Response) => {
 });
 
 // 🔹 ดึงรายละเอียดไกด์ตาม id
-router.get("/guide/:gid", async (req: Request, res: Response) => {
+router.get("/guides/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
   try {
     const [rows]: any = await db.query(
-      "SELECT * FROM guide_pending WHERE gid = ?",
+      "SELECT * FROM guides WHERE gid = ?",
       [gid]
     );
 
