@@ -44,13 +44,12 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
-// 🔹 ดึงรายละเอียดไกด์ตาม id
 router.get("/guides/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
   try {
     const [rows]: any = await db.query(
-      "SELECT * FROM guides WHERE gid = ?",
+      "SELECT * FROM guides WHERE guides_id = ?",
       [gid]
     );
 
@@ -60,9 +59,14 @@ router.get("/guides/:gid", async (req: Request, res: Response) => {
       });
     }
 
+    const guide = rows[0];
+
+    // ❗ ตัด password ออก (best practice)
+    const { guides_password, ...safeGuide } = guide;
+
     return res.json({
       message: "ดึงข้อมูลสำเร็จ",
-      data: rows[0],
+      data: safeGuide,
     });
 
   } catch (error: any) {
