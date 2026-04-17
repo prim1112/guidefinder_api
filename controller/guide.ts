@@ -184,28 +184,29 @@ router.post(
 );
 
 router.post("/approve/:gid", async (req: Request, res: Response) => {
-  const { gid } = req.params; // gid ที่รับมาจาก Flutter
+  const { gid } = req.params; 
   const conn = await db.getConnection();
 
   try {
     await conn.beginTransaction();
 
-    // 1. ตรวจสอบก่อนว่ามี guide ไอดีนี้อยู่จริงไหม
+    // 1. ค้นหาในตาราง `guides` โดยใช้ Column `guides_id`
     const [rows]: any = await conn.query(
-      "SELECT * FROM guide WHERE guides_id = ?", // ใช้ guides_id ตาม schema ของคุณ
+      "SELECT * FROM `guides` WHERE `guides_id` = ?", 
       [gid]
     );
 
     if (!rows.length) {
       await conn.rollback();
       return res.status(404).json({
-        message: "ไม่พบข้อมูลไกด์คนนี้ในระบบ",
+        message: `ไม่พบข้อมูลไกด์รหัส ${gid} ในระบบ`,
       });
     }
 
-    // 2. อัปเดต guides_status จาก 0 เป็น 1
+    // 2. อัปเดต guides_status เป็น 1 (อนุมัติ)
+    // ใช้ชื่อตาราง `guides` ให้ตรงกับที่คุณแจ้งมา
     await conn.query(
-      "UPDATE guide SET guides_status = 1 WHERE guides_id = ?",
+      "UPDATE `guides` SET `guides_status` = 1 WHERE `guides_id` = ?",
       [gid]
     );
 
@@ -213,16 +214,18 @@ router.post("/approve/:gid", async (req: Request, res: Response) => {
 
     return res.json({
       message: "อนุมัติไกด์สำเร็จแล้ว",
+      gid: gid
     });
+
   } catch (error: any) {
-    await conn.rollback();
+    if (conn) await conn.rollback();
     console.error("SQL Error:", error);
     return res.status(500).json({
       message: "Server Error",
       error: error.sqlMessage || error.message,
     });
   } finally {
-    conn.release();
+    if (conn) conn.release();
   }
 });
 
