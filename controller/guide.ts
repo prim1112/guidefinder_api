@@ -183,80 +183,43 @@ router.post(
   }
 );
 
-// approve guide_pending → guide
 router.post("/approve/:gid", async (req: Request, res: Response) => {
-  const { gid } = req.params;
+  const { gid } = req.params; // gid ที่รับมาจาก Flutter
   const conn = await db.getConnection();
 
   try {
     await conn.beginTransaction();
 
-    // ดึงข้อมูลจาก pending
+    // 1. ตรวจสอบก่อนว่ามี guide ไอดีนี้อยู่จริงไหม
     const [rows]: any = await conn.query(
-      "SELECT * FROM guide_pending WHERE gid = ?",
+      "SELECT * FROM guide WHERE guides_id = ?", // ใช้ guides_id ตาม schema ของคุณ
       [gid]
     );
 
     if (!rows.length) {
       await conn.rollback();
       return res.status(404).json({
-        message: "ไม่พบข้อมูลใน guide_pending",
+        message: "ไม่พบข้อมูลไกด์คนนี้ในระบบ",
       });
     }
 
-    const g = rows[0];
-
-    // insert เข้า table guide (ตาม schema จริง)
+    // 2. อัปเดต guides_status จาก 0 เป็น 1
     await conn.query(
-      `INSERT INTO guide 
-      (
-        guides_name,
-        guides_phonenumber,
-        guides_email,
-        guides_password,
-        guides_language,
-        guides_facebook,
-        guides_imageprofile,
-        guides_imagelicense,
-        guides_image_business_license,
-        guides_province,
-        guides_maxcus,
-        guides_pricepercusperday,
-        guides_status
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        g.guides_name,
-        g.guides_phonenumber,
-        g.guides_email,
-        g.guides_password,
-        g.guides_language,
-        g.guides_facebook,
-        g.guides_imageprofile,
-        g.guides_imagelicense,
-        g.guides_image_business_license,
-        g.guides_province,
-        g.guides_maxcus,
-        g.guides_pricepercusperday,
-        1, // ✅ อนุมัติแล้ว = status 1
-      ]
+      "UPDATE guide SET guides_status = 1 WHERE guides_id = ?",
+      [gid]
     );
-
-    // ลบจาก pending
-    await conn.query("DELETE FROM guide_pending WHERE gid = ?", [gid]);
 
     await conn.commit();
 
     return res.json({
-      message: "อนุมัติสำเร็จ และย้ายข้อมูลแล้ว",
+      message: "อนุมัติไกด์สำเร็จแล้ว",
     });
   } catch (error: any) {
     await conn.rollback();
-    console.error(error);
-
+    console.error("SQL Error:", error);
     return res.status(500).json({
       message: "Server Error",
-      error: error.message,
+      error: error.sqlMessage || error.message,
     });
   } finally {
     conn.release();
