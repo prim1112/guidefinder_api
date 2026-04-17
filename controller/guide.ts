@@ -44,6 +44,35 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
+// 🔹 ดึงรายละเอียดไกด์ตาม id
+router.get("/guide/:gid", async (req: Request, res: Response) => {
+  const { gid } = req.params;
+
+  try {
+    const [rows]: any = await db.query(
+      "SELECT * FROM guide_pending WHERE gid = ?",
+      [gid]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({
+        message: "ไม่พบข้อมูล",
+      });
+    }
+
+    return res.json({
+      message: "ดึงข้อมูลสำเร็จ",
+      data: rows[0],
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
 // register guide
 router.post(
   "/register_guides",
