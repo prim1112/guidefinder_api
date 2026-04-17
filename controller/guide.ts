@@ -75,7 +75,7 @@ router.get("/guides/:gid", async (req: Request, res: Response) => {
       error: error.message,
     });
   }
-});
+}); 
 
 // register guide
 router.post(
@@ -183,16 +183,15 @@ router.post(
   }
 );
 
-// accept guide_pending → guide
+// approve guide_pending → guide
 router.post("/approve/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
-
-  const conn = await db.getConnection(); // ใช้ transaction
+  const conn = await db.getConnection();
 
   try {
     await conn.beginTransaction();
 
-    // get data from pending
+    // ดึงข้อมูลจาก pending
     const [rows]: any = await conn.query(
       "SELECT * FROM guide_pending WHERE gid = ?",
       [gid]
@@ -205,50 +204,62 @@ router.post("/approve/:gid", async (req: Request, res: Response) => {
       });
     }
 
-    const guide = rows[0];
+    const g = rows[0];
 
-    // insert 
+    // insert เข้า table guide (ตาม schema จริง)
     await conn.query(
       `INSERT INTO guide 
-      (name, phone, email, password, facebook, language, image_guide, tourism_guide_license, tourism_business_license)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (
+        guides_name,
+        guides_phonenumber,
+        guides_email,
+        guides_password,
+        guides_language,
+        guides_facebook,
+        guides_imageprofile,
+        guides_imagelicense,
+        guides_image_business_license,
+        guides_province,
+        guides_maxcus,
+        guides_pricepercusperday,
+        guides_status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        guide.name ?? null,
-        guide.phone ?? null,
-        guide.email ?? null,
-        guide.password ?? null,
-        guide.facebook ?? null,
-        guide.language ?? null,
-        guide.image_guide ?? null,
-        guide.tourism_guide_license ?? null,
-        guide.tourism_business_license ?? null,
+        g.guides_name,
+        g.guides_phonenumber,
+        g.guides_email,
+        g.guides_password,
+        g.guides_language,
+        g.guides_facebook,
+        g.guides_imageprofile,
+        g.guides_imagelicense,
+        g.guides_image_business_license,
+        g.guides_province,
+        g.guides_maxcus,
+        g.guides_pricepercusperday,
+        1, // ✅ อนุมัติแล้ว = status 1
       ]
     );
 
-    // delete from pending
+    // ลบจาก pending
     await conn.query("DELETE FROM guide_pending WHERE gid = ?", [gid]);
 
     await conn.commit();
 
     return res.json({
       message: "อนุมัติสำเร็จ และย้ายข้อมูลแล้ว",
-      moved_data: {
-        name: guide.name,
-        email: guide.email,
-        phone: guide.phone,
-      },
     });
   } catch (error: any) {
     await conn.rollback();
-
-    console.error("POST /approve/:gid error:", error);
+    console.error(error);
 
     return res.status(500).json({
       message: "Server Error",
       error: error.message,
     });
   } finally {
-    conn.release(); 
+    conn.release();
   }
 });
 
@@ -257,9 +268,10 @@ router.delete("/reject/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
   try {
-    // chack data 
     const [rows]: any = await db.query(
-      "SELECT name, email, phone FROM guide_pending WHERE gid = ?",
+      `SELECT guides_name, guides_email, guides_phonenumber 
+       FROM guide_pending 
+       WHERE gid = ?`,
       [gid]
     );
 
@@ -274,15 +286,11 @@ router.delete("/reject/:gid", async (req: Request, res: Response) => {
     await db.query("DELETE FROM guide_pending WHERE gid = ?", [gid]);
 
     return res.json({
-      message: "ลบข้อมูลไกด์ที่สมัครมาเรียบร้อยแล้ว",
-      deleted_data: {
-        name: guide.name,
-        email: guide.email,
-        phone: guide.phone,
-      },
+      message: "ปฏิเสธและลบข้อมูลเรียบร้อยแล้ว",
+      deleted_data: guide,
     });
   } catch (error: any) {
-    console.error("DELETE /reject/:gid error:", error);
+    console.error(error);
 
     return res.status(500).json({
       message: "Server Error",
