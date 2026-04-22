@@ -122,6 +122,8 @@ router.get("/location_type", async (req: Request, res: Response) => {
   }
 });
 
+
+///import-json คืออะไร? มันคือ API ที่ “ดึงข้อมูลจากลิงก์” แล้ว “เอามาใส่ DB ให้เราอัตโนมัติ”
 router.post("/import-json", async (req: Request, res: Response) => {
   try {
     const url = "https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/latest/province_with_district_and_sub_district.json";
