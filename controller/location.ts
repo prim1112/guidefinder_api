@@ -21,6 +21,15 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
+  router.get("/location", async (req: Request, res: Response) => {
+  try {
+    const [rows] = await db.execute("SELECT * FROM location");
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 router.post(
   "/location",
