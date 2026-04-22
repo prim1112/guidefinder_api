@@ -113,4 +113,44 @@ router.get("/location_type", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/import-json", async (req: Request, res: Response) => {
+  try {
+    const provinces = req.body;
+
+    const sql = `INSERT INTO location (
+      location_name, 
+      location_imges, 
+      location_province, 
+      location_district, 
+      location_subdistrict, 
+      location_lat, 
+      location_long
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+
+    for (const province of provinces) {
+      for (const district of province.districts) {
+        for (const sub of district.sub_districts) {
+
+          await db.execute(sql, [
+            sub.name_en,
+            "",
+            province.name_en,
+            district.name_en,
+            sub.name_th,
+            sub.lat,
+            sub.long
+          ]);
+
+        }
+      }
+    }
+
+    res.json({ message: "✅ import success (nested JSON)" });
+
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ message: "❌ error", error: err.message });
+  }
+});
+
 export default router;
