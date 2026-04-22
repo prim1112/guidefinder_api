@@ -115,7 +115,10 @@ router.get("/location_type", async (req: Request, res: Response) => {
 
 router.post("/import-json", async (req: Request, res: Response) => {
   try {
-    const provinces = req.body;
+    const url = "https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/latest/province_with_district_and_sub_district.json";
+
+    const response = await fetch(url);
+   const provinces = (await response.json()) as any[];
 
     const sql = `INSERT INTO location (
       location_name, 
@@ -128,8 +131,8 @@ router.post("/import-json", async (req: Request, res: Response) => {
     ) VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
     for (const province of provinces) {
-      for (const district of province.districts) {
-        for (const sub of district.sub_districts) {
+      for (const district of province.districts || []) {
+        for (const sub of district.sub_districts || []) {
 
           await db.execute(sql, [
             sub.name_en,
@@ -145,7 +148,7 @@ router.post("/import-json", async (req: Request, res: Response) => {
       }
     }
 
-    res.json({ message: "✅ import success (nested JSON)" });
+    res.json({ message: "✅ import success" });
 
   } catch (err: any) {
     console.error(err);
