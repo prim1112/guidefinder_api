@@ -28,6 +28,10 @@ app.use(
 );
 
 app.use(express.json());
+
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ limit: "100mb", extended: true }));
+
 app.use("/", index);
 app.use("/customer", customerRouter);
 app.use("/guide", guideRouter);
@@ -39,7 +43,5 @@ app.use("/booking", bookingRouter);
 //   res.send("Hello World!!!");
 // });
 
-app.use(express.json({ limit: "100mb" }));
-app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 export default app;
