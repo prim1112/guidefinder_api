@@ -78,57 +78,154 @@ router.get("/guides/:gid", async (req: Request, res: Response) => {
 }); 
 
 // register guide
-router.post("/login_guide", async (req: Request, res: Response) => {
-  const { guides_email, guides_password } = req.body;
+router.post(
+  "/register_guides",
+  upload.fields([
+    { name: "guides_imageprofile", maxCount: 1 },
+    { name: "guides_imagelicense", maxCount: 1 },
+    { name: "guides_image_business_license", maxCount: 1 },
+  ]),
+  async (req: Request, res: Response) => {
+    const {
+      guides_name,
+      guides_phonenumber,
+      guides_email,
+      guides_password,
+      guides_facebook,
+      guides_language,
+      guides_maxcus,
+      guides_pricepercusperday,
+      guides_province,
+    } = req.body;
+
+    try {
+      // 🔍 validate
+      if (!guides_email || !guides_password || !guides_phonenumber) {
+        return res.status(400).json({
+          message: "กรุณากรอก email, password และเบอร์โทร",
+        });
+      }
+
+      // 🔍 check duplicate
+      const [existing]: any = await db.query(
+        "SELECT guides_email FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
+        [guides_email, guides_phonenumber]
+      );
+
+      if (existing.length) {
+        return res.status(400).json({
+          message: "อีเมลหรือเบอร์โทรนี้มีในระบบแล้ว",
+        });
+      }
+
+      const files = req.files as any;
+
+      //upload image
+      const uploadImage = async (file: any, path: string) => {
+        if (!file) return null;
+        const result = await uploadToCloudinary(file.buffer, path);
+        return result.secure_url;
+      };
+
+      const imageGuideUrl =
+        (await uploadImage(files?.guides_imageprofile?.[0], "guides/profile")) ||
+        "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
+
+      const guideLicenseUrl = await uploadImage(
+        files?.guides_imagelicense?.[0],
+        "guides/licenses"
+      );
+
+      const businessLicenseUrl = await uploadImage(
+        files?.guides_image_business_license?.[0],
+        "guides/business"
+      );
+
+      //hash password
+      const hashedPassword = await bcrypt.hash(guides_password, 10);
+
+      // insert
+      const [result]: any = await db.query(
+        `INSERT INTO guides 
+        (guides_name, guides_phonenumber, guides_email, guides_password, 
+        guides_facebook, guides_language, guides_imageprofile, guides_imagelicense, 
+        guides_image_business_license, guides_province, guides_maxcus, guides_pricepercusperday, guides_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          guides_name || null,
+          guides_phonenumber,
+          guides_email,
+          hashedPassword,
+          guides_facebook || null,
+          guides_language || null,
+          imageGuideUrl,
+          guideLicenseUrl,
+          businessLicenseUrl,
+          guides_province || null,
+          guides_maxcus ?? 0,
+          guides_pricepercusperday ?? 0,
+          0,
+        ]
+      );
+
+      return res.status(201).json({
+        message: "ลงทะเบียนสำเร็จ! รอการอนุมัติ",
+        gid: result.insertId,
+      });
+    } catch (error: any) {
+      console.error("POST /register_guides error:", error);
+
+      return res.status(500).json({
+        message: "Server Error",
+        error: error.message,
+      });
+    }
+  }
+);
+
+router.post("/approve/:gid", async (req: Request, res: Response) => {
+  const { gid } = req.params; 
+  const conn = await db.getConnection();
 
   try {
-    const [rows]: any = await db.query(
-      "SELECT * FROM guides WHERE guides_email = ?",
-      [guides_email]
+    await conn.beginTransaction();
+
+    // 1. ค้นหาในตาราง `guides` โดยใช้ Column `guides_id`
+    const [rows]: any = await conn.query(
+      "SELECT * FROM `guides` WHERE `guides_id` = ?", 
+      [gid]
     );
 
     if (!rows.length) {
-      return res.status(400).json({
-        message: "ไม่พบบัญชี",
+      await conn.rollback();
+      return res.status(404).json({
+        message: `ไม่พบข้อมูลไกด์รหัส ${gid} ในระบบ`,
       });
     }
 
-    const guide = rows[0];
-
-    // 🔥 เช็ค status ก่อน
-    if (guide.guides_status === 0) {
-      return res.status(403).json({
-        message: "บัญชีของคุณกำลังรอการอนุมัติจากแอดมิน",
-      });
-    }
-
-    if (guide.guides_status === 2) {
-      return res.status(403).json({
-        message: "บัญชีของคุณถูกปฏิเสธ",
-      });
-    }
-
-    // 🔐 เช็ครหัสผ่าน
-    const isMatch = await bcrypt.compare(
-      guides_password,
-      guide.guides_password
+    // 2. อัปเดต guides_status เป็น 1 (อนุมัติ)
+    // ใช้ชื่อตาราง `guides` ให้ตรงกับที่คุณแจ้งมา
+    await conn.query(
+      "UPDATE `guides` SET `guides_status` = 1 WHERE `guides_id` = ?",
+      [gid]
     );
 
-    if (!isMatch) {
-      return res.status(400).json({
-        message: "รหัสผ่านไม่ถูกต้อง",
-      });
-    }
+    await conn.commit();
 
-    return res.status(200).json({
-      message: "เข้าสู่ระบบสำเร็จ",
-      guide,
+    return res.json({
+      message: "อนุมัติไกด์สำเร็จแล้ว",
+      gid: gid
     });
+
   } catch (error: any) {
+    if (conn) await conn.rollback();
+    console.error("SQL Error:", error);
     return res.status(500).json({
       message: "Server Error",
-      error: error.message,
+      error: error.sqlMessage || error.message,
     });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
