@@ -135,6 +135,53 @@ router.post(
   }
 );
 
+router.delete("/customer/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    // 🔍 เช็คก่อนว่ามีลูกค้าจริงไหม
+    const [rows]: any = await db.query(
+      "SELECT * FROM customers WHERE cus_id = ?",
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบลูกค้า",
+      });
+    }
+
+    // 🔥 ลบจริง
+    const [result]: any = await db.query(
+      "DELETE FROM customers WHERE cus_id = ?",
+      [id]
+    );
+
+    // 🔍 เช็คว่าลบสำเร็จไหม
+    if (result.affectedRows === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "ลบไม่สำเร็จ",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "ลบลูกค้าสำเร็จ",
+      deleted: rows[0], // ข้อมูลที่ลบ
+    });
+
+  } catch (error: any) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
 // // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
 // router.post("/login", async (req: Request, res: Response) => {
 //   const { email, password } = req.body;

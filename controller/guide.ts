@@ -265,4 +265,34 @@ router.delete("/reject/:gid", async (req: Request, res: Response) => {
   }
 });
 
+router.delete("/guide/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const [result]: any = await db.query(
+      "DELETE FROM guides WHERE guides_id = ?",
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบไกด์",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "ลบไกด์สำเร็จ",
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
 export default router;
