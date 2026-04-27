@@ -135,11 +135,10 @@ router.post(
   }
 );
 
-router.delete("/customer/:id", async (req: Request, res: Response) => {
+router.delete("/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
-    // 🔍 เช็คก่อนว่ามีลูกค้าจริงไหม
     const [rows]: any = await db.query(
       "SELECT * FROM customers WHERE cus_id = ?",
       [id]
@@ -152,13 +151,11 @@ router.delete("/customer/:id", async (req: Request, res: Response) => {
       });
     }
 
-    // 🔥 ลบจริง
     const [result]: any = await db.query(
       "DELETE FROM customers WHERE cus_id = ?",
       [id]
     );
 
-    // 🔍 เช็คว่าลบสำเร็จไหม
     if (result.affectedRows === 0) {
       return res.status(400).json({
         success: false,
@@ -169,11 +166,10 @@ router.delete("/customer/:id", async (req: Request, res: Response) => {
     return res.json({
       success: true,
       message: "ลบลูกค้าสำเร็จ",
-      deleted: rows[0], // ข้อมูลที่ลบ
+      deleted: rows[0],
     });
 
   } catch (error: any) {
-    console.error(error);
     return res.status(500).json({
       success: false,
       message: "Server Error",
