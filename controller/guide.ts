@@ -266,7 +266,7 @@ router.delete("/reject/:gid", async (req: Request, res: Response) => {
 });
 
 router.delete("/guide/:id", async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = Number(req.params.id);
 
   try {
     const [result]: any = await db.query(
