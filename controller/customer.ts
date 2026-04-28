@@ -32,7 +32,7 @@ router.get("/test-cloudinary", (req, res) => {
 });
 
 // get all customers
-router.get("/customers", async (req: Request, res: Response) => {
+router.get("/customers/:id", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query("SELECT * FROM customers");
 
@@ -55,8 +55,7 @@ router.get("/customers", async (req: Request, res: Response) => {
 
 
 // register customers
-router.post(
-  "/register_customers",
+router.post("/register_customers",
   upload.single("cus_imageprofile"),
   async (req: Request, res: Response) => {
     const { cus_name, cus_phonenumber, cus_email, cus_password } = req.body;
