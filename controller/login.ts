@@ -9,15 +9,16 @@ router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   try {
-    // 🔍 validate input
+    // ✅ validate input
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "❌ กรุณากรอก Email และ Password" });
+      return res.status(400).json({
+        message: "❌ กรุณากรอก Email และ Password",
+      });
     }
 
-    //CUSTOMER
-   
+    // =========================
+    // 🔍 1. CUSTOMER
+    // =========================
     const [customerRows] = await db.execute<RowDataPacket[]>(
       "SELECT * FROM customers WHERE cus_email = ?",
       [email]
@@ -26,13 +27,10 @@ router.post("/login", async (req: Request, res: Response) => {
     if (customerRows.length > 0) {
       const user = customerRows[0] as any;
 
-      const isPasswordValid = await bcrypt.compare(
-        password,
-        user.cus_password
-      );
+      const isValid = await bcrypt.compare(password, user.cus_password);
 
-      if (!isPasswordValid) {
-        return res.status(400).json({
+      if (!isValid) {
+        return res.status(401).json({
           message: "❌ รหัสผ่านไม่ถูกต้อง",
         });
       }
@@ -41,7 +39,7 @@ router.post("/login", async (req: Request, res: Response) => {
         message: "✅ Login สำเร็จ (Customer)",
         role: "customers",
         user: {
-          id: user.cus_id,
+          id: user.cus_id, // ✅ สำคัญ ต้องตรง Flutter
           name: user.cus_name,
           email: user.cus_email,
           image: user.cus_imageprofile,
@@ -49,35 +47,37 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-   
-    //GUIDE
+    // =========================
+    // 🔍 2. GUIDE
+    // =========================
     const [guideRows] = await db.execute<RowDataPacket[]>(
       "SELECT * FROM guides WHERE guides_email = ?",
       [email]
     );
 
     if (guideRows.length > 0) {
-      const guides = guideRows[0] as any;
+      const guide = guideRows[0] as any;
 
-      if (guides.guides_status === 0) {
+      // ✅ check status ก่อน compare password
+      if (guide.guides_status === 0) {
         return res.status(403).json({
-          message: "⏳ บัญชีของคุณกำลังรอการอนุมัติจากแอดมิน",
+          message: "⏳ บัญชีรออนุมัติจากแอดมิน",
         });
       }
 
-      if (guides.guides_status === 2) {
+      if (guide.guides_status === 2) {
         return res.status(403).json({
-          message: "❌ บัญชีของคุณถูกปฏิเสธ",
+          message: "❌ บัญชีถูกปฏิเสธ",
         });
       }
 
-      const isGuidePasswordValid = await bcrypt.compare(
+      const isValid = await bcrypt.compare(
         password,
-        guides.guides_password
+        guide.guides_password
       );
 
-      if (!isGuidePasswordValid) {
-        return res.status(400).json({
+      if (!isValid) {
+        return res.status(401).json({
           message: "❌ รหัสผ่านไม่ถูกต้อง",
         });
       }
@@ -86,17 +86,17 @@ router.post("/login", async (req: Request, res: Response) => {
         message: "✅ Login สำเร็จ (Guide)",
         role: "guide",
         user: {
-          id: guides.guides_id,
-          name: guides.guides_name,
-          email: guides.guides_email,
-          image: guides.guides_imageprofile,
+          id: guide.guides_id, // ✅ Flutter ใช้ตัวนี้
+          name: guide.guides_name,
+          email: guide.guides_email,
+          image: guide.guides_imageprofile,
         },
       });
     }
 
-    
-    //ADMIN
-   
+    // =========================
+    // 🔍 3. ADMIN
+    // =========================
     const [adminRows] = await db.execute<RowDataPacket[]>(
       "SELECT * FROM admin WHERE admin_email = ?",
       [email]
@@ -105,23 +105,17 @@ router.post("/login", async (req: Request, res: Response) => {
     if (adminRows.length > 0) {
       const admin = adminRows[0] as any;
 
-      let isAdminPasswordValid = false;
+      let isValid = false;
 
-      if (password === admin.admin_password) {
-        isAdminPasswordValid = true;
-      } else {
-        try {
-          isAdminPasswordValid = await bcrypt.compare(
-            password,
-            admin.admin_password
-          );
-        } catch {
-          isAdminPasswordValid = false;
-        }
+      // 🔥 รองรับทั้ง hash + plain (แต่แนะนำให้ hash ทั้งหมด)
+      try {
+        isValid = await bcrypt.compare(password, admin.admin_password);
+      } catch {
+        isValid = password === admin.admin_password;
       }
 
-      if (!isAdminPasswordValid) {
-        return res.status(400).json({
+      if (!isValid) {
+        return res.status(401).json({
           message: "❌ รหัสผ่านไม่ถูกต้อง",
         });
       }
@@ -137,13 +131,15 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    // ❌ ไม่พบผู้ใช้
-    return res.status(400).json({
-      message: "❌ ไม่พบบัญชีอีเมลนี้",
+    // =========================
+    // ❌ ไม่พบ user
+    // =========================
+    return res.status(404).json({
+      message: "❌ ไม่พบบัญชีนี้",
     });
 
   } catch (err: any) {
-    console.error("Error in login:", err);
+    console.error("Login Error:", err);
 
     return res.status(500).json({
       message: "❌ Server Error",
