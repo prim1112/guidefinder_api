@@ -316,6 +316,37 @@ router.put(
     }
   }
 );
+router.get("/:id", async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+
+  try {
+    const [rows]: any = await db.query(
+      `SELECT cus_id, cus_name, cus_phonenumber, cus_email, cus_imageprofile 
+       FROM customers 
+       WHERE cus_id = ?`,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบข้อมูลลูกค้า",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: rows[0],
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+});
 
 // ใช้เส้นทาง /me หรือ /profile-delete เพื่อสื่อความหมายว่า "จัดการตัวเอง"
 router.delete("/me", async (req: Request, res: Response) => {
