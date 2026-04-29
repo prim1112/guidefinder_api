@@ -311,6 +311,8 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
     }
 
     const guide = rows[0];
+
+    // ✅ ลบ password ออกก่อนส่ง
     delete guide.guides_password;
 
     return res.json({
@@ -359,6 +361,7 @@ router.put(
 
       const guide = rows[0];
 
+      // ================= PASSWORD =================
       let hashedPassword = guide.guides_password;
 
       if (guides_password) {
@@ -371,6 +374,7 @@ router.put(
         hashedPassword = await bcrypt.hash(guides_password, 10);
       }
 
+      // ================= IMAGE =================
       let imageUrl = guide.guides_imageprofile;
 
       if (req.file) {
@@ -381,6 +385,7 @@ router.put(
         imageUrl = result.secure_url;
       }
 
+      // ================= UPDATE =================
       await db.query(
         `UPDATE guides SET 
           guides_name = ?,
