@@ -295,4 +295,166 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/profile/:id", async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+
+  try {
+    const [rows]: any = await db.query(
+      "SELECT * FROM guides WHERE guides_id = ?",
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({
+        message: "ไม่พบข้อมูลไกด์",
+      });
+    }
+
+    const guide = rows[0];
+
+    // ❗ ตัด password ออก
+    const { guides_password, ...safeGuide } = guide;
+
+    return res.json({
+      message: "ดึงข้อมูลสำเร็จ",
+      data: safeGuide,
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+router.put(
+  "/profile/:id",
+  upload.single("guides_imageprofile"),
+  async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+
+    try {
+      const {
+        guides_name,
+        guides_phonenumber,
+        guides_email,
+        guides_password,
+        confirm_password,
+        guides_facebook,
+        guides_language,
+        guides_province,
+      } = req.body;
+
+      // 🔍 เช็ค user
+      const [rows]: any = await db.query(
+        "SELECT * FROM guides WHERE guides_id = ?",
+        [id]
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({
+          message: "ไม่พบไกด์",
+        });
+      }
+
+      const guide = rows[0];
+
+      // =========================
+      // 🔐 PASSWORD (ถ้ามีการเปลี่ยน)
+      // =========================
+      let hashedPassword = guide.guides_password;
+
+      if (guides_password) {
+        if (guides_password !== confirm_password) {
+          return res.status(400).json({
+            message: "รหัสผ่านไม่ตรงกัน",
+          });
+        }
+
+        hashedPassword = await bcrypt.hash(guides_password, 10);
+      }
+
+      // =========================
+      // 🖼️ IMAGE (ถ้ามีอัปโหลดใหม่)
+      // =========================
+      let imageUrl = guide.guides_imageprofile;
+
+      if (req.file) {
+        const result = await uploadToCloudinary(
+          req.file.buffer,
+          "guides/profile"
+        );
+        imageUrl = result.secure_url;
+      }
+
+      // =========================
+      // 🧾 UPDATE
+      // =========================
+      await db.query(
+        `UPDATE guides SET 
+          guides_name = ?,
+          guides_phonenumber = ?,
+          guides_email = ?,
+          guides_password = ?,
+          guides_facebook = ?,
+          guides_language = ?,
+          guides_province = ?,
+          guides_imageprofile = ?
+        WHERE guides_id = ?`,
+        [
+          guides_name || guide.guides_name,
+          guides_phonenumber || guide.guides_phonenumber,
+          guides_email || guide.guides_email,
+          hashedPassword,
+          guides_facebook || guide.guides_facebook,
+          guides_language || guide.guides_language,
+          guides_province || guide.guides_province,
+          imageUrl,
+          id,
+        ]
+      );
+
+      return res.json({
+        message: "อัปเดตโปรไฟล์สำเร็จ",
+      });
+
+    } catch (error: any) {
+      console.error(error);
+
+      return res.status(500).json({
+        message: "Server Error",
+        error: error.message,
+      });
+    }
+  }
+);
+
+router.delete("/profile/:id", async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+
+  try {
+    const [result]: any = await db.query(
+      "DELETE FROM guides WHERE guides_id = ?",
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: "ไม่พบไกด์",
+      });
+    }
+
+    return res.json({
+      message: "ลบบัญชีสำเร็จ",
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
 export default router;
