@@ -178,6 +178,112 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }
 });
 
+router.put("/:id", async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const { cus_name, cus_phonenumber, cus_email, cus_password, cus_imageprofile } = req.body;
+
+  try {
+    // 1. ดึงข้อมูล "ก่อนเปลี่ยน" ออกมาเก็บไว้ก่อน
+    const [oldData]: any = await db.query(
+      "SELECT * FROM customers WHERE cus_id = ?",
+      [id]
+    );
+
+    // ถ้าไม่พบ ID ลูกค้า
+    if (oldData.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบข้อมูลลูกค้าที่ต้องการแก้ไข",
+      });
+    }
+
+    // 2. ทำการอัปเดตข้อมูลใหม่
+    // ใช้เครื่องหมาย ? เพื่อป้องกัน SQL Injection
+    await db.query(
+      `UPDATE customers SET 
+        cus_name = ?, 
+        cus_phonenumber = ?, 
+        cus_email = ?, 
+        cus_password = ?, 
+        cus_imageprofile = ? 
+      WHERE cus_id = ?`,
+      [cus_name, cus_phonenumber, cus_email, cus_password, cus_imageprofile, id]
+    );
+
+    // 3. ดึงข้อมูล "หลังเปลี่ยน" เพื่อส่งกลับไปยืนยัน
+    const [newData]: any = await db.query(
+      "SELECT * FROM customers WHERE cus_id = ?",
+      [id]
+    );
+
+    // ส่ง Response กลับไปทั้งข้อมูลเก่าและข้อมูลใหม่
+    return res.json({
+      success: true,
+      message: "แก้ไขข้อมูลสำเร็จ",
+      beforeUpdate: oldData[0], // ข้อมูลเดิมก่อนแก้ไข
+      afterUpdate: newData[0]   // ข้อมูลใหม่ที่เพิ่งบันทึก
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: "เกิดข้อผิดพลาดในการแก้ไขข้อมูล",
+      error: error.message,
+    });
+  }
+});
+
+// ใช้เส้นทาง /me หรือ /profile-delete เพื่อสื่อความหมายว่า "จัดการตัวเอง"
+router.delete("/me", async (req: Request, res: Response) => {
+  
+  // ปกติแล้ว id จะได้มาจาก Middleware ตรวจสอบ Token (เช่น req.user.id)
+  // ในที่นี้สมมติว่าคุณเก็บ id ไว้ที่ req.user_id นะครับ
+  const myId = (req as any).user_id; 
+
+  if (!myId) {
+    return res.status(401).json({
+      success: false,
+      message: "กรุณาล็อกอินก่อนทำรายการ"
+    });
+  }
+
+  try {
+    // 1. ดึงข้อมูลตัวเองมาเก็บไว้ก่อนลบ เพื่อส่งกลับไปบอกลาลูกค้า
+    const [customer]: any = await db.query(
+      "SELECT cus_name, cus_email FROM customers WHERE cus_id = ?",
+      [myId]
+    );
+
+    if (customer.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบข้อมูลบัญชีของคุณ",
+      });
+    }
+
+    // 2. ลบข้อมูลของตัวเองออกจากระบบ
+    await db.query("DELETE FROM customers WHERE cus_id = ?", [myId]);
+
+    // 3. ส่งคำยืนยันการลบ
+    return res.json({
+      success: true,
+      message: "บัญชีของคุณถูกลบเรียบร้อยแล้ว เราหวังว่าจะได้บริการคุณใหม่ในโอกาสหน้า",
+      details: {
+        name: customer[0].cus_name,
+        email: customer[0].cus_email,
+        deletedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: "ไม่สามารถลบบัญชีได้ในขณะนี้",
+      error: error.message,
+    });
+  }
+});
+
 // // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
 // router.post("/login", async (req: Request, res: Response) => {
 //   const { email, password } = req.body;
