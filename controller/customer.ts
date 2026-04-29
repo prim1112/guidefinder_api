@@ -54,137 +54,81 @@ router.get("/customers", async (req: Request, res: Response) => {
 });
 
 
-router.put(
-  "/:id",
-  upload.single("cus_imageprofile"), // ✅ เหมือน register
+// register customers
+router.post(
+  "/register_customers",
+  upload.single("cus_imageprofile"),
   async (req: Request, res: Response) => {
-    const id = Number(req.params.id);
-
-    const {
-      cus_name,
-      cus_phonenumber,
-      cus_email,
-      cus_password,
-      confirm_password,
-    } = req.body;
+    const { cus_name, cus_phonenumber, cus_email, cus_password } = req.body;
 
     try {
-      // 🔹 1. เช็ค user
-      const [customers]: any = await db.query(
-        "SELECT * FROM customers WHERE cus_id = ?",
-        [id]
+      // validate
+      if (!cus_email || !cus_password || !cus_phonenumber) {
+        return res.status(400).json({
+          message: "กรุณากรอก email, password และเบอร์โทร",
+        });
+      }
+
+      const email = cus_email.toLowerCase();
+
+      // check phone 
+      const [phoneRows]: any = await db.query(
+        "SELECT cus_phonenumber FROM customers WHERE cus_phonenumber = ?",
+        [cus_phonenumber]
       );
 
-      if (customers.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: "ไม่พบข้อมูลลูกค้า",
-        });
-      }
-
-      const oldData = customers[0];
-
-      // 🔹 2. validate password
-      if (cus_password && cus_password !== confirm_password) {
+      if (phoneRows.length) {
         return res.status(400).json({
-          success: false,
-          message: "รหัสผ่านไม่ตรงกัน",
+          message: "เบอร์โทรนี้มีอยู่ในระบบแล้ว",
         });
       }
 
-      // 🔹 3. check email ซ้ำ
-      if (cus_email && cus_email !== oldData.cus_email) {
-        const [emailRows]: any = await db.query(
-          "SELECT cus_email FROM customers WHERE cus_email = ?",
-          [cus_email]
-        );
+      // check email
+      const [emailRows]: any = await db.query(
+        "SELECT cus_email FROM customers WHERE cus_email = ?",
+        [email]
+      );
 
-        if (emailRows.length) {
-          return res.status(400).json({
-            success: false,
-            message: "อีเมลนี้ถูกใช้งานแล้ว",
-          });
-        }
+      if (emailRows.length) {
+        return res.status(400).json({
+          message: "อีเมลนี้ถูกใช้งานแล้ว",
+        });
       }
 
-      // 🔹 4. check phone ซ้ำ
-      if (cus_phonenumber && cus_phonenumber !== oldData.cus_phonenumber) {
-        const [phoneRows]: any = await db.query(
-          "SELECT cus_phonenumber FROM customers WHERE cus_phonenumber = ?",
-          [cus_phonenumber]
-        );
+      //hash password
+      const hashedPassword = await bcrypt.hash(cus_password, 10);
 
-        if (phoneRows.length) {
-          return res.status(400).json({
-            success: false,
-            message: "เบอร์นี้ถูกใช้งานแล้ว",
-          });
-        }
-      }
-
-      // 🔹 5. hash password (ถ้ามี)
-      let hashedPassword = oldData.cus_password;
-      if (cus_password) {
-        hashedPassword = await bcrypt.hash(cus_password, 10);
-      }
-
-      // 🔹 6. upload รูป (เหมือน register)
-      let imageUrl = oldData.cus_imageprofile;
+      // upload image
+      let cus_imageprofile: string | null = null;
 
       if (req.file?.buffer) {
-        const result = await uploadToCloudinary(
-          req.file.buffer,
-          "customers"
-        );
-        imageUrl = result.secure_url;
+        const result = await uploadToCloudinary(req.file.buffer, "customers");
+        cus_imageprofile = result.secure_url;
       }
 
-      // 🔹 7. update db
-      const updatedValues = {
-        cus_name: cus_name || oldData.cus_name,
-        cus_phonenumber:
-          cus_phonenumber || oldData.cus_phonenumber,
-        cus_email: cus_email || oldData.cus_email,
-        cus_password: hashedPassword,
-        cus_imageprofile: imageUrl,
-      };
-
-      await db.query(
-        `UPDATE customers SET 
-          cus_name = ?, 
-          cus_phonenumber = ?, 
-          cus_email = ?, 
-          cus_password = ?, 
-          cus_imageprofile = ? 
-        WHERE cus_id = ?`,
+      //insert
+      const [result]: any = await db.query(
+        `INSERT INTO customers 
+        (cus_name, cus_phonenumber, cus_email, cus_password, cus_imageprofile)
+        VALUES (?, ?, ?, ?, ?)`,
         [
-          updatedValues.cus_name,
-          updatedValues.cus_phonenumber,
-          updatedValues.cus_email,
-          updatedValues.cus_password,
-          updatedValues.cus_imageprofile,
-          id,
+          cus_name || null,
+          cus_phonenumber,
+          email,
+          hashedPassword,
+          cus_imageprofile,
         ]
       );
 
-      // 🔹 8. response
-      return res.json({
-        success: true,
-        message: "อัปเดตสำเร็จ",
-        data: {
-          cus_id: id,
-          cus_name: updatedValues.cus_name,
-          cus_phonenumber: updatedValues.cus_phonenumber,
-          cus_email: updatedValues.cus_email,
-          cus_imageprofile: updatedValues.cus_imageprofile, // ✅ URL เต็ม
-        },
+      return res.status(201).json({
+        message: "สมัครสมาชิกสำเร็จ",
+        cid: result.insertId,
       });
-
     } catch (error: any) {
-      console.error("PUT error:", error);
+      console.error("POST /register_customers error:", error);
+
       return res.status(500).json({
-        success: false,
-        message: "เกิดข้อผิดพลาด",
+        message: "Server Error",
         error: error.message,
       });
     }
@@ -236,78 +180,97 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
 router.put(
   "/:id",
+  upload.single("cus_imageprofile"), 
   async (req: Request, res: Response) => {
     const id = Number(req.params.id);
+
     const {
       cus_name,
       cus_phonenumber,
       cus_email,
       cus_password,
       confirm_password,
-      cus_imageprofile, // รับค่าเป็น Base64 String จาก Frontend
     } = req.body;
 
     try {
-      // 1. Validation เบื้องต้น
-      if (cus_password && cus_password !== confirm_password) {
-        return res.status(400).json({ success: false, message: "รหัสผ่านไม่ตรงกัน" });
+      // 🔹 1. check user
+      const [customers]: any = await db.query(
+        "SELECT * FROM customers WHERE cus_id = ?",
+        [id]
+      );
+
+      if (customers.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "ไม่พบข้อมูลลูกค้า",
+        });
       }
 
-      // 2. ดึงข้อมูลเก่า (เพื่อตรวจสอบการมีอยู่และใช้ข้อมูลเดิมกรณีไม่ได้อัปเดตบาง Field)
-      const [customers]: any = await db.query("SELECT * FROM customers WHERE cus_id = ?", [id]);
-      if (customers.length === 0) {
-        return res.status(404).json({ success: false, message: "ไม่พบข้อมูลลูกค้า" });
-      }
       const oldData = customers[0];
 
-      // 3. ตรวจสอบ Email และ Phone ซ้ำแบบขนาน (Parallel)
-      const checkPromises = [];
-      if (cus_email && cus_email !== oldData.cus_email) {
-        checkPromises.push(db.query("SELECT 'email' as type FROM customers WHERE cus_email = ?", [cus_email]));
-      }
-      if (cus_phonenumber && cus_phonenumber !== oldData.cus_phonenumber) {
-        checkPromises.push(db.query("SELECT 'phone' as type FROM customers WHERE cus_phonenumber = ?", [cus_phonenumber]));
+      // 🔹 2. validate password
+      if (cus_password && cus_password !== confirm_password) {
+        return res.status(400).json({
+          success: false,
+          message: "รหัสผ่านไม่ตรงกัน",
+        });
       }
 
-      const checkResults = await Promise.all(checkPromises);
-      for (const [rows] of checkResults as any[]) {
-        if (rows.length > 0) {
-          const msg = rows[0].type === 'email' ? "อีเมลนี้ถูกใช้งานแล้ว" : "เบอร์นี้ถูกใช้งานแล้ว";
-          return res.status(400).json({ success: false, message: msg });
+      const email = cus_email ? cus_email.toLowerCase() : oldData.cus_email;
+
+      // 🔹 3. check phone ซ้ำ
+      if (cus_phonenumber && cus_phonenumber !== oldData.cus_phonenumber) {
+        const [phoneRows]: any = await db.query(
+          "SELECT cus_phonenumber FROM customers WHERE cus_phonenumber = ?",
+          [cus_phonenumber]
+        );
+
+        if (phoneRows.length) {
+          return res.status(400).json({
+            success: false,
+            message: "เบอร์นี้ถูกใช้งานแล้ว",
+          });
         }
       }
 
-      // 4. จัดการงานหนัก (Hash Password และ Upload รูปใหม่) แบบขนาน
-      let hashedPassword = oldData.cus_password;
-      let imageUrl = oldData.cus_imageprofile;
-      const heavyTasks = [];
+      // 🔹 4. check email ซ้ำ
+      if (cus_email && cus_email !== oldData.cus_email) {
+        const [emailRows]: any = await db.query(
+          "SELECT cus_email FROM customers WHERE cus_email = ?",
+          [email]
+        );
 
-      // Task: ถ้ามีการเปลี่ยนรหัสผ่าน
-      if (cus_password?.trim()) {
-        heavyTasks.push((async () => {
-          hashedPassword = await bcrypt.hash(cus_password, 10);
-        })());
-      }
-
-      // Task: ถ้ามีการส่งรูปใหม่มา (เช็คว่าเป็น Base64 string)
-      if (cus_imageprofile && cus_imageprofile.startsWith("data:image")) {
-        heavyTasks.push((async () => {
-          // Cloudinary SDK สามารถรับ Base64 ได้โดยตรง ไม่ต้องผ่าน Buffer
-          const result = await cloudinary.uploader.upload(cus_imageprofile, {
-            folder: "customers",
-            resource_type: "image"
+        if (emailRows.length) {
+          return res.status(400).json({
+            success: false,
+            message: "อีเมลนี้ถูกใช้งานแล้ว",
           });
-          imageUrl = result.secure_url;
-        })());
+        }
       }
 
-      await Promise.all(heavyTasks);
+      // 🔹 5. hash password
+      let hashedPassword = oldData.cus_password;
+      if (cus_password) {
+        hashedPassword = await bcrypt.hash(cus_password, 10);
+      }
 
-      // 5. Update ข้อมูลลง Database
+      // 🔹 6. upload image (เหมือน register)
+      let imageUrl = oldData.cus_imageprofile;
+
+      if (req.file?.buffer) {
+        const result = await uploadToCloudinary(
+          req.file.buffer,
+          "customers"
+        );
+        imageUrl = result.secure_url;
+      }
+
+      // 🔹 7. update db
       const updatedValues = {
         cus_name: cus_name || oldData.cus_name,
-        cus_phonenumber: cus_phonenumber || oldData.cus_phonenumber,
-        cus_email: cus_email || oldData.cus_email,
+        cus_phonenumber:
+          cus_phonenumber || oldData.cus_phonenumber,
+        cus_email: email,
         cus_password: hashedPassword,
         cus_imageprofile: imageUrl,
       };
@@ -326,27 +289,29 @@ router.put(
           updatedValues.cus_email,
           updatedValues.cus_password,
           updatedValues.cus_imageprofile,
-          id
+          id,
         ]
       );
 
-      // 6. ส่ง Response กลับ (ไม่ต้อง Query ใหม่เพื่อประหยัดเวลา)
+      // 🔹 8. response
       return res.json({
         success: true,
-        message: "อัปเดตข้อมูลและรูปภาพสำเร็จ",
+        message: "อัปเดตสำเร็จ",
         data: {
           cus_id: id,
-          ...updatedValues,
-          cus_password: "********" // ปิดบังรหัสผ่านเพื่อความปลอดภัย
-        }
+          cus_name: updatedValues.cus_name,
+          cus_phonenumber: updatedValues.cus_phonenumber,
+          cus_email: updatedValues.cus_email,
+          cus_imageprofile: updatedValues.cus_imageprofile,
+        },
       });
 
     } catch (error: any) {
       console.error("PUT Error:", error);
       return res.status(500).json({
         success: false,
-        message: "เกิดข้อผิดพลาดในการอัปเดตข้อมูล",
-        error: error.message
+        message: "เกิดข้อผิดพลาด",
+        error: error.message,
       });
     }
   }
