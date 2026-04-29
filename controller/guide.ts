@@ -311,13 +311,11 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
     }
 
     const guide = rows[0];
-
-    // ❗ ตัด password ออก
-    const { guides_password, ...safeGuide } = guide;
+    delete guide.guides_password;
 
     return res.json({
       message: "ดึงข้อมูลสำเร็จ",
-      data: safeGuide,
+      data: guide,
     });
 
   } catch (error: any) {
@@ -328,6 +326,8 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
   }
 });
 
+
+// UPDATE GUIDE PROFILE
 router.put(
   "/profile/:id",
   upload.single("guides_imageprofile"),
@@ -346,7 +346,6 @@ router.put(
         guides_province,
       } = req.body;
 
-      // 🔍 เช็ค user
       const [rows]: any = await db.query(
         "SELECT * FROM guides WHERE guides_id = ?",
         [id]
@@ -360,9 +359,6 @@ router.put(
 
       const guide = rows[0];
 
-      // =========================
-      // 🔐 PASSWORD (ถ้ามีการเปลี่ยน)
-      // =========================
       let hashedPassword = guide.guides_password;
 
       if (guides_password) {
@@ -375,9 +371,6 @@ router.put(
         hashedPassword = await bcrypt.hash(guides_password, 10);
       }
 
-      // =========================
-      // 🖼️ IMAGE (ถ้ามีอัปโหลดใหม่)
-      // =========================
       let imageUrl = guide.guides_imageprofile;
 
       if (req.file) {
@@ -388,9 +381,6 @@ router.put(
         imageUrl = result.secure_url;
       }
 
-      // =========================
-      // 🧾 UPDATE
-      // =========================
       await db.query(
         `UPDATE guides SET 
           guides_name = ?,
@@ -403,13 +393,13 @@ router.put(
           guides_imageprofile = ?
         WHERE guides_id = ?`,
         [
-          guides_name || guide.guides_name,
-          guides_phonenumber || guide.guides_phonenumber,
-          guides_email || guide.guides_email,
+          guides_name ?? guide.guides_name,
+          guides_phonenumber ?? guide.guides_phonenumber,
+          guides_email ?? guide.guides_email,
           hashedPassword,
-          guides_facebook || guide.guides_facebook,
-          guides_language || guide.guides_language,
-          guides_province || guide.guides_province,
+          guides_facebook ?? guide.guides_facebook,
+          guides_language ?? guide.guides_language,
+          guides_province ?? guide.guides_province,
           imageUrl,
           id,
         ]
@@ -420,8 +410,6 @@ router.put(
       });
 
     } catch (error: any) {
-      console.error(error);
-
       return res.status(500).json({
         message: "Server Error",
         error: error.message,
@@ -430,6 +418,7 @@ router.put(
   }
 );
 
+//  DELETE GUIDE PROFILE
 router.delete("/profile/:id", async (req: Request, res: Response) => {
   const id = Number(req.params.id);
 
