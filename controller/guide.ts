@@ -50,7 +50,7 @@ router.get("/guides/:gid", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
       "SELECT * FROM guides WHERE guides_id = ?",
-      [gid]
+      [gid],
     );
 
     if (!rows.length) {
@@ -68,14 +68,13 @@ router.get("/guides/:gid", async (req: Request, res: Response) => {
       message: "ดึงข้อมูลสำเร็จ",
       data: safeGuide,
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
       error: error.message,
     });
   }
-}); 
+});
 
 // register guide
 router.post(
@@ -109,7 +108,7 @@ router.post(
       // 🔍 check duplicate
       const [existing]: any = await db.query(
         "SELECT guides_email FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
-        [guides_email, guides_phonenumber]
+        [guides_email, guides_phonenumber],
       );
 
       if (existing.length) {
@@ -128,17 +127,20 @@ router.post(
       };
 
       const imageGuideUrl =
-        (await uploadImage(files?.guides_imageprofile?.[0], "guides/profile")) ||
+        (await uploadImage(
+          files?.guides_imageprofile?.[0],
+          "guides/profile",
+        )) ||
         "https://i.pinimg.com/564x/57/00/c0/5700c04197ee9a4372a35ef16eb78f4e.jpg";
 
       const guideLicenseUrl = await uploadImage(
         files?.guides_imagelicense?.[0],
-        "guides/licenses"
+        "guides/licenses",
       );
 
       const businessLicenseUrl = await uploadImage(
         files?.guides_image_business_license?.[0],
-        "guides/business"
+        "guides/business",
       );
 
       //hash password
@@ -165,7 +167,7 @@ router.post(
           guides_maxcus ?? 0,
           guides_pricepercusperday ?? 0,
           0,
-        ]
+        ],
       );
 
       return res.status(201).json({
@@ -180,11 +182,11 @@ router.post(
         error: error.message,
       });
     }
-  }
+  },
 );
 
 router.post("/approve/:gid", async (req: Request, res: Response) => {
-  const { gid } = req.params; 
+  const { gid } = req.params;
   const conn = await db.getConnection();
 
   try {
@@ -192,8 +194,8 @@ router.post("/approve/:gid", async (req: Request, res: Response) => {
 
     // 1. ค้นหาในตาราง `guides` โดยใช้ Column `guides_id`
     const [rows]: any = await conn.query(
-      "SELECT * FROM `guides` WHERE `guides_id` = ?", 
-      [gid]
+      "SELECT * FROM `guides` WHERE `guides_id` = ?",
+      [gid],
     );
 
     if (!rows.length) {
@@ -207,16 +209,15 @@ router.post("/approve/:gid", async (req: Request, res: Response) => {
     // ใช้ชื่อตาราง `guides` ให้ตรงกับที่คุณแจ้งมา
     await conn.query(
       "UPDATE `guides` SET `guides_status` = 1 WHERE `guides_id` = ?",
-      [gid]
+      [gid],
     );
 
     await conn.commit();
 
     return res.json({
       message: "อนุมัติไกด์สำเร็จแล้ว",
-      gid: gid
+      gid: gid,
     });
-
   } catch (error: any) {
     if (conn) await conn.rollback();
     console.error("SQL Error:", error);
@@ -229,7 +230,7 @@ router.post("/approve/:gid", async (req: Request, res: Response) => {
   }
 });
 
-// reject  guide_pending 
+// reject  guide_pending
 router.delete("/reject/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
@@ -238,7 +239,7 @@ router.delete("/reject/:gid", async (req: Request, res: Response) => {
       `SELECT guides_name, guides_email, guides_phonenumber 
        FROM guide_pending 
        WHERE gid = ?`,
-      [gid]
+      [gid],
     );
 
     if (!rows.length) {
@@ -271,7 +272,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const [result]: any = await db.query(
       "DELETE FROM guides WHERE guides_id = ?",
-      [id]
+      [id],
     );
 
     if (result.affectedRows === 0) {
@@ -285,7 +286,6 @@ router.delete("/:id", async (req: Request, res: Response) => {
       success: true,
       message: "ลบไกด์สำเร็จ",
     });
-
   } catch (error: any) {
     return res.status(500).json({
       success: false,
@@ -316,7 +316,7 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
         guides_status
       FROM guides
       WHERE guides_id = ?`,
-      [id]
+      [id],
     );
 
     if (!rows.length) {
@@ -330,22 +330,21 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
     return res.json({
       message: "ดึงข้อมูลสำเร็จ",
       data: {
-        id: g.guides_id,
-        name: g.guides_name,
-        phone: g.guides_phonenumber,
-        email: g.guides_email,
-        language: g.guides_language,
-        facebook: g.guides_facebook,
-        imageProfile: g.guides_imageprofile,
-        imageLicense: g.guides_imagelicense,
-        imageBusinessLicense: g.guides_image_business_license,
-        province: g.guides_province,
-        maxCustomer: g.guides_maxcus,
-        pricePerDay: g.guides_pricepercusperday,
-        status: g.guides_status,
+        guides_id: g.guides_id,
+        guides_name: g.guides_name,
+        guides_phonenumber: g.guides_phonenumber,
+        guides_email: g.guides_email,
+        guides_language: g.guides_language,
+        guides_facebook: g.guides_facebook,
+        guides_imageprofile: g.guides_imageprofile,
+        guides_imagelicense: g.guides_imagelicense,
+        guides_image_business_license: g.guides_image_business_license,
+        guides_province: g.guides_province,
+        guides_maxcus: g.guides_maxcus,
+        guides_pricepercusperday: g.guides_pricepercusperday,
+        guides_status: g.guides_status,
       },
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -353,7 +352,6 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
     });
   }
 });
-
 
 // UPDATE GUIDE PROFILE
 router.put(
@@ -380,14 +378,12 @@ router.put(
       );
 
       if (!rows.length) {
-        return res.status(404).json({
-          message: "ไม่พบไกด์",
-        });
+        return res.status(404).json({ message: "ไม่พบไกด์" });
       }
 
       const guide = rows[0];
 
-      // ================= PASSWORD =================
+      // PASSWORD
       let hashedPassword = guide.guides_password;
 
       if (guides_password) {
@@ -396,11 +392,10 @@ router.put(
             message: "รหัสผ่านไม่ตรงกัน",
           });
         }
-
         hashedPassword = await bcrypt.hash(guides_password, 10);
       }
 
-      // ================= IMAGE =================
+      // IMAGE
       let imageUrl = guide.guides_imageprofile;
 
       if (req.file) {
@@ -411,26 +406,26 @@ router.put(
         imageUrl = result.secure_url;
       }
 
-      // ================= UPDATE =================
+      // UPDATE (SAFE)
       await db.query(
         `UPDATE guides SET 
-          guides_name = ?,
-          guides_phonenumber = ?,
-          guides_email = ?,
+          guides_name = COALESCE(?, guides_name),
+          guides_phonenumber = COALESCE(?, guides_phonenumber),
+          guides_email = COALESCE(?, guides_email),
           guides_password = ?,
-          guides_facebook = ?,
-          guides_language = ?,
-          guides_province = ?,
+          guides_facebook = COALESCE(?, guides_facebook),
+          guides_language = COALESCE(?, guides_language),
+          guides_province = COALESCE(?, guides_province),
           guides_imageprofile = ?
         WHERE guides_id = ?`,
         [
-          guides_name ?? guide.guides_name,
-          guides_phonenumber ?? guide.guides_phonenumber,
-          guides_email ?? guide.guides_email,
+          guides_name,
+          guides_phonenumber,
+          guides_email,
           hashedPassword,
-          guides_facebook ?? guide.guides_facebook,
-          guides_language ?? guide.guides_language,
-          guides_province ?? guide.guides_province,
+          guides_facebook,
+          guides_language,
+          guides_province,
           imageUrl,
           id,
         ]
@@ -439,7 +434,6 @@ router.put(
       return res.json({
         message: "อัปเดตโปรไฟล์สำเร็จ",
       });
-
     } catch (error: any) {
       return res.status(500).json({
         message: "Server Error",
@@ -468,7 +462,6 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
     return res.json({
       message: "ลบบัญชีสำเร็จ",
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
