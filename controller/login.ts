@@ -5,7 +5,6 @@ import { RowDataPacket } from "mysql2";
 
 export const router = Router();
 
-// ✅ Login (ตรวจว่าเป็น customer, guide หรือ admin)
 router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -17,9 +16,8 @@ router.post("/login", async (req: Request, res: Response) => {
         .json({ message: "❌ กรุณากรอก Email และ Password" });
     }
 
-    // =========================
-    // 1️⃣ CUSTOMER
-    // =========================
+    //CUSTOMER
+   
     const [customerRows] = await db.execute<RowDataPacket[]>(
       "SELECT * FROM customers WHERE cus_email = ?",
       [email]
@@ -43,17 +41,16 @@ router.post("/login", async (req: Request, res: Response) => {
         message: "✅ Login สำเร็จ (Customer)",
         role: "customers",
         user: {
-          cus_id: user.cus_id,
-          cus_name: user.cus_name,
-          cus_email: user.cus_email,
-          cus_imageprofile: user.cus_imageprofile,
+          id: user.cus_id,
+          name: user.cus_name,
+          email: user.cus_email,
+          image: user.cus_imageprofile,
         },
       });
     }
 
-    // =========================
-    // 2️⃣ GUIDE (🔥 แก้ตรงนี้)
-    // =========================
+   
+    //GUIDE
     const [guideRows] = await db.execute<RowDataPacket[]>(
       "SELECT * FROM guides WHERE guides_email = ?",
       [email]
@@ -62,7 +59,6 @@ router.post("/login", async (req: Request, res: Response) => {
     if (guideRows.length > 0) {
       const guides = guideRows[0] as any;
 
-      // 🔥 เช็คสถานะก่อน
       if (guides.guides_status === 0) {
         return res.status(403).json({
           message: "⏳ บัญชีของคุณกำลังรอการอนุมัติจากแอดมิน",
@@ -75,7 +71,6 @@ router.post("/login", async (req: Request, res: Response) => {
         });
       }
 
-      // 🔐 เช็ครหัสผ่าน
       const isGuidePasswordValid = await bcrypt.compare(
         password,
         guides.guides_password
@@ -91,17 +86,17 @@ router.post("/login", async (req: Request, res: Response) => {
         message: "✅ Login สำเร็จ (Guide)",
         role: "guide",
         user: {
-          guides_id: guides.guides_id,
-          guides_name: guides.guides_name,
-          guides_email: guides.guides_email,
-          guides_imageprofile: guides.guides_imageprofile,
+          id: guides.guides_id,
+          name: guides.guides_name,
+          email: guides.guides_email,
+          image: guides.guides_imageprofile,
         },
       });
     }
 
-    // =========================
-    // 3️⃣ ADMIN
-    // =========================
+    
+    //ADMIN
+   
     const [adminRows] = await db.execute<RowDataPacket[]>(
       "SELECT * FROM admin WHERE admin_email = ?",
       [email]
@@ -112,7 +107,6 @@ router.post("/login", async (req: Request, res: Response) => {
 
       let isAdminPasswordValid = false;
 
-      // รองรับทั้ง plain text และ hash
       if (password === admin.admin_password) {
         isAdminPasswordValid = true;
       } else {
@@ -121,7 +115,7 @@ router.post("/login", async (req: Request, res: Response) => {
             password,
             admin.admin_password
           );
-        } catch (e) {
+        } catch {
           isAdminPasswordValid = false;
         }
       }
@@ -136,16 +130,14 @@ router.post("/login", async (req: Request, res: Response) => {
         message: "✅ Login สำเร็จ (Admin)",
         role: "admin",
         user: {
-          admin_id: admin.admin_id,
-          admin_name: admin.admin_name,
-          admin_email: admin.admin_email,
+          id: admin.admin_id,
+          name: admin.admin_name,
+          email: admin.admin_email,
         },
       });
     }
 
-    // =========================
     // ❌ ไม่พบผู้ใช้
-    // =========================
     return res.status(400).json({
       message: "❌ ไม่พบบัญชีอีเมลนี้",
     });
