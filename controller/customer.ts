@@ -178,60 +178,150 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.put("/:id", async (req: Request, res: Response) => {
-  const id = Number(req.params.id);
-  const { cus_name, cus_phonenumber, cus_email, cus_password, cus_imageprofile } = req.body;
+router.put(
+  "/:id",
+  upload.single("cus_imageprofile"),
+  async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
 
-  try {
-    // 1. ดึงข้อมูล "ก่อนเปลี่ยน" ออกมาเก็บไว้ก่อน
-    const [oldData]: any = await db.query(
-      "SELECT * FROM customers WHERE cus_id = ?",
-      [id]
-    );
+    try {
+      const {
+        cus_name,
+        cus_phonenumber,
+        cus_email,
+        cus_password,
+        confirm_password, // 🔥 เพิ่ม
+      } = req.body;
 
-    // ถ้าไม่พบ ID ลูกค้า
-    if (oldData.length === 0) {
-      return res.status(404).json({
+      console.log("BODY:", req.body);
+      console.log("FILE:", req.file);
+
+      // =========================
+      // 🔹 ตรวจ user
+      // =========================
+      const [oldData]: any = await db.query(
+        "SELECT * FROM customers WHERE cus_id = ?",
+        [id]
+      );
+
+      if (oldData.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "ไม่พบข้อมูลลูกค้า",
+        });
+      }
+
+      const old = oldData[0];
+
+      // =========================
+      // 🔹 VALIDATE PASSWORD
+      // =========================
+      if (cus_password && cus_password !== confirm_password) {
+        return res.status(400).json({
+          success: false,
+          message: "รหัสผ่านไม่ตรงกัน",
+        });
+      }
+
+      // =========================
+      // 🔹 CHECK EMAIL ซ้ำ
+      // =========================
+      if (cus_email && cus_email !== old.cus_email) {
+        const [emailRows]: any = await db.query(
+          "SELECT cus_id FROM customers WHERE cus_email = ?",
+          [cus_email]
+        );
+
+        if (emailRows.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message: "อีเมลนี้ถูกใช้งานแล้ว",
+          });
+        }
+      }
+
+      // =========================
+      // 🔹 CHECK PHONE ซ้ำ
+      // =========================
+      if (cus_phonenumber && cus_phonenumber !== old.cus_phonenumber) {
+        const [phoneRows]: any = await db.query(
+          "SELECT cus_id FROM customers WHERE cus_phonenumber = ?",
+          [cus_phonenumber]
+        );
+
+        if (phoneRows.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message: "เบอร์นี้ถูกใช้งานแล้ว",
+          });
+        }
+      }
+
+      // =========================
+      // 🔹 PASSWORD
+      // =========================
+      let hashedPassword = old.cus_password;
+
+      if (cus_password && cus_password.trim() !== "") {
+        hashedPassword = await bcrypt.hash(cus_password, 10);
+      }
+
+      // =========================
+      // 🔹 IMAGE
+      // =========================
+      let imageUrl = old.cus_imageprofile;
+
+      if (req.file?.buffer) {
+        const result = await uploadToCloudinary(
+          req.file.buffer,
+          "customers"
+        );
+        imageUrl = result.secure_url;
+      }
+
+      // =========================
+      // 🔹 UPDATE
+      // =========================
+      await db.query(
+        `UPDATE customers SET 
+          cus_name = ?, 
+          cus_phonenumber = ?, 
+          cus_email = ?, 
+          cus_password = ?, 
+          cus_imageprofile = ?
+        WHERE cus_id = ?`,
+        [
+          cus_name || old.cus_name,
+          cus_phonenumber || old.cus_phonenumber,
+          cus_email || old.cus_email,
+          hashedPassword,
+          imageUrl,
+          id,
+        ]
+      );
+
+      const [newData]: any = await db.query(
+        "SELECT * FROM customers WHERE cus_id = ?",
+        [id]
+      );
+
+      return res.json({
+        success: true,
+        message: "อัปเดตข้อมูลสำเร็จ",
+        beforeUpdate: old,
+        afterUpdate: newData[0],
+      });
+
+    } catch (error: any) {
+      console.error("PUT error:", error);
+      return res.status(500).json({
         success: false,
-        message: "ไม่พบข้อมูลลูกค้าที่ต้องการแก้ไข",
+        message: "เกิดข้อผิดพลาด",
+        error: error.message,
       });
     }
-
-    // 2. ทำการอัปเดตข้อมูลใหม่
-    // ใช้เครื่องหมาย ? เพื่อป้องกัน SQL Injection
-    await db.query(
-      `UPDATE customers SET 
-        cus_name = ?, 
-        cus_phonenumber = ?, 
-        cus_email = ?, 
-        cus_password = ?, 
-        cus_imageprofile = ? 
-      WHERE cus_id = ?`,
-      [cus_name, cus_phonenumber, cus_email, cus_password, cus_imageprofile, id]
-    );
-
-    // 3. ดึงข้อมูล "หลังเปลี่ยน" เพื่อส่งกลับไปยืนยัน
-    const [newData]: any = await db.query(
-      "SELECT * FROM customers WHERE cus_id = ?",
-      [id]
-    );
-
-    // ส่ง Response กลับไปทั้งข้อมูลเก่าและข้อมูลใหม่
-    return res.json({
-      success: true,
-      message: "แก้ไขข้อมูลสำเร็จ",
-      beforeUpdate: oldData[0], // ข้อมูลเดิมก่อนแก้ไข
-      afterUpdate: newData[0]   // ข้อมูลใหม่ที่เพิ่งบันทึก
-    });
-
-  } catch (error: any) {
-    return res.status(500).json({
-      success: false,
-      message: "เกิดข้อผิดพลาดในการแก้ไขข้อมูล",
-      error: error.message,
-    });
   }
-});
+);
 
 // ใช้เส้นทาง /me หรือ /profile-delete เพื่อสื่อความหมายว่า "จัดการตัวเอง"
 router.delete("/me", async (req: Request, res: Response) => {
