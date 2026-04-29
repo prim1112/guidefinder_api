@@ -2,16 +2,15 @@ import { Request, Response, Router } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
 import bcrypt from "bcrypt";
-
 import db from "../db/dbconnect";
-
+import { RowDataPacket, ResultSetHeader } from "mysql2";
 import cloudinary from "../src/config/configCloud";
+
 
 
 export const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// 📸 Upload Cloudinary
 const uploadToCloudinary = (buffer: Buffer, folder: string) =>
   new Promise<any>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -19,11 +18,19 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
       (error: any, result: any) => {
         if (error) reject(error);
         else resolve(result);
-      }
+      },
     );
     streamifier.createReadStream(buffer).pipe(stream);
   });
+  
 
+router.get("/test-cloudinary", (req, res) => {
+  res.json({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY ? "✅ Loaded" : "❌ Missing",
+    api_secret: process.env.CLOUDINARY_API_SECRET ? "✅ Loaded" : "❌ Missing",
+  });
+});
 
 // 🔍 GET ALL CUSTOMERS
 router.get("/customers", async (req: Request, res: Response) => {
@@ -228,3 +235,66 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+// // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
+// router.post("/login", async (req: Request, res: Response) => {
+//   const { email, password } = req.body;
+//   try {
+//     // ✅ ตรวจว่ากรอกครบไหม
+//     if (!email || !password) {
+//       return res
+//         .status(400)
+//         .json({ message: "❌ กรุณากรอก Email และ Password" });
+//     }
+//     // ✅ ค้นหาผู้ใช้จาก Email
+//     const [rows] = await db.execute<RowDataPacket[]>(
+//       "SELECT * FROM customer WHERE email = ?",
+//       [email],
+//     );
+//     const user = rows[0];
+//     if (!user) {
+//       return res.status(400).json({ message: "❌ ไม่พบบัญชีอีเมลนี้" });
+//     }
+
+//     // ✅ ตรวจสอบรหัสผ่าน
+//     const isPasswordValid = await bcrypt.compare(password, user.password);
+//     if (!isPasswordValid) {
+//       return res.status(400).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
+//     }
+
+//     // ✅ สำเร็จ → ส่งข้อมูลกลับ (ไม่ส่งรหัสผ่าน)
+//     res.json({
+//       message: "✅ Login สำเร็จ",
+//       user: {
+//         cid: user.cid,
+//         name: user.name,
+//         phone: user.phone,
+//         email: user.email,
+//         image_customer: user.image_customer,
+//       },
+//     });
+//   } catch (err: any) {
+//     console.error("Error in login:", err);
+//     res.status(500).json({ message: "❌ Server Error", error: err.message });
+//   }
+// });
+
+// ✅ Helper ฟังก์ชันตอบกลับ API
+export function handleResponse(
+  res: Response,
+  err: Error | null,
+  data?: any,
+  notFoundStatusCode: number = 404,
+  notFoundMessage: string = "Not found",
+  affectedRows: number | null = null,
+): void {
+  if (err) {
+    res.status(500).json({ error: err.message });
+    return;
+  }
+  if (!data && !affectedRows) {
+    res.status(notFoundStatusCode).json({ error: notFoundMessage });
+    return;
+  }
+  res.json(data);
+}
