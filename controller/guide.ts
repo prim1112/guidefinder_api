@@ -300,7 +300,22 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
 
   try {
     const [rows]: any = await db.query(
-      "SELECT * FROM guides WHERE guides_id = ?",
+      `SELECT 
+        guides_id,
+        guides_name,
+        guides_phonenumber,
+        guides_email,
+        guides_language,
+        guides_facebook,
+        guides_imageprofile,
+        guides_imagelicense,
+        guides_image_business_license,
+        guides_province,
+        guides_maxcus,
+        guides_pricepercusperday,
+        guides_status
+      FROM guides
+      WHERE guides_id = ?`,
       [id]
     );
 
@@ -310,14 +325,25 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
       });
     }
 
-    const guide = rows[0];
-
-    // ✅ ลบ password ออกก่อนส่ง
-    delete guide.guides_password;
+    const g = rows[0];
 
     return res.json({
       message: "ดึงข้อมูลสำเร็จ",
-      data: guide,
+      data: {
+        id: g.guides_id,
+        name: g.guides_name,
+        phone: g.guides_phonenumber,
+        email: g.guides_email,
+        language: g.guides_language,
+        facebook: g.guides_facebook,
+        imageProfile: g.guides_imageprofile,
+        imageLicense: g.guides_imagelicense,
+        imageBusinessLicense: g.guides_image_business_license,
+        province: g.guides_province,
+        maxCustomer: g.guides_maxcus,
+        pricePerDay: g.guides_pricepercusperday,
+        status: g.guides_status,
+      },
     });
 
   } catch (error: any) {
