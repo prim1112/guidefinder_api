@@ -372,6 +372,15 @@ router.put(
         guides_province,
       } = req.body;
 
+      // 1. [VALIDATION] เช็คข้อมูลที่ "จำเป็นต้องมี" (ห้ามเป็นค่าว่าง)
+      // สมมติว่า ชื่อ, เบอร์โทร, อีเมล, จังหวัด เป็นค่าที่บังคับ
+      if (!guides_name || !guides_phonenumber || !guides_email || !guides_province) {
+        return res.status(400).json({ 
+          message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ, เบอร์โทร, อีเมล, จังหวัด)" 
+        });
+      }
+
+      // 2. ตรวจสอบว่ามี User นี้อยู่จริงไหม
       const [rows]: any = await db.query(
         "SELECT * FROM guides WHERE guides_id = ?",
         [id]
@@ -383,21 +392,20 @@ router.put(
 
       const guide = rows[0];
 
-      // PASSWORD
+      // 3. [PASSWORD LOGIC]
       let hashedPassword = guide.guides_password;
-
       if (guides_password) {
+        // บังคับว่าถ้าจะเปลี่ยนรหัสผ่าน ต้องกรอก confirm_password ให้ตรงกัน
         if (guides_password !== confirm_password) {
           return res.status(400).json({
-            message: "รหัสผ่านไม่ตรงกัน",
+            message: "รหัสผ่านใหม่และรหัสผ่านยืนยันไม่ตรงกัน",
           });
         }
         hashedPassword = await bcrypt.hash(guides_password, 10);
       }
 
-      // IMAGE
+      // 4. [IMAGE LOGIC]
       let imageUrl = guide.guides_imageprofile;
-
       if (req.file) {
         const result = await uploadToCloudinary(
           req.file.buffer,
@@ -406,16 +414,18 @@ router.put(
         imageUrl = result.secure_url;
       }
 
-      // UPDATE (SAFE)
+      // 5. [SQL UPDATE] 
+      // สังเกตว่าฟิลด์ที่บังคับ (guides_name ฯลฯ) ผมจะถอด COALESCE ออก 
+      // เพื่อให้มันอัปเดตตามที่ส่งมาจริง (ซึ่งเราดักไว้แล้วด้านบนว่าห้ามว่าง)
       await db.query(
         `UPDATE guides SET 
-          guides_name = COALESCE(?, guides_name),
-          guides_phonenumber = COALESCE(?, guides_phonenumber),
-          guides_email = COALESCE(?, guides_email),
+          guides_name = ?, 
+          guides_phonenumber = ?,
+          guides_email = ?,
           guides_password = ?,
-          guides_facebook = COALESCE(?, guides_facebook),
-          guides_language = COALESCE(?, guides_language),
-          guides_province = COALESCE(?, guides_province),
+          guides_facebook = ?,
+          guides_language = ?,
+          guides_province = ?,
           guides_imageprofile = ?
         WHERE guides_id = ?`,
         [
@@ -423,8 +433,8 @@ router.put(
           guides_phonenumber,
           guides_email,
           hashedPassword,
-          guides_facebook,
-          guides_language,
+          guides_facebook || null, // อันนี้ถ้าไม่บังคับ ให้ใส่ || null
+          guides_language || null,
           guides_province,
           imageUrl,
           id,
@@ -434,9 +444,11 @@ router.put(
       return res.json({
         message: "อัปเดตโปรไฟล์สำเร็จ",
       });
+
     } catch (error: any) {
+      console.error("Update Error:", error);
       return res.status(500).json({
-        message: "Server Error",
+        message: "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์",
         error: error.message,
       });
     }
