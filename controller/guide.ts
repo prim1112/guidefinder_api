@@ -369,25 +369,23 @@ router.put(
         confirm_password,
         guides_facebook,
         guides_language,
-        guides_province,
       } = req.body;
 
-      // 1. [VALIDATION] เช็คข้อมูลที่ "จำเป็นต้องมี" (ห้ามเป็นค่าว่าง)
-      // สมมติว่า ชื่อ, เบอร์โทร, อีเมล, จังหวัด เป็นค่าที่บังคับ
-      if (!guides_name || !guides_phonenumber || !guides_email || !guides_province) {
+      // 1. [VALIDATION] เช็คข้อมูลที่ "จำเป็นต้องมี" (ตัดจังหวัดออกตามที่สั่ง)
+      if (!guides_name || !guides_phonenumber || !guides_email) {
         return res.status(400).json({ 
-          message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ, เบอร์โทร, อีเมล, จังหวัด)" 
+          message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ, เบอร์โทร, อีเมล)" 
         });
       }
 
-      // 2. ตรวจสอบว่ามี User นี้อยู่จริงไหม
+      // 2. ตรวจสอบว่ามีไกด์คนนี้ในระบบไหม
       const [rows]: any = await db.query(
         "SELECT * FROM guides WHERE guides_id = ?",
         [id]
       );
 
       if (!rows.length) {
-        return res.status(404).json({ message: "ไม่พบไกด์" });
+        return res.status(404).json({ message: "ไม่พบข้อมูลไกด์" });
       }
 
       const guide = rows[0];
@@ -395,7 +393,6 @@ router.put(
       // 3. [PASSWORD LOGIC]
       let hashedPassword = guide.guides_password;
       if (guides_password) {
-        // บังคับว่าถ้าจะเปลี่ยนรหัสผ่าน ต้องกรอก confirm_password ให้ตรงกัน
         if (guides_password !== confirm_password) {
           return res.status(400).json({
             message: "รหัสผ่านใหม่และรหัสผ่านยืนยันไม่ตรงกัน",
@@ -414,9 +411,7 @@ router.put(
         imageUrl = result.secure_url;
       }
 
-      // 5. [SQL UPDATE] 
-      // สังเกตว่าฟิลด์ที่บังคับ (guides_name ฯลฯ) ผมจะถอด COALESCE ออก 
-      // เพื่อให้มันอัปเดตตามที่ส่งมาจริง (ซึ่งเราดักไว้แล้วด้านบนว่าห้ามว่าง)
+      // 5. [SQL UPDATE]
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
@@ -425,7 +420,6 @@ router.put(
           guides_password = ?,
           guides_facebook = ?,
           guides_language = ?,
-          guides_province = ?,
           guides_imageprofile = ?
         WHERE guides_id = ?`,
         [
@@ -433,9 +427,8 @@ router.put(
           guides_phonenumber,
           guides_email,
           hashedPassword,
-          guides_facebook || null, // อันนี้ถ้าไม่บังคับ ให้ใส่ || null
+          guides_facebook || null, 
           guides_language || null,
-          guides_province,
           imageUrl,
           id,
         ]
