@@ -44,7 +44,7 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
-/*router.get("/guides/:gid", async (req: Request, res: Response) => {
+router.get("/guides/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
   try {
@@ -74,7 +74,7 @@ router.get("/", async (req: Request, res: Response) => {
       error: error.message,
     });
   }
-}); */
+}); 
 
 // register guide
 router.post(
