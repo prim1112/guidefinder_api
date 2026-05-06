@@ -167,21 +167,28 @@ router.post("/import-json", async (req: Request, res: Response) => {
   }
 });
 
-// GET all location_travel
-router.get("/location_travel", async (req: Request, res: Response) => {
-  try {
-    const [rows]: any = await db.query("SELECT * FROM location_travel");
+router.get("/location-travel", async (req: Request, res: Response) => {
+  const { type_id } = req.query;
 
-    return res.json({
-      message: "ดึงข้อมูล location_travel สำเร็จ",
-      count: rows.length,
+  try {
+    let sql = "SELECT * FROM location_travel";
+    let params: any[] = [];
+
+    if (type_id) {
+      sql += " WHERE localtiontype_id = ?";
+      params.push(type_id);
+    }
+
+    const [rows]: any = await db.query(sql, params);
+
+    res.json({
+      message: "success",
       data: rows,
     });
-  } catch (error: any) {
-    console.error(error);
-    return res.status(500).json({
-      message: "เกิดข้อผิดพลาด",
-      error: error.message,
+  } catch (err: any) {
+    res.status(500).json({
+      message: "error",
+      error: err.message,
     });
   }
 });
