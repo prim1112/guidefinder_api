@@ -173,7 +173,7 @@ router.get("/location_travel", async (req, res) => {
       SELECT lt.*, t.location_type_name
       FROM location_travel lt
       JOIN location_type t 
-      ON lt.location_type_id = t.location_type_id
+      ON lt.localtiontype_id = t.location_type_id
     `);
 
     res.json(rows);
@@ -190,8 +190,8 @@ router.get("/location_travel/type/:id", async (req, res) => {
       SELECT lt.*, t.location_type_name
       FROM location_travel lt
       JOIN location_type t 
-      ON lt.location_type_id = t.location_type_id
-      WHERE lt.location_type_id = ?
+      ON lt.localtiontype_id = t.location_type_id
+      WHERE lt.localtiontype_id = ?
     `, [id]);
 
     res.json(rows);
