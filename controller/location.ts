@@ -113,7 +113,7 @@ router.post(
 router.get("/location_type", async (req: Request, res: Response) => {
   try {
     const [rows] = await db.execute<RowDataPacket[]>(
-      "SELECT * FROM locationtype"
+      "SELECT * FROM location_type"
     );
     res.json(rows);
   } catch (err: any) {
