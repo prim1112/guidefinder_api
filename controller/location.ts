@@ -167,4 +167,23 @@ router.post("/import-json", async (req: Request, res: Response) => {
   }
 });
 
+// GET all location_travel
+router.get("/", async (req: Request, res: Response) => {
+  try {
+    const [rows]: any = await db.query("SELECT * FROM location_travel");
+
+    return res.json({
+      message: "ดึงข้อมูล location_travel สำเร็จ",
+      count: rows.length,
+      data: rows,
+    });
+  } catch (error: any) {
+    console.error(error);
+    return res.status(500).json({
+      message: "เกิดข้อผิดพลาด",
+      error: error.message,
+    });
+  }
+});
+
 export default router;
