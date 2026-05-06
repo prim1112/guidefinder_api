@@ -167,29 +167,36 @@ router.post("/import-json", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/location-travel", async (req: Request, res: Response) => {
-  const { type_id } = req.query;
+router.get("/location-travel", async (req, res) => {
+  try {
+    const [rows]: any = await db.query(`
+      SELECT lt.*, t.location_type_name
+      FROM location_travel lt
+      JOIN location_type t 
+      ON lt.location_type_id = t.location_type_id
+    `);
+
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/location-travel/type/:id", async (req, res) => {
+  const { id } = req.params;
 
   try {
-    let sql = "SELECT * FROM location_travel";
-    let params: any[] = [];
+    const [rows]: any = await db.query(`
+      SELECT lt.*, t.location_type_name
+      FROM location_travel lt
+      JOIN location_type t 
+      ON lt.location_type_id = t.location_type_id
+      WHERE lt.location_type_id = ?
+    `, [id]);
 
-    if (type_id) {
-      sql += " WHERE localtiontype_id = ?";
-      params.push(type_id);
-    }
-
-    const [rows]: any = await db.query(sql, params);
-
-    res.json({
-      message: "success",
-      data: rows,
-    });
+    res.json(rows);
   } catch (err: any) {
-    res.status(500).json({
-      message: "error",
-      error: err.message,
-    });
+    res.status(500).json({ error: err.message });
   }
 });
 
