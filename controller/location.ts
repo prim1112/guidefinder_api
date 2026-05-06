@@ -168,7 +168,7 @@ router.post("/import-json", async (req: Request, res: Response) => {
 });
 
 // GET all location_travel
-router.get("/", async (req: Request, res: Response) => {
+router.get("/location_travel", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query("SELECT * FROM location_travel");
 
