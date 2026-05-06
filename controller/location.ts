@@ -167,7 +167,7 @@ router.post("/import-json", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/location-travel", async (req, res) => {
+router.get("/location_travel", async (req, res) => {
   try {
     const [rows]: any = await db.query(`
       SELECT lt.*, t.location_type_name
@@ -182,7 +182,7 @@ router.get("/location-travel", async (req, res) => {
   }
 });
 
-router.get("/location-travel/type/:id", async (req, res) => {
+router.get("/location_travel/type/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
