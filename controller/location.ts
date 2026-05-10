@@ -180,7 +180,8 @@ router.get("/location_travel", async (req, res) => {
         li.location_image_5
       FROM location_travel lt
       JOIN location_type t ON lt.localtiontype_id = t.location_type_id
-      LEFT JOIN location_image li ON lt.location_id = li.ref_location_travel
+      -- แก้ตรงนี้: ใช้ lt.id แทน lt.location_id
+      LEFT JOIN location_image li ON lt.id = li.ref_location_travel
     `);
 
     res.json(rows);
@@ -191,7 +192,6 @@ router.get("/location_travel", async (req, res) => {
 
 router.get("/location_travel/type/:id", async (req, res) => {
   const { id } = req.params;
-
   try {
     const [rows]: any = await db.query(`
       SELECT 
@@ -204,7 +204,8 @@ router.get("/location_travel/type/:id", async (req, res) => {
         li.location_image_5
       FROM location_travel lt
       JOIN location_type t ON lt.localtiontype_id = t.location_type_id
-      LEFT JOIN location_image li ON lt.location_id = li.ref_location_travel
+      -- แก้ตรงนี้ด้วย: ใช้ lt.id แทน lt.location_id
+      LEFT JOIN location_image li ON lt.id = li.ref_location_travel
       WHERE lt.localtiontype_id = ?
     `, [id]);
 
