@@ -170,10 +170,17 @@ router.post("/import-json", async (req: Request, res: Response) => {
 router.get("/location_travel", async (req, res) => {
   try {
     const [rows]: any = await db.query(`
-      SELECT lt.*, t.location_type_name
+      SELECT 
+        lt.*, 
+        t.location_type_name,
+        li.location_image_1,
+        li.location_image_2,
+        li.location_image_3,
+        li.location_image_4,
+        li.location_image_5
       FROM location_travel lt
-      JOIN location_type t 
-      ON lt.localtiontype_id = t.location_type_id
+      JOIN location_type t ON lt.localtiontype_id = t.location_type_id
+      LEFT JOIN location_image li ON lt.location_id = li.ref_location_travel
     `);
 
     res.json(rows);
@@ -187,10 +194,17 @@ router.get("/location_travel/type/:id", async (req, res) => {
 
   try {
     const [rows]: any = await db.query(`
-      SELECT lt.*, t.location_type_name
+      SELECT 
+        lt.*, 
+        t.location_type_name,
+        li.location_image_1,
+        li.location_image_2,
+        li.location_image_3,
+        li.location_image_4,
+        li.location_image_5
       FROM location_travel lt
-      JOIN location_type t 
-      ON lt.localtiontype_id = t.location_type_id
+      JOIN location_type t ON lt.localtiontype_id = t.location_type_id
+      LEFT JOIN location_image li ON lt.location_id = li.ref_location_travel
       WHERE lt.localtiontype_id = ?
     `, [id]);
 
