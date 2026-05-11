@@ -299,7 +299,7 @@ router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
       LEFT JOIN location_image li ON lt.id = li.ref_location_travel
       WHERE lt.localtiontype_id = ?
     `, [id]);
-    
+
     const formattedRows = rows.map((row: any) => ({
       ...row,
       location_province: provinceTH[row.location_province] || row.location_province
@@ -319,7 +319,7 @@ router.get("/location_travel/detail/:id", async (req: Request, res: Response) =>
       SELECT 
         lt.*, 
         t.location_type_name,
-        l.location_province,
+        l.location_province, 
         l.location_name,
         li.location_image_1,
         li.location_image_2,
@@ -333,21 +333,20 @@ router.get("/location_travel/detail/:id", async (req: Request, res: Response) =>
       WHERE lt.id = ?
     `, [id]);
 
-    // ตรวจสอบว่าพบข้อมูลหรือไม่
     if (rows.length === 0) {
-      return res.status(404).json({ message: "ไม่พบข้อมูลสถานที่" });
+      return res.status(404).json({ error: "ไม่พบข้อมูลสถานที่" });
     }
 
-    
     const row = rows[0];
     const formattedData = {
       ...row,
       location_province: provinceTH[row.location_province] || row.location_province
     };
 
-    res.json(formattedData); // ส่งออกไปเป็น Object ก้อนเดียว (ไม่ใช่ Array)
+    res.json(formattedData);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
+
 export default router;
