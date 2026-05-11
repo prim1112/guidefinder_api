@@ -263,45 +263,57 @@ router.post("/import-json", async (req: Request, res: Response) => {
   }
 });
 
+// 1. API สำหรับดึงข้อมูลทั้งหมด และ ค้นหา (Search)
 router.get("/location_travel", async (req: Request, res: Response) => {
   try {
-    // 3. รับค่า 'search' ที่ส่งมาจาก Flutter (onChanged ของ TextField)
     const { search } = req.query;
     const searchTerm = search ? String(search).trim() : "";
-
-    let sql = ` ... `; // SQL ตั้งต้นดึงข้อมูลแบบ JOIN ครบทุกตาราง
+    let sql = `
+      SELECT 
+        lt.*, 
+        t.location_type_name,
+        l.location_province, 
+        l.location_name,
+        li.location_image_1,
+        li.location_image_2,
+        li.location_image_3,
+        li.location_image_4,
+        li.location_image_5
+      FROM location_travel lt
+      JOIN location_type t ON lt.localtiontype_id = t.location_type_id
+      JOIN location l ON lt.location_id = l.location_id 
+      LEFT JOIN location_image li ON lt.id = li.ref_location_travel
+    `;
 
     const params: any[] = [];
 
     if (searchTerm) {
-      // 4. แปลงคำค้นหาไทยเป็นอังกฤษก่อนนำไปใช้ใน SQL
       const englishProvince = getProvinceKeyByValue(searchTerm);
       
-      // 5. ใช้ LIKE ร่วมกับ ? และ % เพื่อค้นหาคำที่ "ใกล้เคียง" (ป้องกัน SQL Injection)
+      // ✅ ใช้ WHERE ในการกรองข้อมูล
       sql += ` WHERE l.location_province LIKE ? 
                OR l.location_name LIKE ? 
                OR l.location_province LIKE ?`;
       
-      // ส่งค่า %คำค้นหา% เข้าไปแทนที่เครื่องหมาย ? ตามลำดับ
       params.push(`%${searchTerm}%`, `%${searchTerm}%`, `%${englishProvince || searchTerm}%`);
     }
 
     const [rows]: any = await db.query(sql, params);
 
-    // 6. แปลงข้อมูล "จังหวัดอังกฤษ" จาก DB กลับเป็น "ไทย" ก่อนส่งให้ Flutter
+    // ✅ แปลงชื่อจังหวัดกลับเป็นภาษาไทยก่อนส่งให้ Flutter
     const formattedRows = rows.map((row: any) => ({
       ...row,
       location_province: provinceTH[row.location_province] || row.location_province,
     }));
 
-    res.json(formattedRows); // 7. ส่งข้อมูลที่กรองแล้วกลับไปแสดงผลที่ UI
+    res.json(formattedRows);
 
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET Locations by Type ID
+// 2. API สำหรับดึงข้อมูลตามประเภท (Type ID)
 router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
@@ -312,11 +324,7 @@ router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
         t.location_type_name,
         l.location_province,
         l.location_name,
-        li.location_image_1,
-        li.location_image_2,
-        li.location_image_3,
-        li.location_image_4,
-        li.location_image_5
+        li.location_image_1
       FROM location_travel lt
       JOIN location_type t ON lt.localtiontype_id = t.location_type_id
       JOIN location l ON lt.location_id = l.location_id 
@@ -328,8 +336,7 @@ router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
 
     const formattedRows = rows.map((row: any) => ({
       ...row,
-      location_province:
-        provinceTH[row.location_province] || row.location_province,
+      location_province: provinceTH[row.location_province] || row.location_province,
     }));
 
     res.json(formattedRows);
