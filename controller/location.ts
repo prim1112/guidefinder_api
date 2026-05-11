@@ -16,91 +16,91 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
       (error: any, result: any) => {
         if (error) reject(error);
         else resolve(result);
-      }
+      },
     );
     streamifier.createReadStream(buffer).pipe(stream);
   });
-  const provinceTH: { [key: string]: string } = {
-  "Bangkok": "กรุงเทพมหานคร",
+const provinceTH: { [key: string]: string } = {
+  Bangkok: "กรุงเทพมหานคร",
   "Amnat Charoen": "อำนาจเจริญ",
   "Ang Thong": "อ่างทอง",
   "Bueng Kan": "บึงกาฬ",
   "Buri Ram": "บุรีรัมย์",
-  "Chachoengsao": "ฉะเชิงเทรา",
+  Chachoengsao: "ฉะเชิงเทรา",
   "Chai Nat": "ชัยนาท",
-  "Chaiyaphum": "ชัยภูมิ",
-  "Chanthaburi": "จันทบุรี",
+  Chaiyaphum: "ชัยภูมิ",
+  Chanthaburi: "จันทบุรี",
   "Chiang Mai": "เชียงใหม่",
   "Chiang Rai": "เชียงราย",
   "Chon Buri": "ชลบุรี",
-  "Chumphon": "ชุมพร",
-  "Kalasin": "กาฬสินธุ์",
+  Chumphon: "ชุมพร",
+  Kalasin: "กาฬสินธุ์",
   "Kamphaeng Phet": "กำแพงเพชร",
-  "Kanchanaburi": "กาญจนบุรี",
+  Kanchanaburi: "กาญจนบุรี",
   "Khon Kaen": "ขอนแก่น",
-  "Krabi": "กระบี่",
-  "Lampang": "ลำปาง",
-  "Lamphun": "ลำพูน",
-  "Loei": "เลย",
+  Krabi: "กระบี่",
+  Lampang: "ลำปาง",
+  Lamphun: "ลำพูน",
+  Loei: "เลย",
   "Lop Buri": "ลพบุรี",
   "Mae Hong Son": "แม่ฮ่องสอน",
   "Maha Sarakham": "มหาสารคาม",
-  "Mukdahan": "มุกดาหาร",
+  Mukdahan: "มุกดาหาร",
   "Nakhon Nayok": "นครนายก",
   "Nakhon Pathom": "นครปฐม",
   "Nakhon Phanom": "นครพนม",
   "Nakhon Ratchasima": "นครราชสีมา",
   "Nakhon Sawan": "นครสวรรค์",
   "Nakhon Si Thammarat": "นครศรีธรรมราช",
-  "Nan": "น่าน",
-  "Narathiwat": "นราธิวาส",
+  Nan: "น่าน",
+  Narathiwat: "นราธิวาส",
   "Nong Bua Lam Phu": "หนองบัวลำภู",
   "Nong Khai": "หนองคาย",
-  "Nonthaburi": "นนทบุรี",
+  Nonthaburi: "นนทบุรี",
   "Pathum Thani": "ปทุมธานี",
-  "Pattani": "ปัตตานี",
-  "Phangnga": "พังงา",
-  "Phatthalung": "พัทลุง",
-  "Phayao": "พะเยา",
-  "Phetchabun": "เพชรบูรณ์",
-  "Phetchaburi": "เพชรบุรี",
-  "Phichit": "พิจิตร",
-  "Phitsanulok": "พิษณุโลก",
+  Pattani: "ปัตตานี",
+  Phangnga: "พังงา",
+  Phatthalung: "พัทลุง",
+  Phayao: "พะเยา",
+  Phetchabun: "เพชรบูรณ์",
+  Phetchaburi: "เพชรบุรี",
+  Phichit: "พิจิตร",
+  Phitsanulok: "พิษณุโลก",
   "Phra Nakhon Si Ayutthaya": "พระนครศรีอยุธยา",
-  "Phrae": "แพร่",
-  "Phuket": "ภูเก็ต",
+  Phrae: "แพร่",
+  Phuket: "ภูเก็ต",
   "Prachin Buri": "ปราจีนบุรี",
   "Prachuap Khiri Khan": "ประจวบคีรีขันธ์",
-  "Ranong": "ระนอง",
-  "Ratchaburi": "ราชบุรี",
-  "Rayong": "ระยอง",
+  Ranong: "ระนอง",
+  Ratchaburi: "ราชบุรี",
+  Rayong: "ระยอง",
   "Roi Et": "ร้อยเอ็ด",
   "Sa Kaeo": "สระแก้ว",
   "Sakon Nakhon": "สกลนคร",
   "Samut Prakan": "สมุทรปราการ",
   "Samut Sakhon": "สมุทรสาคร",
   "Samut Songkhram": "สมุทรสงคราม",
-  "Saraburi": "สระบุรี",
-  "Satun": "สตูล",
+  Saraburi: "สระบุรี",
+  Satun: "สตูล",
   "Sing Buri": "สิงห์บุรี",
   "Si Sa Ket": "ศรีสะเกษ",
-  "Songkhla": "สงขลา",
-  "Sukhothai": "สุโขทัย",
+  Songkhla: "สงขลา",
+  Sukhothai: "สุโขทัย",
   "Suphan Buri": "สุพรรณบุรี",
   "Surat Thani": "สุราษฎร์ธานี",
-  "Surin": "สุรินทร์",
-  "Tak": "ตาก",
-  "Trang": "ตรัง",
-  "Trat": "ตราด",
+  Surin: "สุรินทร์",
+  Tak: "ตาก",
+  Trang: "ตรัง",
+  Trat: "ตราด",
   "Ubon Ratchathani": "อุบลราชธานี",
   "Udon Thani": "อุดรธานี",
   "Uthai Thani": "อุทัยธานี",
-  "Uttaradit": "อุตรดิตถ์",
-  "Yala": "ยะลา",
-  "Yasothon": "ยโสธร"
+  Uttaradit: "อุตรดิตถ์",
+  Yala: "ยะลา",
+  Yasothon: "ยโสธร",
 };
 
-  router.get("/location", async (req: Request, res: Response) => {
+router.get("/location", async (req: Request, res: Response) => {
   try {
     const [rows] = await db.execute("SELECT * FROM location");
     res.json(rows);
@@ -112,12 +112,12 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
 // ✅ POST: เพิ่มข้อมูลสถานที่ (Location)
 router.post(
   "/location",
-  upload.single("location_images"), 
+  upload.single("location_images"),
   async (req: Request, res: Response) => {
     try {
       // 🚩 เพิ่ม Log ตรงนี้เพื่อเช็คว่าไฟล์มาไหม (ดูที่ Terminal ของ VS Code)
       console.log("--- DEBUG START ---");
-      console.log("File received:", req.file); 
+      console.log("File received:", req.file);
       console.log("Body received:", req.body);
 
       const {
@@ -126,11 +126,18 @@ router.post(
         location_district,
         location_subdistrict,
         location_lat,
-        location_long
+        location_long,
       } = req.body;
 
-      if (!location_name || !location_province || !location_district || !location_subdistrict) {
-        return res.status(400).json({ message: "❌ กรุณากรอกข้อมูลสถานที่ให้ครบถ้วน" });
+      if (
+        !location_name ||
+        !location_province ||
+        !location_district ||
+        !location_subdistrict
+      ) {
+        return res
+          .status(400)
+          .json({ message: "❌ กรุณากรอกข้อมูลสถานที่ให้ครบถ้วน" });
       }
 
       // ✅ 3. จัดการรูปภาพ (ปรับปรุงการเช็ค)
@@ -143,7 +150,12 @@ router.post(
           console.log("Cloudinary Upload Success:", imageUrl);
         } catch (uploadErr: any) {
           console.error("Cloudinary Error:", uploadErr);
-          return res.status(500).json({ message: "❌ พังที่ Cloudinary", error: uploadErr.message });
+          return res
+            .status(500)
+            .json({
+              message: "❌ พังที่ Cloudinary",
+              error: uploadErr.message,
+            });
         }
       } else {
         // 🚩 ถ้าเลือกรูปใน Postman แล้วแต่ยังตกมาที่นี่ แสดงว่าชื่อ Key ใน Postman ผิด!
@@ -163,36 +175,35 @@ router.post(
 
       const [result]: any = await db.execute(sql, [
         location_name,
-        imageUrl, 
+        imageUrl,
         location_province,
         location_district,
         location_subdistrict,
         location_lat || null,
-        location_long || null
+        location_long || null,
       ]);
 
       return res.status(201).json({
         message: "✅ เพิ่มข้อมูล Location สำเร็จ",
         location_id: result.insertId,
-        imageUrl: imageUrl
+        imageUrl: imageUrl,
       });
-
     } catch (err: any) {
       console.error("SQL or System Error:", err);
-      return res.status(500).json({ 
-        message: "❌ Server Error", 
+      return res.status(500).json({
+        message: "❌ Server Error",
         error: err.message,
-        sqlMessage: err.sqlMessage
+        sqlMessage: err.sqlMessage,
       });
     }
-  }
+  },
 );
 
 /* ✅ GET: ดึงข้อมูลทั้งหมดจาก LocationType */
 router.get("/location_type", async (req: Request, res: Response) => {
   try {
     const [rows] = await db.execute<RowDataPacket[]>(
-      "SELECT * FROM location_type"
+      "SELECT * FROM location_type",
     );
     res.json(rows);
   } catch (err: any) {
@@ -201,14 +212,14 @@ router.get("/location_type", async (req: Request, res: Response) => {
   }
 });
 
-
 ///import-json คืออะไร? มันคือ API ที่ “ดึงข้อมูลจากลิงก์” แล้ว “เอามาใส่ DB ให้เราอัตโนมัติ”
 router.post("/import-json", async (req: Request, res: Response) => {
   try {
-    const url = "https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/latest/province_with_district_and_sub_district.json";
+    const url =
+      "https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/latest/province_with_district_and_sub_district.json";
 
     const response = await fetch(url);
-   const provinces = (await response.json()) as any[];
+    const provinces = (await response.json()) as any[];
 
     const sql = `INSERT INTO location (
       location_name, 
@@ -223,7 +234,6 @@ router.post("/import-json", async (req: Request, res: Response) => {
     for (const province of provinces) {
       for (const district of province.districts || []) {
         for (const sub of district.sub_districts || []) {
-
           await db.execute(sql, [
             sub.name_en,
             "",
@@ -231,45 +241,51 @@ router.post("/import-json", async (req: Request, res: Response) => {
             district.name_en,
             sub.name_th,
             sub.lat,
-            sub.long
+            sub.long,
           ]);
-
         }
       }
     }
 
     res.json({ message: "✅ import success" });
-
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ message: "❌ error", error: err.message });
   }
 });
 
-// GET All Locations
+// GET Locations with Search
 router.get("/location_travel", async (req: Request, res: Response) => {
   try {
-    const [rows]: any = await db.query(`
+    // รับค่า search จาก query string เช่น /location_travel?search=มหาสารคาม
+    const { search } = req.query;
+
+    let sql = `
       SELECT 
         lt.*, 
         t.location_type_name,
         l.location_province, 
         l.location_name,
-        li.location_image_1,
-        li.location_image_2,
-        li.location_image_3,
-        li.location_image_4,
-        li.location_image_5
+        li.location_image_1
       FROM location_travel lt
       JOIN location_type t ON lt.localtiontype_id = t.location_type_id
       JOIN location l ON lt.location_id = l.location_id 
       LEFT JOIN location_image li ON lt.id = li.ref_location_travel
-    `);
+    `;
 
-    // เปลี่ยนเฉพาะจังหวัดเป็นภาษาไทย
+    const params: any[] = [];
+
+    if (search) {
+      sql += ` WHERE l.location_province LIKE ? OR l.location_name LIKE ?`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    const [rows]: any = await db.query(sql, params);
+
     const formattedRows = rows.map((row: any) => ({
       ...row,
-      location_province: provinceTH[row.location_province] || row.location_province
+      location_province:
+        provinceTH[row.location_province] || row.location_province,
     }));
 
     res.json(formattedRows);
@@ -282,7 +298,8 @@ router.get("/location_travel", async (req: Request, res: Response) => {
 router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    const [rows]: any = await db.query(`
+    const [rows]: any = await db.query(
+      `
       SELECT 
         lt.*, 
         t.location_type_name,
@@ -298,11 +315,14 @@ router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
       JOIN location l ON lt.location_id = l.location_id 
       LEFT JOIN location_image li ON lt.id = li.ref_location_travel
       WHERE lt.localtiontype_id = ?
-    `, [id]);
+    `,
+      [id],
+    );
 
     const formattedRows = rows.map((row: any) => ({
       ...row,
-      location_province: provinceTH[row.location_province] || row.location_province
+      location_province:
+        provinceTH[row.location_province] || row.location_province,
     }));
 
     res.json(formattedRows);
@@ -311,12 +331,15 @@ router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/location_travel/detail/:id", async (req: Request, res: Response) => {
-  // ตรวจสอบว่า id ที่รับมาเป็นตัวเลขหรือไม่
-  const { id } = req.params;
-  
-  try {
-    const [rows]: any = await db.query(`
+router.get(
+  "/location_travel/detail/:id",
+  async (req: Request, res: Response) => {
+    // ตรวจสอบว่า id ที่รับมาเป็นตัวเลขหรือไม่
+    const { id } = req.params;
+
+    try {
+      const [rows]: any = await db.query(
+        `
       SELECT 
         lt.id,
         lt.travel_name,
@@ -336,25 +359,29 @@ router.get("/location_travel/detail/:id", async (req: Request, res: Response) =>
       LEFT JOIN location l ON lt.location_id = l.location_id 
       LEFT JOIN location_image li ON lt.id = li.ref_location_travel
       WHERE lt.id = ?
-    `, [id]);
+    `,
+        [id],
+      );
 
-    if (rows.length === 0) {
-      // ถ้าเข้าเงื่อนไขนี้ แสดงว่า ID นี้ไม่มีอยู่ในตาราง location_travel เลย
-      return res.status(404).json({ error: "ไม่พบข้อมูลสถานที่ในระบบ" });
+      if (rows.length === 0) {
+        // ถ้าเข้าเงื่อนไขนี้ แสดงว่า ID นี้ไม่มีอยู่ในตาราง location_travel เลย
+        return res.status(404).json({ error: "ไม่พบข้อมูลสถานที่ในระบบ" });
+      }
+
+      const row = rows[0];
+      const formattedData = {
+        ...row,
+        // แปลงชื่อจังหวัด
+        location_province:
+          provinceTH[row.location_province] || row.location_province,
+      };
+
+      res.json(formattedData);
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
     }
-
-    const row = rows[0];
-    const formattedData = {
-      ...row,
-      // แปลงชื่อจังหวัด
-      location_province: provinceTH[row.location_province] || row.location_province
-    };
-
-    res.json(formattedData);
-  } catch (err: any) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-});
+  },
+);
 
 export default router;
