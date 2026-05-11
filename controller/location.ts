@@ -327,7 +327,9 @@ router.get("/location_travel/detail/:id", async (req: Request, res: Response) =>
         l.location_name,
         li.location_image_1,
         li.location_image_2,
-        li.location_image_3
+        li.location_image_3,
+        li.location_image_4,
+        li.location_image_5
       FROM location_travel lt
       -- ใช้ LEFT JOIN เพื่อป้องกันกรณีที่ id ของประเภทหรือสถานที่ในตารางหลักไม่ตรงกับตารางย่อย
       LEFT JOIN location_type t ON lt.localtiontype_id = t.location_type_id
