@@ -100,6 +100,15 @@ const provinceTH: { [key: string]: string } = {
   Yasothon: "ยโสธร",
 };
 
+const getProvinceKeyByValue = (searchValue: string): string | undefined => {
+  // หาคู่ [key, value] ที่ value มีคำค้นหาอยู่
+  const entry = Object.entries(provinceTH).find(([key, value]) => 
+    value.includes(searchValue)
+  );
+  // ถ้าเจอให้คืนค่า key (ภาษาอังกฤษ) ถ้าไม่เจอคืนค่า undefined
+  return entry ? entry[0] : undefined;
+};
+
 router.get("/location", async (req: Request, res: Response) => {
   try {
     const [rows] = await db.execute("SELECT * FROM location");
@@ -254,41 +263,39 @@ router.post("/import-json", async (req: Request, res: Response) => {
   }
 });
 
-// GET Locations with Search
 router.get("/location_travel", async (req: Request, res: Response) => {
   try {
-    // รับค่า search จาก query string เช่น /location_travel?search=มหาสารคาม
+    // 3. รับค่า 'search' ที่ส่งมาจาก Flutter (onChanged ของ TextField)
     const { search } = req.query;
+    const searchTerm = search ? String(search).trim() : "";
 
-    let sql = `
-      SELECT 
-        lt.*, 
-        t.location_type_name,
-        l.location_province, 
-        l.location_name,
-        li.location_image_1
-      FROM location_travel lt
-      JOIN location_type t ON lt.localtiontype_id = t.location_type_id
-      JOIN location l ON lt.location_id = l.location_id 
-      LEFT JOIN location_image li ON lt.id = li.ref_location_travel
-    `;
+    let sql = ` ... `; // SQL ตั้งต้นดึงข้อมูลแบบ JOIN ครบทุกตาราง
 
     const params: any[] = [];
 
-    if (search) {
-      sql += ` WHERE l.location_province LIKE ? OR l.location_name LIKE ?`;
-      params.push(`%${search}%`, `%${search}%`);
+    if (searchTerm) {
+      // 4. แปลงคำค้นหาไทยเป็นอังกฤษก่อนนำไปใช้ใน SQL
+      const englishProvince = getProvinceKeyByValue(searchTerm);
+      
+      // 5. ใช้ LIKE ร่วมกับ ? และ % เพื่อค้นหาคำที่ "ใกล้เคียง" (ป้องกัน SQL Injection)
+      sql += ` WHERE l.location_province LIKE ? 
+               OR l.location_name LIKE ? 
+               OR l.location_province LIKE ?`;
+      
+      // ส่งค่า %คำค้นหา% เข้าไปแทนที่เครื่องหมาย ? ตามลำดับ
+      params.push(`%${searchTerm}%`, `%${searchTerm}%`, `%${englishProvince || searchTerm}%`);
     }
 
     const [rows]: any = await db.query(sql, params);
 
+    // 6. แปลงข้อมูล "จังหวัดอังกฤษ" จาก DB กลับเป็น "ไทย" ก่อนส่งให้ Flutter
     const formattedRows = rows.map((row: any) => ({
       ...row,
-      location_province:
-        provinceTH[row.location_province] || row.location_province,
+      location_province: provinceTH[row.location_province] || row.location_province,
     }));
 
-    res.json(formattedRows);
+    res.json(formattedRows); // 7. ส่งข้อมูลที่กรองแล้วกลับไปแสดงผลที่ UI
+
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
