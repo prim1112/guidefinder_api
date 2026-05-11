@@ -20,6 +20,85 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
     );
     streamifier.createReadStream(buffer).pipe(stream);
   });
+  const provinceTH: { [key: string]: string } = {
+  "Bangkok": "กรุงเทพมหานคร",
+  "Amnat Charoen": "อำนาจเจริญ",
+  "Ang Thong": "อ่างทอง",
+  "Bueng Kan": "บึงกาฬ",
+  "Buri Ram": "บุรีรัมย์",
+  "Chachoengsao": "ฉะเชิงเทรา",
+  "Chai Nat": "ชัยนาท",
+  "Chaiyaphum": "ชัยภูมิ",
+  "Chanthaburi": "จันทบุรี",
+  "Chiang Mai": "เชียงใหม่",
+  "Chiang Rai": "เชียงราย",
+  "Chon Buri": "ชลบุรี",
+  "Chumphon": "ชุมพร",
+  "Kalasin": "กาฬสินธุ์",
+  "Kamphaeng Phet": "กำแพงเพชร",
+  "Kanchanaburi": "กาญจนบุรี",
+  "Khon Kaen": "ขอนแก่น",
+  "Krabi": "กระบี่",
+  "Lampang": "ลำปาง",
+  "Lamphun": "ลำพูน",
+  "Loei": "เลย",
+  "Lop Buri": "ลพบุรี",
+  "Mae Hong Son": "แม่ฮ่องสอน",
+  "Maha Sarakham": "มหาสารคาม",
+  "Mukdahan": "มุกดาหาร",
+  "Nakhon Nayok": "นครนายก",
+  "Nakhon Pathom": "นครปฐม",
+  "Nakhon Phanom": "นครพนม",
+  "Nakhon Ratchasima": "นครราชสีมา",
+  "Nakhon Sawan": "นครสวรรค์",
+  "Nakhon Si Thammarat": "นครศรีธรรมราช",
+  "Nan": "น่าน",
+  "Narathiwat": "นราธิวาส",
+  "Nong Bua Lam Phu": "หนองบัวลำภู",
+  "Nong Khai": "หนองคาย",
+  "Nonthaburi": "นนทบุรี",
+  "Pathum Thani": "ปทุมธานี",
+  "Pattani": "ปัตตานี",
+  "Phangnga": "พังงา",
+  "Phatthalung": "พัทลุง",
+  "Phayao": "พะเยา",
+  "Phetchabun": "เพชรบูรณ์",
+  "Phetchaburi": "เพชรบุรี",
+  "Phichit": "พิจิตร",
+  "Phitsanulok": "พิษณุโลก",
+  "Phra Nakhon Si Ayutthaya": "พระนครศรีอยุธยา",
+  "Phrae": "แพร่",
+  "Phuket": "ภูเก็ต",
+  "Prachin Buri": "ปราจีนบุรี",
+  "Prachuap Khiri Khan": "ประจวบคีรีขันธ์",
+  "Ranong": "ระนอง",
+  "Ratchaburi": "ราชบุรี",
+  "Rayong": "ระยอง",
+  "Roi Et": "ร้อยเอ็ด",
+  "Sa Kaeo": "สระแก้ว",
+  "Sakon Nakhon": "สกลนคร",
+  "Samut Prakan": "สมุทรปราการ",
+  "Samut Sakhon": "สมุทรสาคร",
+  "Samut Songkhram": "สมุทรสงคราม",
+  "Saraburi": "สระบุรี",
+  "Satun": "สตูล",
+  "Sing Buri": "สิงห์บุรี",
+  "Si Sa Ket": "ศรีสะเกษ",
+  "Songkhla": "สงขลา",
+  "Sukhothai": "สุโขทัย",
+  "Suphan Buri": "สุพรรณบุรี",
+  "Surat Thani": "สุราษฎร์ธานี",
+  "Surin": "สุรินทร์",
+  "Tak": "ตาก",
+  "Trang": "ตรัง",
+  "Trat": "ตราด",
+  "Ubon Ratchathani": "อุบลราชธานี",
+  "Udon Thani": "อุดรธานี",
+  "Uthai Thani": "อุทัยธานี",
+  "Uttaradit": "อุตรดิตถ์",
+  "Yala": "ยะลา",
+  "Yasothon": "ยโสธร"
+};
 
   router.get("/location", async (req: Request, res: Response) => {
   try {
@@ -174,8 +253,8 @@ router.get("/location_travel", async (req: Request, res: Response) => {
       SELECT 
         lt.*, 
         t.location_type_name,
-        l.location_province, -- ดึงชื่อจังหวัดมาตรงนี้
-        l.location_name,     -- ดึงชื่อสถานที่มาด้วย (ถ้าต้องการ)
+        l.location_province, 
+        l.location_name,
         li.location_image_1,
         li.location_image_2,
         li.location_image_3,
@@ -183,11 +262,17 @@ router.get("/location_travel", async (req: Request, res: Response) => {
         li.location_image_5
       FROM location_travel lt
       JOIN location_type t ON lt.localtiontype_id = t.location_type_id
-      JOIN location l ON lt.location_id = l.location_id -- JOIN ตาราง location เพื่อเอาชื่อจังหวัด
+      JOIN location l ON lt.location_id = l.location_id 
       LEFT JOIN location_image li ON lt.id = li.ref_location_travel
     `);
 
-    res.json(rows);
+    // เปลี่ยนเฉพาะจังหวัดเป็นภาษาไทย
+    const formattedRows = rows.map((row: any) => ({
+      ...row,
+      location_province: provinceTH[row.location_province] || row.location_province
+    }));
+
+    res.json(formattedRows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -201,7 +286,7 @@ router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
       SELECT 
         lt.*, 
         t.location_type_name,
-        l.location_province, -- ดึงชื่อจังหวัดมาตรงนี้
+        l.location_province,
         l.location_name,
         li.location_image_1,
         li.location_image_2,
@@ -210,12 +295,18 @@ router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
         li.location_image_5
       FROM location_travel lt
       JOIN location_type t ON lt.localtiontype_id = t.location_type_id
-      JOIN location l ON lt.location_id = l.location_id -- JOIN ตาราง location
+      JOIN location l ON lt.location_id = l.location_id 
       LEFT JOIN location_image li ON lt.id = li.ref_location_travel
       WHERE lt.localtiontype_id = ?
     `, [id]);
 
-    res.json(rows);
+    // เปลี่ยนเฉพาะจังหวัดเป็นภาษาไทย
+    const formattedRows = rows.map((row: any) => ({
+      ...row,
+      location_province: provinceTH[row.location_province] || row.location_province
+    }));
+
+    res.json(formattedRows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
