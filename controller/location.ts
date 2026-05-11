@@ -311,40 +311,46 @@ router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
   }
 });
 
-// GET Single Location by ID (สำหรับหน้า Detail)
 router.get("/location_travel/detail/:id", async (req: Request, res: Response) => {
+  // ตรวจสอบว่า id ที่รับมาเป็นตัวเลขหรือไม่
   const { id } = req.params;
+  
   try {
     const [rows]: any = await db.query(`
       SELECT 
-        lt.*, 
+        lt.id,
+        lt.travel_name,
+        lt.travel_detail,
+        lt.travel_image,
         t.location_type_name,
         l.location_province, 
         l.location_name,
         li.location_image_1,
         li.location_image_2,
-        li.location_image_3,
-        li.location_image_4,
-        li.location_image_5
+        li.location_image_3
       FROM location_travel lt
-      JOIN location_type t ON lt.localtiontype_id = t.location_type_id
-      JOIN location l ON lt.location_id = l.location_id 
+      -- ใช้ LEFT JOIN เพื่อป้องกันกรณีที่ id ของประเภทหรือสถานที่ในตารางหลักไม่ตรงกับตารางย่อย
+      LEFT JOIN location_type t ON lt.localtiontype_id = t.location_type_id
+      LEFT JOIN location l ON lt.location_id = l.location_id 
       LEFT JOIN location_image li ON lt.id = li.ref_location_travel
       WHERE lt.id = ?
     `, [id]);
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: "ไม่พบข้อมูลสถานที่" });
+      // ถ้าเข้าเงื่อนไขนี้ แสดงว่า ID นี้ไม่มีอยู่ในตาราง location_travel เลย
+      return res.status(404).json({ error: "ไม่พบข้อมูลสถานที่ในระบบ" });
     }
 
     const row = rows[0];
     const formattedData = {
       ...row,
+      // แปลงชื่อจังหวัด
       location_province: provinceTH[row.location_province] || row.location_province
     };
 
     res.json(formattedData);
   } catch (err: any) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
