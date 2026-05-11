@@ -167,12 +167,15 @@ router.post("/import-json", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/location_travel", async (req, res) => {
+// GET All Locations
+router.get("/location_travel", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(`
       SELECT 
         lt.*, 
         t.location_type_name,
+        l.location_province, -- ดึงชื่อจังหวัดมาตรงนี้
+        l.location_name,     -- ดึงชื่อสถานที่มาด้วย (ถ้าต้องการ)
         li.location_image_1,
         li.location_image_2,
         li.location_image_3,
@@ -180,7 +183,7 @@ router.get("/location_travel", async (req, res) => {
         li.location_image_5
       FROM location_travel lt
       JOIN location_type t ON lt.localtiontype_id = t.location_type_id
-      -- แก้ตรงนี้: ใช้ lt.id แทน lt.location_id
+      JOIN location l ON lt.location_id = l.location_id -- JOIN ตาราง location เพื่อเอาชื่อจังหวัด
       LEFT JOIN location_image li ON lt.id = li.ref_location_travel
     `);
 
@@ -190,13 +193,16 @@ router.get("/location_travel", async (req, res) => {
   }
 });
 
-router.get("/location_travel/type/:id", async (req, res) => {
+// GET Locations by Type ID
+router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const [rows]: any = await db.query(`
       SELECT 
         lt.*, 
         t.location_type_name,
+        l.location_province, -- ดึงชื่อจังหวัดมาตรงนี้
+        l.location_name,
         li.location_image_1,
         li.location_image_2,
         li.location_image_3,
@@ -204,7 +210,7 @@ router.get("/location_travel/type/:id", async (req, res) => {
         li.location_image_5
       FROM location_travel lt
       JOIN location_type t ON lt.localtiontype_id = t.location_type_id
-      -- แก้ตรงนี้ด้วย: ใช้ lt.id แทน lt.location_id
+      JOIN location l ON lt.location_id = l.location_id -- JOIN ตาราง location
       LEFT JOIN location_image li ON lt.id = li.ref_location_travel
       WHERE lt.localtiontype_id = ?
     `, [id]);
@@ -214,5 +220,4 @@ router.get("/location_travel/type/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 export default router;
