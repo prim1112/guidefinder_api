@@ -44,6 +44,52 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/province/:province", async (req: Request, res: Response) => {
+  const province = req.params.province?.trim();
+
+  try {
+
+    // เช็ก province ว่าง
+    if (!province) {
+      return res.status(400).json({
+        message: "กรุณาระบุจังหวัด",
+      });
+    }
+
+    const [rows]: any = await db.query(
+      `
+      SELECT 
+        guides_id,
+        guides_name,
+        guides_language,
+        guides_imageprofile,
+        guides_pricepercusperday,
+        guides_province,
+        guides_facebook
+      FROM guides
+      WHERE guides_province = ?
+      AND guides_status = 1
+      `,
+      [province],
+    );
+
+    return res.json({
+      message: "ดึงข้อมูลไกด์สำเร็จ",
+      count: rows.length,
+      data: rows,
+    });
+
+  } catch (error: any) {
+
+    console.error("GET GUIDE BY PROVINCE ERROR:", error);
+
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
 router.get("/guides/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
@@ -475,50 +521,5 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/province/:province", async (req: Request, res: Response) => {
-  const province = req.params.province?.trim();
-
-  try {
-
-    // เช็ก province ว่าง
-    if (!province) {
-      return res.status(400).json({
-        message: "กรุณาระบุจังหวัด",
-      });
-    }
-
-    const [rows]: any = await db.query(
-      `
-      SELECT 
-        guides_id,
-        guides_name,
-        guides_language,
-        guides_imageprofile,
-        guides_pricepercusperday,
-        guides_province,
-        guides_facebook
-      FROM guides
-      WHERE guides_province = ?
-      AND guides_status = 1
-      `,
-      [province],
-    );
-
-    return res.json({
-      message: "ดึงข้อมูลไกด์สำเร็จ",
-      count: rows.length,
-      data: rows,
-    });
-
-  } catch (error: any) {
-
-    console.error("GET GUIDE BY PROVINCE ERROR:", error);
-
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
-  }
-});
 
 export default router;
