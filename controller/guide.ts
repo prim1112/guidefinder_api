@@ -90,7 +90,7 @@ router.get("/province/:province", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/guides/:gid", async (req: Request, res: Response) => {
+router.get("/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
   try {
