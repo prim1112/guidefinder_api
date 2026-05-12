@@ -521,5 +521,4 @@ router.get("/province/:province", async (req: Request, res: Response) => {
   }
 });
 
-
 export default router;
