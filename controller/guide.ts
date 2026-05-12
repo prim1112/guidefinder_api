@@ -475,27 +475,25 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/location/:locationId", async (req: Request, res: Response) => {
-  const { locationId } = req.params;
+router.get("/province/:province", async (req: Request, res: Response) => {
+  const { province } = req.params;
 
   try {
     const [rows]: any = await db.query(
       `
       SELECT 
-        g.guides_id,
-        g.guides_name,
-        g.guides_language,
-        g.guides_imageprofile,
-        g.guides_pricepercusperday,
-        g.guides_province,
-        g.guides_facebook
-      FROM guides g
-      INNER JOIN location_guide lg
-      ON g.guides_id = lg.ref_guid_id
-      WHERE lg.ref_loc_id = ?
-      AND g.guides_status = 1
+        guides_id,
+        guides_name,
+        guides_language,
+        guides_imageprofile,
+        guides_pricepercusperday,
+        guides_province,
+        guides_facebook
+      FROM guides
+      WHERE guides_province = ?
+      AND guides_status = 1
       `,
-      [locationId],
+      [province],
     );
 
     return res.json({
