@@ -475,4 +475,40 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/location/:locationId", async (req: Request, res: Response) => {
+  const { locationId } = req.params;
+
+  try {
+    const [rows]: any = await db.query(
+      `
+      SELECT 
+        g.guides_id,
+        g.guides_name,
+        g.guides_language,
+        g.guides_imageprofile,
+        g.guides_pricepercusperday,
+        g.guides_province,
+        g.guides_facebook
+      FROM guides g
+      INNER JOIN location_guide lg
+      ON g.guides_id = lg.ref_guid_id
+      WHERE lg.ref_loc_id = ?
+      AND g.guides_status = 1
+      `,
+      [locationId],
+    );
+
+    return res.json({
+      message: "ดึงข้อมูลไกด์สำเร็จ",
+      count: rows.length,
+      data: rows,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
 export default router;
