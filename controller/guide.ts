@@ -103,13 +103,23 @@ router.get("/:gid", async (req: Request, res: Response) => {
         g.province,
         g.guide_image,
 
-        lt.location_id,
-        lt.travel_name
+        g.guides_maxcus,
+        g.guides_pricepercusperday,
+
+        l.location_id,
+        l.location_name,
+        l.location_province,
+
+        lt.travel_name,
+        lt.travel_image
 
       FROM guides g
 
+      LEFT JOIN location l
+      ON g.location_id = l.location_id
+
       LEFT JOIN location_travel lt
-      ON g.location_id = lt.location_id
+      ON l.location_id = lt.location_id
 
       WHERE g.guides_id = ?
       `,
@@ -122,10 +132,13 @@ router.get("/:gid", async (req: Request, res: Response) => {
       });
     }
 
-    res.json(rows[0]);
+    res.json({
+      data: rows[0],
+    });
 
   } catch (err) {
     console.log(err);
+
     res.status(500).json({
       message: "server error",
     });
