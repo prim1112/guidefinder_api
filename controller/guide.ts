@@ -122,6 +122,8 @@ router.get("/:gid", async (req: Request, res: Response) => {
       ON l.location_id = lt.location_id
 
       WHERE g.guides_id = ?
+
+      LIMIT 1
       `,
       [gid]
     );
@@ -144,7 +146,6 @@ router.get("/:gid", async (req: Request, res: Response) => {
     });
   }
 });
-
 
 // register guide
 router.post(
