@@ -95,32 +95,43 @@ router.get("/:gid", async (req: Request, res: Response) => {
 
   try {
     const [rows]: any = await db.query(
-      "SELECT * FROM guides WHERE guides_id = ?",
-      [gid],
+      `
+      SELECT 
+        g.guides_id,
+        g.guide_name,
+        g.languages,
+        g.province,
+        g.guide_image,
+
+        lt.location_id,
+        lt.travel_name
+
+      FROM guides g
+
+      LEFT JOIN location_travel lt
+      ON g.location_id = lt.location_id
+
+      WHERE g.guides_id = ?
+      `,
+      [gid]
     );
 
     if (!rows.length) {
       return res.status(404).json({
-        message: "ไม่พบข้อมูล",
+        message: "ไม่พบข้อมูลไกด์",
       });
     }
 
-    const guide = rows[0];
+    res.json(rows[0]);
 
-    // ❗ ตัด password ออก (best practice)
-    const { guides_password, ...safeGuide } = guide;
-
-    return res.json({
-      message: "ดึงข้อมูลสำเร็จ",
-      data: safeGuide,
-    });
-  } catch (error: any) {
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({
+      message: "server error",
     });
   }
 });
+
 
 // register guide
 router.post(
