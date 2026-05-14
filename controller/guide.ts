@@ -130,44 +130,44 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
     if (!rows || rows.length === 0) {
       return res.status(404).json({
         message: "ไม่พบข้อมูล",
-        data: null
+        data: null,
       });
     }
 
-    const result = rows[0];
+    const r = rows[0];
 
-    res.json({
+    return res.json({
       data: {
-        guides_id: result.guides_id,
-        guides_name: result.guides_name,
-        guides_language: result.guides_language,
-        guides_province: result.guides_province,
-        guides_imageprofile: result.guides_imageprofile,
-        guides_maxcus: result.guides_maxcus,
-        guides_pricepercusperday: result.guides_pricepercusperday,
+        guides_id: r.guides_id,
+        guides_name: r.guides_name,
+        guides_language: r.guides_language,
+        guides_province: r.guides_province,
+        guides_imageprofile: r.guides_imageprofile,
+        guides_maxcus: r.guides_maxcus,
+        guides_pricepercusperday: r.guides_pricepercusperday,
 
-        location: result.location_id
+        location: r.location_id
           ? {
-              location_id: result.location_id,
-              location_name: result.location_name,
-              location_province: result.location_province,
+              location_id: r.location_id,
+              location_name: r.location_name,
+              location_province: r.location_province,
             }
           : null,
 
-        travel: result.travel_id
+        travel: r.travel_id
           ? {
-              travel_id: result.travel_id,
-              travel_name: result.travel_name,
-              travel_image: result.travel_image,
+              travel_id: r.travel_id,
+              travel_name: r.travel_name,
+              travel_image: r.travel_image,
             }
           : null,
       },
     });
 
   } catch (err: any) {
-    console.error("DB ERROR:", err.message || err);
+    console.error("DB ERROR:", err);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "server error",
       error: err.message,
     });
