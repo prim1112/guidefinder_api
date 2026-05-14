@@ -94,72 +94,78 @@ router.get("/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
   try {
-    const [rows]: any = await db.query(
+
+    /// ✅ ดึงข้อมูลไกด์ก่อน
+    const [guideRows]: any = await db.query(
       `
       SELECT 
-        g.guides_id,
-        g.guides_name,
-        g.guides_language,
-        g.guides_province,
-        g.guides_imageprofile,
-        g.guides_maxcus,
-        g.guides_pricepercusperday,
-
-        l.location_id,
-        l.location_name,
-        l.location_province,
-
-        lt.id AS travel_id,
-        lt.travel_name,
-        lt.travel_image
-
-      FROM guides g
-
-      LEFT JOIN location l
-        ON TRIM(g.guides_province) = TRIM(l.location_province)
-
-      LEFT JOIN location_travel lt
-        ON l.location_id = lt.location_id
-
-      WHERE g.guides_id = ?
+        guides_id,
+        guides_name,
+        guides_language,
+        guides_province,
+        guides_imageprofile,
+        guides_maxcus,
+        guides_pricepercusperday
+      FROM guides
+      WHERE guides_id = ?
       `,
       [gid]
     );
 
-    if (!rows || rows.length === 0) {
+    /// ❌ ไม่พบไกด์
+    if (!guideRows || guideRows.length === 0) {
       return res.status(404).json({
-        message: "ไม่พบข้อมูล",
+        message: "ไม่พบข้อมูลไกด์",
         data: null,
       });
     }
 
-    /// ✅ เอา row แรก
-    const result = rows[0];
+    const guide = guideRows[0];
 
+    /// ✅ ดึงสถานที่ท่องเที่ยวทั้งหมดในจังหวัด
+    const [travelRows]: any = await db.query(
+      `
+      SELECT
+        lt.id AS travel_id,
+        lt.travel_name,
+        lt.travel_image,
+
+        l.location_id,
+        l.location_name,
+        l.location_province
+
+      FROM location_travel lt
+
+      LEFT JOIN location l
+        ON lt.location_id = l.location_id
+
+      WHERE TRIM(l.location_province)
+        = TRIM(?)
+      `,
+      [guide.guides_province]
+    );
+
+    /// ✅ ส่งข้อมูลกลับ
     return res.json({
       data: {
-        guides_id: result.guides_id,
-        guides_name: result.guides_name,
-        guides_language: result.guides_language,
-        guides_province: result.guides_province,
-        guides_imageprofile: result.guides_imageprofile,
-        guides_maxcus: result.guides_maxcus,
+        guides_id: guide.guides_id,
+        guides_name: guide.guides_name,
+        guides_language: guide.guides_language,
+        guides_province: guide.guides_province,
+        guides_imageprofile:
+          guide.guides_imageprofile,
+        guides_maxcus:
+          guide.guides_maxcus,
         guides_pricepercusperday:
-          result.guides_pricepercusperday,
+          guide.guides_pricepercusperday,
 
-        /// ✅ LOCATION
-        location_id: result.location_id,
-        location_name: result.location_name,
-        location_province: result.location_province,
-
-        /// ✅ TRAVEL
-        travel_id: result.travel_id,
-        travel_name: result.travel_name,
-        travel_image: result.travel_image,
+        /// ✅ สถานที่ท่องเที่ยวทั้งหมด
+        travels: travelRows,
       },
     });
 
   } catch (err: any) {
+
     console.error(
       "GUIDE DETAIL ERROR:",
       err.message
