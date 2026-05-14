@@ -90,8 +90,8 @@ router.get("/province/:province", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/:gid", async (req: Request, res: Response) => {
-  const { gid } = req.params;
+router.get("/:gid/:travelId", async (req: Request, res: Response) => {
+  const { gid, travelId } = req.params;
 
   try {
     const [rows]: any = await db.query(
@@ -110,6 +110,7 @@ router.get("/:gid", async (req: Request, res: Response) => {
         l.location_name,
         l.location_province,
 
+        lt.id,
         lt.travel_name,
         lt.travel_image
 
@@ -122,15 +123,14 @@ router.get("/:gid", async (req: Request, res: Response) => {
       ON l.location_id = lt.location_id
 
       WHERE g.guides_id = ?
-
-      LIMIT 1
+      AND lt.id = ?
       `,
-      [gid]
+      [gid, travelId]
     );
 
     if (!rows.length) {
       return res.status(404).json({
-        message: "ไม่พบข้อมูลไกด์",
+        message: "ไม่พบข้อมูล",
       });
     }
 
