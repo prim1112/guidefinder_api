@@ -64,9 +64,7 @@ router.get("/booking/:gid", async (req: Request, res: Response) => {
   }
 });
 
-router.post(
-  "/booking",
-  async (req: Request, res: Response) => {
+router.post("/booking", async (req: Request, res: Response) => {
     const {
       gid,
       cid,
@@ -111,9 +109,9 @@ router.post(
       const guideExists =
         await checkExist(
           `
-          SELECT gid
+          SELECT guides_id
           FROM guides
-          WHERE gid = ?
+          WHERE guides_id = ?
           `,
           gid,
         );
@@ -129,9 +127,9 @@ router.post(
       const customerExists =
         await checkExist(
           `
-          SELECT cid
+          SELECT cus_id
           FROM customers
-          WHERE cid = ?
+          WHERE cus_id = ?
           `,
           cid,
         );
@@ -224,5 +222,6 @@ router.post(
     }
   },
 );
+
 
 export default router;
