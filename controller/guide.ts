@@ -116,7 +116,7 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
       FROM guides g
 
       LEFT JOIN location l
-        ON g.location_id = l.location_id
+        ON g.guides_province = l.location_province
 
       LEFT JOIN location_travel lt
         ON l.location_id = lt.location_id
@@ -127,7 +127,7 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
       [travelId, gid]
     );
 
-    if (!rows || rows.length === 0) {
+    if (!rows.length) {
       return res.status(404).json({
         message: "ไม่พบข้อมูล",
       });
