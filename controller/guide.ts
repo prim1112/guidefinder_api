@@ -133,6 +133,7 @@ router.get("/:gid", async (req: Request, res: Response) => {
       });
     }
 
+    /// ✅ เอา row แรก
     const result = rows[0];
 
     return res.json({
@@ -143,28 +144,26 @@ router.get("/:gid", async (req: Request, res: Response) => {
         guides_province: result.guides_province,
         guides_imageprofile: result.guides_imageprofile,
         guides_maxcus: result.guides_maxcus,
-        guides_pricepercusperday: result.guides_pricepercusperday,
+        guides_pricepercusperday:
+          result.guides_pricepercusperday,
 
-        location: result.location_id
-          ? {
-              location_id: result.location_id,
-              location_name: result.location_name,
-              location_province: result.location_province,
-            }
-          : null,
+        /// ✅ LOCATION
+        location_id: result.location_id,
+        location_name: result.location_name,
+        location_province: result.location_province,
 
-        travel: result.travel_id
-          ? {
-              travel_id: result.travel_id,
-              travel_name: result.travel_name,
-              travel_image: result.travel_image,
-            }
-          : null,
+        /// ✅ TRAVEL
+        travel_id: result.travel_id,
+        travel_name: result.travel_name,
+        travel_image: result.travel_image,
       },
     });
 
   } catch (err: any) {
-    console.error("GUIDE DETAIL ERROR:", err.message);
+    console.error(
+      "GUIDE DETAIL ERROR:",
+      err.message
+    );
 
     return res.status(500).json({
       message: "server error",
