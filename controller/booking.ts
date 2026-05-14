@@ -67,62 +67,135 @@ router.get("/booking/:gid", async (req: Request, res: Response) => {
 
 
 router.post("/booking", async (req: Request, res: Response) => {
-  // รับค่าจาก Flutter (ฝั่ง App อาจจะส่งชื่อสั้นๆ มา)
   const {
-    gid,          // ไอดีไกด์
-    cid,          // ไอดีลูกค้า
-    location_id,  // ไอดีสถานที่
-    people,       // จำนวนคน
-    start_date,   // วันที่เริ่ม (ต้องเป็น YYYY-MM-DD)
-    end_date,     // วันที่สิ้นสุด (ต้องเป็น YYYY-MM-DD)
-    total_price,  // ราคารวม
-    status        // สถานะ (ส่งเป็นตัวเลขตามที่คุณตั้งไว้ เช่น 0)
+    gid,
+    cid,
+    location_id,
+    people,
+    start_date,
+    end_date,
+    total_price,
+    status,
   } = req.body;
 
   try {
-    // 1. ตรวจสอบค่าว่าง
-    if (!gid || !cid || !location_id || !people || !start_date || !end_date || total_price === undefined || status === undefined) {
-      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบทุกช่อง" });
+    /// ✅ CHECK EMPTY
+    if (
+      gid === undefined ||
+      cid === undefined ||
+      location_id === undefined ||
+      people === undefined ||
+      !start_date ||
+      !end_date ||
+      total_price === undefined ||
+      status === undefined
+    ) {
+      return res.status(400).json({
+        message: "กรุณากรอกข้อมูลให้ครบทุกช่อง",
+      });
     }
 
-    // 2. ตรวจสอบความมีอยู่ของข้อมูล (Foreign Key Check)
-    const checkExist = async (sql: string, value: any) => {
-      const [rows]: any = await db.query(sql, [value]);
+    /// ✅ CHECK EXIST
+    const checkExist = async (
+      sql: string,
+      value: any,
+    ) => {
+      const [rows]: any = await db.query(
+        sql,
+        [value],
+      );
+
       return rows.length > 0;
     };
 
-    if (!(await checkExist("SELECT gid FROM guide WHERE gid = ?", gid))) {
-      return res.status(400).json({ message: "ไม่พบไอดีไกด์ในระบบ" });
-    }
-    if (!(await checkExist("SELECT cid FROM customer WHERE cid = ?", cid))) {
-      return res.status(400).json({ message: "ไม่พบไอดีลูกค้าในระบบ" });
-    }
-    if (!(await checkExist("SELECT location_id FROM location WHERE location_id = ?", location_id))) {
-      return res.status(400).json({ message: "ไม่พบสถานที่ในระบบ" });
-    }
-
-    // 3. บันทึกลงตาราง booking_queues (ใช้ชื่อฟิลด์ใหม่ตามที่คุณส่งมา)
-    const [result]: any = await db.query(
-      `INSERT INTO booking_queues 
-      (ref_guid_id, ref_cus_id, ref_locid, booking_start_date, booking_end_date, booking_cus_amount, booking_total_price, booking_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [gid, cid, location_id, start_date, end_date, people, total_price, status]
+    /// ✅ GUIDE
+    const guideExists = await checkExist(
+      "SELECT gid FROM guide WHERE gid = ?",
+      gid,
     );
 
-    return res.json({
+    if (!guideExists) {
+      return res.status(400).json({
+        message: "ไม่พบไอดีไกด์ในระบบ",
+      });
+    }
+
+    /// ✅ CUSTOMER
+    const customerExists = await checkExist(
+      "SELECT cid FROM customer WHERE cid = ?",
+      cid,
+    );
+
+    if (!customerExists) {
+      return res.status(400).json({
+        message: "ไม่พบไอดีลูกค้าในระบบ",
+      });
+    }
+
+    /// ✅ LOCATION
+    const locationExists = await checkExist(
+      "SELECT location_id FROM location WHERE location_id = ?",
+      location_id,
+    );
+
+    if (!locationExists) {
+      return res.status(400).json({
+        message: "ไม่พบสถานที่ในระบบ",
+      });
+    }
+
+    /// ✅ INSERT BOOKING
+    const [result]: any = await db.query(
+      `
+      INSERT INTO booking_queues (
+        ref_guid_id,
+        ref_cus_id,
+        ref_locid,
+        booking_start_date,
+        booking_end_date,
+        booking_cus_amount,
+        booking_total_price,
+        booking_status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        gid,
+        cid,
+        location_id,
+        start_date,
+        end_date,
+        people,
+        total_price,
+        status,
+      ],
+    );
+
+    return res.status(201).json({
       message: "เพิ่มข้อมูลลงคิวการจองสำเร็จ",
-      booking_queue_id: result.insertId,
+
+      booking_queue_id:
+          result.insertId,
+
       data: {
         guide_id: gid,
         customer_id: cid,
-        total: total_price,
-        status: status
-      }
+        location_id: location_id,
+        people: people,
+        total_price: total_price,
+        status: status,
+      },
     });
-
   } catch (error: any) {
-    console.error("Database Error:", error);
-    return res.status(500).json({ message: "Server Error", error: error.message });
+    console.error(
+      "Database Error:",
+      error,
+    );
+
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
   }
 });
 
