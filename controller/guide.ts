@@ -98,10 +98,10 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
       `
       SELECT 
         g.guides_id,
-        g.guide_name,
-        g.languages,
-        g.province,
-        g.guide_image,
+        g.guides_name,
+        g.guides_language,
+        g.guides_province,
+        g.guides_imageprofile,
         g.guides_maxcus,
         g.guides_pricepercusperday,
 
@@ -119,7 +119,7 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
         ON g.location_id = l.location_id
 
       LEFT JOIN location_travel lt
-        ON l.location_id = lt.location_id 
+        ON l.location_id = lt.location_id
         AND lt.id = ?
 
       WHERE g.guides_id = ?
