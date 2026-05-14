@@ -116,7 +116,7 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
       FROM guides g
 
       LEFT JOIN location l
-        ON g.guides_province = l.location_province
+        ON TRIM(g.guides_province) = TRIM(l.location_province)
 
       LEFT JOIN location_travel lt
         ON l.location_id = lt.location_id
@@ -127,14 +127,41 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
       [travelId, gid]
     );
 
-    if (!rows.length) {
+    if (!rows || rows.length === 0) {
       return res.status(404).json({
         message: "ไม่พบข้อมูล",
+        data: null
       });
     }
 
+    const result = rows[0];
+
     res.json({
-      data: rows[0],
+      data: {
+        guides_id: result.guides_id,
+        guides_name: result.guides_name,
+        guides_language: result.guides_language,
+        guides_province: result.guides_province,
+        guides_imageprofile: result.guides_imageprofile,
+        guides_maxcus: result.guides_maxcus,
+        guides_pricepercusperday: result.guides_pricepercusperday,
+
+        location: result.location_id
+          ? {
+              location_id: result.location_id,
+              location_name: result.location_name,
+              location_province: result.location_province,
+            }
+          : null,
+
+        travel: result.travel_id
+          ? {
+              travel_id: result.travel_id,
+              travel_name: result.travel_name,
+              travel_image: result.travel_image,
+            }
+          : null,
+      },
     });
 
   } catch (err: any) {
