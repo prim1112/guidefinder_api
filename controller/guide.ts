@@ -102,7 +102,6 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
         g.languages,
         g.province,
         g.guide_image,
-
         g.guides_maxcus,
         g.guides_pricepercusperday,
 
@@ -110,25 +109,25 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
         l.location_name,
         l.location_province,
 
-        lt.id,
+        lt.id AS travel_id,
         lt.travel_name,
         lt.travel_image
 
       FROM guides g
 
       LEFT JOIN location l
-      ON g.location_id = l.location_id
+        ON g.location_id = l.location_id
 
       LEFT JOIN location_travel lt
-      ON l.location_id = lt.location_id
+        ON l.location_id = lt.location_id 
+        AND lt.id = ?
 
       WHERE g.guides_id = ?
-      AND lt.id = ?
       `,
-      [gid, travelId]
+      [travelId, gid]
     );
 
-    if (!rows.length) {
+    if (!rows || rows.length === 0) {
       return res.status(404).json({
         message: "ไม่พบข้อมูล",
       });
@@ -138,11 +137,12 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
       data: rows[0],
     });
 
-  } catch (err) {
-    console.log(err);
+  } catch (err: any) {
+    console.error("DB ERROR:", err.message || err);
 
     res.status(500).json({
       message: "server error",
+      error: err.message,
     });
   }
 });
