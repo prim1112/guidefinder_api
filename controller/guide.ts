@@ -90,8 +90,8 @@ router.get("/province/:province", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/:gid/:travelId", async (req: Request, res: Response) => {
-  const { gid, travelId } = req.params;
+router.get("/:gid", async (req: Request, res: Response) => {
+  const { gid } = req.params;
 
   try {
     const [rows]: any = await db.query(
@@ -164,7 +164,8 @@ router.get("/:gid/:travelId", async (req: Request, res: Response) => {
     });
 
   } catch (err: any) {
-    console.error(err);
+    console.error("GUIDE DETAIL ERROR:", err.message);
+
     return res.status(500).json({
       message: "server error",
       error: err.message,
