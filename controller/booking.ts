@@ -77,7 +77,6 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
-    // ================= VALIDATE INPUT =================
     if (
       gid == null ||
       cid == null ||
@@ -94,8 +93,6 @@ router.post("/booking", async (req: Request, res: Response) => {
     }
 
     const safeTravelId = Number(travel_id);
-
-    // ================= CHECK GUIDE =================
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
       [gid],
@@ -119,7 +116,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     }
 
     const [locRows]: any = await db.query(
-      `SELECT id FROM travel WHERE id = ?`,
+      `SELECT id FROM location_travel WHERE id = ?`,
       [safeTravelId],
     );
 
@@ -129,6 +126,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
+    // ================= INSERT BOOKING =================
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
