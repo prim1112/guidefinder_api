@@ -262,12 +262,20 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
         b.booking_end_date,
         b.booking_status,
         b.booking_total_price,
+        b.booking_cus_amount as number_of_people,
 
         l.travel_name,
         l.travel_detail,
         l.travel_image,
 
-        loc.location_province
+        loc.location_province,
+
+        -- เพิ่มข้อมูลไกด์ตรงนี้
+        g.guides_name as guide_name,
+        g.guides_phone as guide_phone,
+        g.guides_email as guide_email,
+        g.guides_facebook as guide_facebook,
+        g.guides_language as languages
 
       FROM booking_queues b
 
@@ -276,14 +284,19 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
 
       LEFT JOIN location loc
         ON l.location_id = loc.location_id
+      
+      -- JOIN ตารางไกด์
+      LEFT JOIN guides g
+        ON b.ref_guid_id = g.guides_id
 
-      WHERE b.ref_cus_id = ?
+      WHERE b.ref_cus_id = ? 
+        AND b.booking_status != 'cancelled'  -- กรองตัวที่ยกเลิกออก
 
       ORDER BY b.booking_queue_id DESC`,
       [cid]
     );
 
-    // ✅ FIX สำคัญ: ต้อง map แปลงจังหวัด
+    // map แปลงจังหวัดเป็นภาษาไทย
     const result = bookings.map((b: any) => ({
       ...b,
       location_province: toThaiProvince(b.location_province),
@@ -295,6 +308,7 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
+    console.error("GET /booking/customer/:cid error:", error);
     return res.status(500).json({
       message: "Server Error",
       error: error.message,
