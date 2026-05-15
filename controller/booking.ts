@@ -68,7 +68,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   const {
     gid,
     cid,
-    location_id, // ✅ ใช้ตัวนี้แทน travel
+    location_id,
     people,
     start_date,
     end_date,
@@ -77,14 +77,15 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
+    // ✅ ตรวจ null + undefined + 0 (เฉพาะ location)
     if (
-      gid == null ||
-      cid == null ||
-      location_id == null ||
-      people == null ||
-      start_date == null ||
-      end_date == null ||
-      total_price == null ||
+      !gid ||
+      !cid ||
+      !location_id ||
+      !people ||
+      !start_date ||
+      !end_date ||
+      !total_price ||
       status == null
     ) {
       return res.status(400).json({
@@ -92,27 +93,35 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // guide
+    // ✅ check guide
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid]
+      [gid],
     );
 
     if (guideRows.length === 0) {
       return res.status(400).json({ message: "ไม่พบไกด์ในระบบ" });
     }
 
-    // customer
+    // ✅ check customer
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid]
+      [cid],
     );
 
     if (cusRows.length === 0) {
       return res.status(400).json({ message: "ไม่พบลูกค้าในระบบ" });
     }
 
-    // INSERT (FIX สำคัญ)
+    // ✅ กัน location_id = 0
+    const safeLocationId = Number(location_id);
+    if (safeLocationId <= 0) {
+      return res.status(400).json({
+        message: "location_id ไม่ถูกต้อง",
+      });
+    }
+
+    // ✅ insert booking
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -130,13 +139,13 @@ router.post("/booking", async (req: Request, res: Response) => {
       [
         gid,
         cid,
-        location_id, // ✅ ใช้ ref_locid
+        safeLocationId,
         start_date,
         end_date,
         people,
         total_price,
         status,
-      ]
+      ],
     );
 
     return res.status(201).json({
