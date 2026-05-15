@@ -255,63 +255,54 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   const cid = req.params.cid;
 
   try {
+    // 1. ดึงเฉพาะคอลัมน์ที่ต้องแสดงผลในหน้า 'รายละเอียดการจอง'
     const [bookings]: any = await db.query(
       `SELECT 
         b.booking_queue_id,
         b.booking_start_date,
         b.booking_end_date,
-        b.booking_status,
         b.booking_total_price,
         b.booking_cus_amount as number_of_people,
 
         l.travel_name,
-        l.travel_detail,
-        l.travel_image,
-
         loc.location_province,
 
-        -- เพิ่มข้อมูลไกด์ตรงนี้
         g.guides_name as guide_name,
-        g.guides_phone as guide_phone,
+        g.guides_phonenumber as guide_phone, -- ปรับตามชื่อคอลัมน์จริงที่คุณส่งมา
         g.guides_email as guide_email,
         g.guides_facebook as guide_facebook,
         g.guides_language as languages
 
       FROM booking_queues b
-
-      LEFT JOIN location_travel l 
-        ON b.ref_travel_id = l.location_id
-
-      LEFT JOIN location loc
-        ON l.location_id = loc.location_id
-      
-      -- JOIN ตารางไกด์
-      LEFT JOIN guides g
-        ON b.ref_guid_id = g.guides_id
+      LEFT JOIN location_travel l ON b.ref_travel_id = l.location_id
+      LEFT JOIN location loc ON l.location_id = loc.location_id
+      LEFT JOIN guides g ON b.ref_guid_id = g.guides_id
 
       WHERE b.ref_cus_id = ? 
-        AND b.booking_status != 'cancelled'  -- กรองตัวที่ยกเลิกออก
-
+        AND b.booking_status != 'cancelled'
       ORDER BY b.booking_queue_id DESC`,
       [cid]
     );
 
-    // map แปลงจังหวัดเป็นภาษาไทย
+    // 2. จัดรูปแบบข้อมูลให้ตรงกับ UI (เช่น วันที่ และ จังหวัด)
     const result = bookings.map((b: any) => ({
       ...b,
+      // แปลงวันที่ให้อยู่ในรูปแบบ 12/04/2568 ตามรูป (ตัวอย่างใช้ locale th-TH)
+      booking_date_range: `${new Date(b.booking_start_date).toLocaleDateString('th-TH')} - ${new Date(b.booking_end_date).toLocaleDateString('th-TH')}`,
       location_province: toThaiProvince(b.location_province),
     }));
 
     return res.json({
-      message: "ดึงข้อมูลการจองของลูกค้าสำเร็จ",
+      success: true,
+      message: "ดึงข้อมูลการจองสำเร็จ",
       data: result,
     });
 
   } catch (error: any) {
     console.error("GET /booking/customer/:cid error:", error);
     return res.status(500).json({
+      success: false,
       message: "Server Error",
-      error: error.message,
     });
   }
 });
