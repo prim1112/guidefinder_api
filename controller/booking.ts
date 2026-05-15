@@ -176,8 +176,8 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
         b.booking_start_date,
         b.booking_end_date,
         b.booking_status,
+        b.booking_total_price,
 
-        l.location_id AS travel_id,
         l.travel_name,
         l.travel_detail,
         l.travel_image,
