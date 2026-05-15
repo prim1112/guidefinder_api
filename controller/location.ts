@@ -345,22 +345,20 @@ router.get("/location_travel/type/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.get(
-  "/location_travel/detail/:id",
-  async (req: Request, res: Response) => {
-    // ตรวจสอบว่า id ที่รับมาเป็นตัวเลขหรือไม่
-    const { id } = req.params;
+router.get("/location_travel/detail/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
 
-    try {
-      const [rows]: any = await db.query(
-        `
+  try {
+    const [rows]: any = await db.query(
+      `
       SELECT 
         lt.id,
         lt.travel_name,
         lt.travel_detail,
         lt.travel_image,
+        lt.location_id,
         t.location_type_name,
-        l.location_province, 
+        l.location_province,
         l.location_name,
         li.location_image_1,
         li.location_image_2,
@@ -368,34 +366,36 @@ router.get(
         li.location_image_4,
         li.location_image_5
       FROM location_travel lt
-      -- ใช้ LEFT JOIN เพื่อป้องกันกรณีที่ id ของประเภทหรือสถานที่ในตารางหลักไม่ตรงกับตารางย่อย
       LEFT JOIN location_type t ON lt.localtiontype_id = t.location_type_id
-      LEFT JOIN location l ON lt.location_id = l.location_id 
+      LEFT JOIN location l ON lt.location_id = l.location_id
       LEFT JOIN location_image li ON lt.id = li.ref_location_travel
       WHERE lt.id = ?
-    `,
-        [id],
-      );
+      `,
+      [id],
+    );
 
-      if (rows.length === 0) {
-        // ถ้าเข้าเงื่อนไขนี้ แสดงว่า ID นี้ไม่มีอยู่ในตาราง location_travel เลย
-        return res.status(404).json({ error: "ไม่พบข้อมูลสถานที่ในระบบ" });
-      }
+    if (!rows.length) {
+      return res.status(404).json({
+        message: "ไม่พบข้อมูลสถานที่ในระบบ",
+      });
+    }
 
-      const row = rows[0];
-      const formattedData = {
+    const row = rows[0];
+
+    return res.json({
+      data: {
         ...row,
-        // แปลงชื่อจังหวัด
         location_province:
           provinceTH[row.location_province] || row.location_province,
-      };
+      },
+    });
 
-      res.json(formattedData);
-    } catch (err: any) {
-      console.error(err);
-      res.status(500).json({ error: err.message });
-    }
-  },
-);
+  } catch (err: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: err.message,
+    });
+  }
+});
 
 export default router;
