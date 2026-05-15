@@ -177,16 +177,21 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
         b.booking_start_date,
         b.booking_end_date,
         b.booking_status,
-        b.ref_travel_id,
 
         l.location_id AS travel_id,
         l.travel_name,
         l.travel_detail,
-        l.travel_image
+        l.travel_image,
+
+        p.province_name
 
       FROM booking_queues b
+
       LEFT JOIN location_travel l 
         ON b.ref_travel_id = l.location_id
+
+      LEFT JOIN location_province p
+        ON l.ref_province_id = p.province_id
 
       WHERE b.ref_cus_id = ?
       ORDER BY b.booking_queue_id DESC`,
