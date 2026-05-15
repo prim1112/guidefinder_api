@@ -160,15 +160,16 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
+    // ✅ validate แบบชัดเจน
     if (
-      gid == null ||
-      cid == null ||
-      travel_id == null ||
-      people == null ||
-      start_date == null ||
-      end_date == null ||
-      total_price == null ||
-      status == null
+      !gid ||
+      !cid ||
+      !travel_id ||
+      !people ||
+      !start_date ||
+      !end_date ||
+      !total_price ||
+      status === undefined
     ) {
       return res.status(400).json({
         message: "กรุณากรอกข้อมูลให้ครบทุกช่อง",
@@ -176,31 +177,33 @@ router.post("/booking", async (req: Request, res: Response) => {
     }
 
     const safeTravelId = Number(travel_id);
+    const safePeople = Number(people);
+    const safePrice = Number(total_price);
 
-    // ✅ ตรวจไกด์
+    // ✅ check guide (ปลอดภัย)
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid],
+      [gid]
     );
 
     if (guideRows.length === 0) {
       return res.status(400).json({ message: "ไม่พบไกด์ในระบบ" });
     }
 
-    // ✅ ตรวจลูกค้า
+    // ✅ check customer
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid],
+      [cid]
     );
 
     if (cusRows.length === 0) {
       return res.status(400).json({ message: "ไม่พบลูกค้าในระบบ" });
     }
 
-    // ✅ FIX ตรงนี้สำคัญมาก
+    // ✅ FIX: check travel จริงใน table location_travel
     const [locRows]: any = await db.query(
       `SELECT location_id FROM location_travel WHERE location_id = ?`,
-      [safeTravelId],
+      [safeTravelId]
     );
 
     if (locRows.length === 0) {
@@ -230,10 +233,10 @@ router.post("/booking", async (req: Request, res: Response) => {
         safeTravelId,
         start_date,
         end_date,
-        people,
-        total_price,
+        safePeople,
+        safePrice,
         status,
-      ],
+      ]
     );
 
     return res.status(201).json({
