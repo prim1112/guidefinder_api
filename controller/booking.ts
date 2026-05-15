@@ -167,6 +167,7 @@ router.post("/booking", async (req: Request, res: Response) => {
 });
 
 // ✅ ดึงข้อมูลการจองของลูกค้า
+// ✅ ดึงข้อมูลการจองของลูกค้า
 router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   const cid = req.params.cid;
 
@@ -182,7 +183,6 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
         l.travel_name,
         l.travel_detail,
         l.travel_image,
-
         l.location_province
 
       FROM booking_queues b
