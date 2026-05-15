@@ -68,7 +68,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   const {
     gid,
     cid,
-    location_travel_id,
+    location_id, // ✅ ใช้ตัวนี้แทน travel
     people,
     start_date,
     end_date,
@@ -77,23 +77,22 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
-    // ❌ CHECK INPUT
     if (
-      !gid ||
-      !cid ||
-      !location_travel_id ||
-      !people ||
-      !start_date ||
-      !end_date ||
-      total_price === undefined ||
-      status === undefined
+      gid == null ||
+      cid == null ||
+      location_id == null ||
+      people == null ||
+      start_date == null ||
+      end_date == null ||
+      total_price == null ||
+      status == null
     ) {
       return res.status(400).json({
         message: "กรุณากรอกข้อมูลให้ครบทุกช่อง",
       });
     }
 
-    // ✅ CHECK GUIDE
+    // guide
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
       [gid]
@@ -103,7 +102,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       return res.status(400).json({ message: "ไม่พบไกด์ในระบบ" });
     }
 
-    // ✅ CHECK CUSTOMER
+    // customer
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
       [cid]
@@ -113,25 +112,13 @@ router.post("/booking", async (req: Request, res: Response) => {
       return res.status(400).json({ message: "ไม่พบลูกค้าในระบบ" });
     }
 
-    // ✅ CHECK LOCATION TRAVEL (สำคัญ)
-    const [locRows]: any = await db.query(
-      `SELECT location_travel_id FROM location_travel WHERE location_travel_id = ?`,
-      [location_travel_id]
-    );
-
-    if (locRows.length === 0) {
-      return res.status(400).json({
-        message: "ไม่พบสถานที่ท่องเที่ยวในระบบ",
-      });
-    }
-
-    // ✅ INSERT
+    // INSERT (FIX สำคัญ)
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
         ref_guid_id,
         ref_cus_id,
-        ref_loc_travel_id,
+        ref_locid,
         booking_start_date,
         booking_end_date,
         booking_cus_amount,
@@ -143,7 +130,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       [
         gid,
         cid,
-        location_travel_id,
+        location_id, // ✅ ใช้ ref_locid
         start_date,
         end_date,
         people,
