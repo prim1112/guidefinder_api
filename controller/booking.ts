@@ -68,7 +68,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   const {
     gid,
     cid,
-    location_travel_id,
+    travel_id, // ✅ เปลี่ยนให้ตรง ref_travel_id
     people,
     start_date,
     end_date,
@@ -77,11 +77,11 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
-    // 🔴 ตรวจสอบข้อมูลครบ
+    // 🔴 validate
     if (
       !gid ||
       !cid ||
-      !location_travel_id ||
+      !travel_id ||
       !people ||
       !start_date ||
       !end_date ||
@@ -100,9 +100,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     );
 
     if (guideRows.length === 0) {
-      return res.status(400).json({
-        message: "ไม่พบไกด์ในระบบ",
-      });
+      return res.status(400).json({ message: "ไม่พบไกด์ในระบบ" });
     }
 
     // 🔎 check customer
@@ -112,27 +110,25 @@ router.post("/booking", async (req: Request, res: Response) => {
     );
 
     if (cusRows.length === 0) {
+      return res.status(400).json({ message: "ไม่พบลูกค้าในระบบ" });
+    }
+
+    // 🔎 validate travel_id
+    const safeTravelId = Number(travel_id);
+
+    if (safeTravelId <= 0) {
       return res.status(400).json({
-        message: "ไม่พบลูกค้าในระบบ",
+        message: "travel_id ไม่ถูกต้อง",
       });
     }
 
-    // 🔎 check location (สำคัญ)
-    const safeLocationId = Number(location_travel_id);
-
-    if (safeLocationId <= 0) {
-      return res.status(400).json({
-        message: "location_travel_id ไม่ถูกต้อง",
-      });
-    }
-
-    // 💾 INSERT booking
+    // 💾 INSERT (ตรง DB ใหม่)
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
         ref_guid_id,
         ref_cus_id,
-        ref_locid,
+        ref_travel_id,
         booking_start_date,
         booking_end_date,
         booking_cus_amount,
@@ -144,7 +140,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       [
         gid,
         cid,
-        safeLocationId,
+        safeTravelId,
         start_date,
         end_date,
         people,
