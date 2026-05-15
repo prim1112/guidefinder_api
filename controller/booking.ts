@@ -280,6 +280,7 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
       [cid]
     );
 
+    // ✅ FIX สำคัญ: ต้อง map แปลงจังหวัด
     const result = bookings.map((b: any) => ({
       ...b,
       location_province: toThaiProvince(b.location_province),
