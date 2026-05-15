@@ -92,34 +92,19 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    const [guideRows]: any = await db.query(
-      `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid],
-    );
+    const safeTravelId = Number(travel_id);
 
-    if (guideRows.length === 0) {
-      return res.status(400).json({ message: "ไม่พบไกด์ในระบบ" });
-    }
-    const [cusRows]: any = await db.query(
-      `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid],
-    );
-
-    if (cusRows.length === 0) {
-      return res.status(400).json({ message: "ไม่พบลูกค้าในระบบ" });
-    }
     const [locRows]: any = await db.query(
       `SELECT location_travel_id FROM location_travel WHERE location_travel_id = ?`,
-      [travel_id],
+      [safeTravelId]
     );
 
     if (locRows.length === 0) {
       return res.status(400).json({
-        message: "ไม่พบสถานที่ในระบบ (location_travel)",
+        message: "ไม่พบสถานที่",
       });
     }
 
-    const safeTravelId = Number(travel_id);
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -143,7 +128,7 @@ router.post("/booking", async (req: Request, res: Response) => {
         people,
         total_price,
         status,
-      ],
+      ]
     );
 
     return res.status(201).json({
