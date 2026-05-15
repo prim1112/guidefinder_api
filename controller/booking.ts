@@ -68,7 +68,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   const {
     gid,
     cid,
-    location_travel_id, // 🔥 เปลี่ยนชื่อให้ชัด
+    location_travel_id,
     people,
     start_date,
     end_date,
@@ -77,30 +77,26 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
-    // =========================
     // CHECK INPUT
-    // =========================
     if (
-      !gid ||
-      !cid ||
-      !location_travel_id ||
-      !people ||
+      gid == null ||
+      cid == null ||
+      location_travel_id == null ||
+      people == null ||
       !start_date ||
       !end_date ||
-      total_price === undefined ||
-      status === undefined
+      total_price == null ||
+      status == null
     ) {
       return res.status(400).json({
         message: "กรุณากรอกข้อมูลให้ครบทุกช่อง",
       });
     }
 
-    // =========================
     // CHECK GUIDE
-    // =========================
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid]
+      [gid],
     );
 
     if (guideRows.length === 0) {
@@ -109,12 +105,10 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // =========================
     // CHECK CUSTOMER
-    // =========================
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid]
+      [cid],
     );
 
     if (cusRows.length === 0) {
@@ -123,14 +117,10 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // =========================
-    // ✅ CHECK LOCATION TRAVEL (FIX HERE)
-    // =========================
+    // CHECK LOCATION TRAVEL
     const [locRows]: any = await db.query(
-      `SELECT location_travel_id 
-       FROM location_travel 
-       WHERE location_travel_id = ?`,
-      [location_travel_id]
+      `SELECT location_travel_id FROM location_travel WHERE location_travel_id = ?`,
+      [location_travel_id],
     );
 
     if (locRows.length === 0) {
@@ -159,13 +149,13 @@ router.post("/booking", async (req: Request, res: Response) => {
       [
         gid,
         cid,
-        location_travel_id, // 🔥 ใช้ travel id
+        location_travel_id,
         start_date,
         end_date,
         people,
         total_price,
         status,
-      ]
+      ],
     );
 
     return res.status(201).json({
@@ -173,7 +163,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       booking_queue_id: result.insertId,
     });
   } catch (error: any) {
-    console.error(error);
+    console.error("BOOKING ERROR:", error);
 
     return res.status(500).json({
       message: "Server Error",
@@ -181,6 +171,5 @@ router.post("/booking", async (req: Request, res: Response) => {
     });
   }
 });
-
 
 export default router;
