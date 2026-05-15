@@ -68,7 +68,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   const {
     gid,
     cid,
-    location_id,
+    location_travel_id,
     people,
     start_date,
     end_date,
@@ -77,11 +77,11 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
-    // ✅ ตรวจ null + undefined + 0 (เฉพาะ location)
+    // 🔴 ตรวจสอบข้อมูลครบ
     if (
       !gid ||
       !cid ||
-      !location_id ||
+      !location_travel_id ||
       !people ||
       !start_date ||
       !end_date ||
@@ -93,35 +93,40 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // ✅ check guide
+    // 🔎 check guide
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid],
+      [gid]
     );
 
     if (guideRows.length === 0) {
-      return res.status(400).json({ message: "ไม่พบไกด์ในระบบ" });
-    }
-
-    // ✅ check customer
-    const [cusRows]: any = await db.query(
-      `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid],
-    );
-
-    if (cusRows.length === 0) {
-      return res.status(400).json({ message: "ไม่พบลูกค้าในระบบ" });
-    }
-
-    // ✅ กัน location_id = 0
-    const safeLocationId = Number(location_id);
-    if (safeLocationId <= 0) {
       return res.status(400).json({
-        message: "location_id ไม่ถูกต้อง",
+        message: "ไม่พบไกด์ในระบบ",
       });
     }
 
-    // ✅ insert booking
+    // 🔎 check customer
+    const [cusRows]: any = await db.query(
+      `SELECT cus_id FROM customers WHERE cus_id = ?`,
+      [cid]
+    );
+
+    if (cusRows.length === 0) {
+      return res.status(400).json({
+        message: "ไม่พบลูกค้าในระบบ",
+      });
+    }
+
+    // 🔎 check location (สำคัญ)
+    const safeLocationId = Number(location_travel_id);
+
+    if (safeLocationId <= 0) {
+      return res.status(400).json({
+        message: "location_travel_id ไม่ถูกต้อง",
+      });
+    }
+
+    // 💾 INSERT booking
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -145,7 +150,7 @@ router.post("/booking", async (req: Request, res: Response) => {
         people,
         total_price,
         status,
-      ],
+      ]
     );
 
     return res.status(201).json({
