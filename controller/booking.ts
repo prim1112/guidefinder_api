@@ -97,7 +97,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     // ✅ ตรวจไกด์
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid]
+      [gid],
     );
 
     if (guideRows.length === 0) {
@@ -107,7 +107,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     // ✅ ตรวจลูกค้า
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid]
+      [cid],
     );
 
     if (cusRows.length === 0) {
@@ -117,7 +117,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     // ✅ FIX ตรงนี้สำคัญมาก
     const [locRows]: any = await db.query(
       `SELECT location_id FROM location_travel WHERE location_id = ?`,
-      [safeTravelId]
+      [safeTravelId],
     );
 
     if (locRows.length === 0) {
@@ -150,14 +150,13 @@ router.post("/booking", async (req: Request, res: Response) => {
         people,
         total_price,
         status,
-      ]
+      ],
     );
 
     return res.status(201).json({
       message: "จองสำเร็จ",
       booking_queue_id: result.insertId,
     });
-
   } catch (err: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -173,37 +172,32 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   try {
     const [bookings]: any = await db.query(
       `SELECT 
-        b.booking_queue_id,
-        b.booking_start_date,
-        b.booking_end_date,
-        b.booking_status,
+    b.booking_queue_id,
+    b.booking_start_date,
+    b.booking_end_date,
+    b.booking_status,
 
-        l.location_id AS travel_id,
-        l.travel_name,
-        l.travel_detail,
-        l.travel_image,
+    l.location_id AS travel_id,
+    l.travel_name,
+    l.travel_detail,
+    l.travel_image,
+    l.location_province
 
-        loc.location_province
+  FROM booking_queues b
 
-      FROM booking_queues b
+  LEFT JOIN location_travel l 
+    ON b.ref_travel_id = l.location_id
 
-      LEFT JOIN location_travel l 
-        ON b.ref_travel_id = l.location_id
+  WHERE b.ref_cus_id = ?
 
-      LEFT JOIN location loc
-        ON l.ref_location_id = loc.location_id
-
-      WHERE b.ref_cus_id = ?
-
-      ORDER BY b.booking_queue_id DESC`,
-      [cid]
+  ORDER BY b.booking_queue_id DESC`,
+      [cid],
     );
 
     return res.json({
       message: "ดึงข้อมูลการจองของลูกค้าสำเร็จ",
       data: bookings || [],
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
