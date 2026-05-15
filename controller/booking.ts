@@ -65,163 +65,122 @@ router.get("/booking/:gid", async (req: Request, res: Response) => {
 });
 
 router.post("/booking", async (req: Request, res: Response) => {
-    const {
-      gid,
-      cid,
-      location_id,
-      people,
-      start_date,
-      end_date,
-      total_price,
-      status,
-    } = req.body;
+  const {
+    gid,
+    cid,
+    location_travel_id, // 🔥 เปลี่ยนชื่อให้ชัด
+    people,
+    start_date,
+    end_date,
+    total_price,
+    status,
+  } = req.body;
 
-    try {
-      /// ✅ CHECK EMPTY
-      if (
-        gid === undefined ||
-        cid === undefined ||
-        location_id === undefined ||
-        people === undefined ||
-        !start_date ||
-        !end_date ||
-        total_price === undefined ||
-        status === undefined
-      ) {
-        return res.status(400).json({
-          message:
-            "กรุณากรอกข้อมูลให้ครบทุกช่อง",
-        });
-      }
-
-      /// ✅ FUNCTION CHECK EXIST
-      const checkExist = async (
-        sql: string,
-        value: any,
-      ) => {
-        const [rows]: any =
-          await db.query(sql, [value]);
-
-        return rows.length > 0;
-      };
-
-      /// ✅ CHECK GUIDE
-      const guideExists =
-        await checkExist(
-          `
-          SELECT guides_id
-          FROM guides
-          WHERE guides_id = ?
-          `,
-          gid,
-        );
-
-      if (!guideExists) {
-        return res.status(400).json({
-          message:
-            "ไม่พบไกด์ในระบบ",
-        });
-      }
-
-      /// ✅ CHECK CUSTOMER
-      const customerExists =
-        await checkExist(
-          `
-          SELECT cus_id
-          FROM customers
-          WHERE cus_id = ?
-          `,
-          cid,
-        );
-
-      if (!customerExists) {
-        return res.status(400).json({
-          message:
-            "ไม่พบลูกค้าในระบบ",
-        });
-      }
-
-      /// ✅ CHECK LOCATION
-      const locationExists =
-        await checkExist(
-          `
-          SELECT location_id
-          FROM location
-          WHERE location_id = ?
-          `,
-          location_id,
-        );
-
-      if (!locationExists) {
-        return res.status(400).json({
-          message:
-            "ไม่พบสถานที่ในระบบ",
-        });
-      }
-
-      /// ✅ INSERT BOOKING
-      const [result]: any =
-        await db.query(
-          `
-          INSERT INTO booking_queues (
-            ref_guid_id,
-            ref_cus_id,
-            ref_locid,
-            booking_start_date,
-            booking_end_date,
-            booking_cus_amount,
-            booking_total_price,
-            booking_status
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-          [
-            gid,
-            cid,
-            location_id,
-            start_date,
-            end_date,
-            people,
-            total_price,
-            status,
-          ],
-        );
-
-      /// ✅ SUCCESS
-      return res.status(201).json({
-        message:
-          "เพิ่มข้อมูลลงคิวการจองสำเร็จ",
-
-        booking_queue_id:
-          result.insertId,
-
-        data: {
-          guide_id: gid,
-          customer_id: cid,
-          location_id:
-            location_id,
-          people: people,
-          start_date:
-            start_date,
-          end_date: end_date,
-          total_price:
-            total_price,
-          status: status,
-        },
-      });
-    } catch (error: any) {
-      console.error(
-        "Database Error:",
-        error,
-      );
-
-      return res.status(500).json({
-        message: "Server Error",
-        error: error.message,
+  try {
+    // =========================
+    // CHECK INPUT
+    // =========================
+    if (
+      !gid ||
+      !cid ||
+      !location_travel_id ||
+      !people ||
+      !start_date ||
+      !end_date ||
+      total_price === undefined ||
+      status === undefined
+    ) {
+      return res.status(400).json({
+        message: "กรุณากรอกข้อมูลให้ครบทุกช่อง",
       });
     }
-  },
-);
+
+    // =========================
+    // CHECK GUIDE
+    // =========================
+    const [guideRows]: any = await db.query(
+      `SELECT guides_id FROM guides WHERE guides_id = ?`,
+      [gid]
+    );
+
+    if (guideRows.length === 0) {
+      return res.status(400).json({
+        message: "ไม่พบไกด์ในระบบ",
+      });
+    }
+
+    // =========================
+    // CHECK CUSTOMER
+    // =========================
+    const [cusRows]: any = await db.query(
+      `SELECT cus_id FROM customers WHERE cus_id = ?`,
+      [cid]
+    );
+
+    if (cusRows.length === 0) {
+      return res.status(400).json({
+        message: "ไม่พบลูกค้าในระบบ",
+      });
+    }
+
+    // =========================
+    // ✅ CHECK LOCATION TRAVEL (FIX HERE)
+    // =========================
+    const [locRows]: any = await db.query(
+      `SELECT location_travel_id 
+       FROM location_travel 
+       WHERE location_travel_id = ?`,
+      [location_travel_id]
+    );
+
+    if (locRows.length === 0) {
+      return res.status(400).json({
+        message: "ไม่พบสถานที่ท่องเที่ยวในระบบ",
+      });
+    }
+
+    // =========================
+    // INSERT BOOKING
+    // =========================
+    const [result]: any = await db.query(
+      `
+      INSERT INTO booking_queues (
+        ref_guid_id,
+        ref_cus_id,
+        ref_locid,
+        booking_start_date,
+        booking_end_date,
+        booking_cus_amount,
+        booking_total_price,
+        booking_status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        gid,
+        cid,
+        location_travel_id, // 🔥 ใช้ travel id
+        start_date,
+        end_date,
+        people,
+        total_price,
+        status,
+      ]
+    );
+
+    return res.status(201).json({
+      message: "เพิ่มข้อมูลลงคิวการจองสำเร็จ",
+      booking_queue_id: result.insertId,
+    });
+  } catch (error: any) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
 
 
 export default router;
