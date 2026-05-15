@@ -68,7 +68,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   const {
     gid,
     cid,
-    travel_id, // ✅ เปลี่ยนให้ตรง ref_travel_id
+    travel_id,
     people,
     start_date,
     end_date,
@@ -77,15 +77,14 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
-    // 🔴 validate
     if (
-      !gid ||
-      !cid ||
-      !travel_id ||
-      !people ||
-      !start_date ||
-      !end_date ||
-      !total_price ||
+      gid == null ||
+      cid == null ||
+      travel_id == null ||
+      people == null ||
+      start_date == null ||
+      end_date == null ||
+      total_price == null ||
       status == null
     ) {
       return res.status(400).json({
@@ -93,36 +92,34 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // 🔎 check guide
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid]
+      [gid],
     );
 
     if (guideRows.length === 0) {
       return res.status(400).json({ message: "ไม่พบไกด์ในระบบ" });
     }
-
-    // 🔎 check customer
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid]
+      [cid],
     );
 
     if (cusRows.length === 0) {
       return res.status(400).json({ message: "ไม่พบลูกค้าในระบบ" });
     }
+    const [locRows]: any = await db.query(
+      `SELECT location_travel_id FROM location_travel WHERE location_travel_id = ?`,
+      [travel_id],
+    );
 
-    // 🔎 validate travel_id
-    const safeTravelId = Number(travel_id);
-
-    if (safeTravelId <= 0) {
+    if (locRows.length === 0) {
       return res.status(400).json({
-        message: "travel_id ไม่ถูกต้อง",
+        message: "ไม่พบสถานที่ในระบบ (location_travel)",
       });
     }
 
-    // 💾 INSERT (ตรง DB ใหม่)
+    const safeTravelId = Number(travel_id);
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -146,7 +143,7 @@ router.post("/booking", async (req: Request, res: Response) => {
         people,
         total_price,
         status,
-      ]
+      ],
     );
 
     return res.status(201).json({
