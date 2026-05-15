@@ -186,7 +186,7 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
       FROM booking_queues b
 
       LEFT JOIN location_travel l 
-        ON b.ref_travel_id = l.id
+        ON b.ref_travel_id = l.location_id
 
       LEFT JOIN location loc
         ON l.location_id = loc.location_id
