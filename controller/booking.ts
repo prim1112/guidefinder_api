@@ -280,9 +280,14 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
       [cid]
     );
 
+    const result = bookings.map((b: any) => ({
+      ...b,
+      location_province: toThaiProvince(b.location_province),
+    }));
+
     return res.json({
       message: "ดึงข้อมูลการจองของลูกค้าสำเร็จ",
-      data: bookings || [],
+      data: result,
     });
 
   } catch (error: any) {
