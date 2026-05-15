@@ -93,31 +93,31 @@ router.post("/booking", async (req: Request, res: Response) => {
     }
 
     const safeTravelId = Number(travel_id);
+
+    // ✅ ตรวจไกด์
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid],
+      [gid]
     );
 
     if (guideRows.length === 0) {
-      return res.status(400).json({
-        message: "ไม่พบไกด์ในระบบ",
-      });
+      return res.status(400).json({ message: "ไม่พบไกด์ในระบบ" });
     }
 
+    // ✅ ตรวจลูกค้า
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid],
+      [cid]
     );
 
     if (cusRows.length === 0) {
-      return res.status(400).json({
-        message: "ไม่พบลูกค้าในระบบ",
-      });
+      return res.status(400).json({ message: "ไม่พบลูกค้าในระบบ" });
     }
 
+    // ✅ FIX ตรงนี้สำคัญมาก
     const [locRows]: any = await db.query(
-      `SELECT id FROM location_travel WHERE id = ?`,
-      [safeTravelId],
+      `SELECT location_id FROM location_travel WHERE location_id = ?`,
+      [safeTravelId]
     );
 
     if (locRows.length === 0) {
@@ -126,7 +126,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // ================= INSERT BOOKING =================
+    // ✅ insert booking
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -150,13 +150,14 @@ router.post("/booking", async (req: Request, res: Response) => {
         people,
         total_price,
         status,
-      ],
+      ]
     );
 
     return res.status(201).json({
       message: "จองสำเร็จ",
       booking_queue_id: result.insertId,
     });
+
   } catch (err: any) {
     return res.status(500).json({
       message: "Server Error",
