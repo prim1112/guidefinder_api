@@ -166,7 +166,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   }
 });
 
-// ดึงข้อมูลการจองของ "ลูกค้า" (Customer)
+// ดึงข้อมูลการจองของ "ลูกค้า"
 router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   const cid = req.params.cid;
 
@@ -177,22 +177,33 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
         b.booking_start_date,
         b.booking_end_date,
         b.booking_status,
-        l.location_name,      -- ชื่อสถานที่
-        l.location_province,  -- จังหวัด
-        l.location_img        -- รูปภาพ
+        b.ref_travel_id,
+
+        l.location_name,
+        l.location_province,
+        l.location_img
+
        FROM booking_queues b
-       JOIN location_travel l ON b.ref_travel_id = l.location_id
+       LEFT JOIN location_travel l 
+       ON b.ref_travel_id = l.location_id
+
        WHERE b.ref_cus_id = ?
        ORDER BY b.booking_queue_id DESC`,
       [cid]
     );
 
+    console.log("BOOKINGS RESULT:", bookings); // 🔥 debug สำคัญ
+
     return res.json({
       message: "ดึงข้อมูลการจองของลูกค้าสำเร็จ",
-      data: bookings,
+      data: bookings ?? [],
     });
+
   } catch (error: any) {
-    return res.status(500).json({ message: "Server Error", error: error.message });
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
   }
 });
 
