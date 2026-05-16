@@ -324,11 +324,11 @@ router.get("/booking/detail/:booking_id", async (req: Request, res: Response) =>
         loc.location_province,
 
         -- ข้อมูลไกด์
-        g.guide_name,
-        g.guide_language,
-        g.guide_email,
-        g.guide_facebook,
-        g.guide_phone
+        g.guides_name,
+        g.guides_language,
+        g.guides_email,
+        g.guides_facebook,
+        g.guides_phonenumber
 
       FROM booking_queues b
 
@@ -339,7 +339,7 @@ router.get("/booking/detail/:booking_id", async (req: Request, res: Response) =>
         ON l.location_id = loc.location_id
 
       LEFT JOIN guides g
-        ON b.ref_guid_id = g.guide_id
+        ON b.ref_guid_id = g.guides_id
 
       WHERE b.booking_queue_id = ?`,
       [booking_id]
