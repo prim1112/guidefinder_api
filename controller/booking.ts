@@ -302,5 +302,41 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   }
 });
 
+router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
+  const bid = req.params.bid; // Booking ID
+  // แนะนำให้รับ user_id จาก token/session เพื่อเช็คความเป็นเจ้าของด้วย
+
+  try {
+    // 1. ตรวจสอบสถานะก่อนว่ายกเลิกได้ไหม (เช่น ถ้าจ่ายเงินแล้วอาจห้ามยกเลิก)
+    const [booking]: any = await db.query(
+      "SELECT booking_status FROM booking_queues WHERE booking_queue_id = ?",
+      [bid]
+    );
+
+    if (booking.length === 0) {
+      return res.status(404).json({ message: "ไม่พบข้อมูลการจอง" });
+    }
+
+    if (booking[0].booking_status === 'cancelled') {
+      return res.status(400).json({ message: "รายการนี้ถูกยกเลิกไปแล้ว" });
+    }
+
+    // 2. อัปเดตสถานะเป็น 'cancelled'
+    await db.query(
+      "UPDATE booking_queues SET booking_status = 'cancelled' WHERE booking_queue_id = ?",
+      [bid]
+    );
+
+    return res.json({
+      message: "ยกเลิกการจองเรียบร้อยแล้ว",
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "เกิดข้อผิดพลาดในการยกเลิก",
+      error: error.message,
+    });
+  }
+}); 
 
 export default router;
