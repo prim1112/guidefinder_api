@@ -262,20 +262,12 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
         b.booking_end_date,
         b.booking_status,
         b.booking_total_price,
-        b.booking_cus_amount as number_of_people,
 
         l.travel_name,
         l.travel_detail,
         l.travel_image,
 
-        loc.location_province,
-
-        -- เพิ่มข้อมูลไกด์ตรงนี้
-        g.guides_name as guide_name,
-        g.guides_phone as guide_phone,
-        g.guides_email as guide_email,
-        g.guides_facebook as guide_facebook,
-        g.guides_language as languages
+        loc.location_province
 
       FROM booking_queues b
 
@@ -284,19 +276,14 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
 
       LEFT JOIN location loc
         ON l.location_id = loc.location_id
-      
-      -- JOIN ตารางไกด์
-      LEFT JOIN guides g
-        ON b.ref_guid_id = g.guides_id
 
-      WHERE b.ref_cus_id = ? 
-        AND b.booking_status != 'cancelled'  -- กรองตัวที่ยกเลิกออก
+      WHERE b.ref_cus_id = ?
 
       ORDER BY b.booking_queue_id DESC`,
       [cid]
     );
 
-    // map แปลงจังหวัดเป็นภาษาไทย
+    // ✅ FIX สำคัญ: ต้อง map แปลงจังหวัด
     const result = bookings.map((b: any) => ({
       ...b,
       location_province: toThaiProvince(b.location_province),
@@ -308,7 +295,6 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error("GET /booking/customer/:cid error:", error);
     return res.status(500).json({
       message: "Server Error",
       error: error.message,
@@ -316,41 +302,6 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   }
 });
 
-router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
-  const bid = req.params.bid; // Booking ID
-  // แนะนำให้รับ user_id จาก token/session เพื่อเช็คความเป็นเจ้าของด้วย
 
-  try {
-    // 1. ตรวจสอบสถานะก่อนว่ายกเลิกได้ไหม (เช่น ถ้าจ่ายเงินแล้วอาจห้ามยกเลิก)
-    const [booking]: any = await db.query(
-      "SELECT booking_status FROM booking_queues WHERE booking_queue_id = ?",
-      [bid]
-    );
-
-    if (booking.length === 0) {
-      return res.status(404).json({ message: "ไม่พบข้อมูลการจอง" });
-    }
-
-    if (booking[0].booking_status === 'cancelled') {
-      return res.status(400).json({ message: "รายการนี้ถูกยกเลิกไปแล้ว" });
-    }
-
-    // 2. อัปเดตสถานะเป็น 'cancelled'
-    await db.query(
-      "UPDATE booking_queues SET booking_status = 'cancelled' WHERE booking_queue_id = ?",
-      [bid]
-    );
-
-    return res.json({
-      message: "ยกเลิกการจองเรียบร้อยแล้ว",
-    });
-
-  } catch (error: any) {
-    return res.status(500).json({
-      message: "เกิดข้อผิดพลาดในการยกเลิก",
-      error: error.message,
-    });
-  }
-});
 
 export default router;
