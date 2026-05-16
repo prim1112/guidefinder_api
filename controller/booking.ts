@@ -313,7 +313,7 @@ router.get("/booking/detail/:booking_id", async (req: Request, res: Response) =>
         b.booking_end_date,
         b.booking_status,
         b.booking_total_price,
-        b.booking_people,
+        b.booking_cus_amount,
 
         -- สถานที่
         l.travel_name,
@@ -353,7 +353,9 @@ router.get("/booking/detail/:booking_id", async (req: Request, res: Response) =>
 
     const booking = {
       ...rows[0],
-      location_province: toThaiProvince(rows[0].location_province),
+      location_province: toThaiProvince(
+        rows[0].location_province
+      ),
     };
 
     return res.json({
