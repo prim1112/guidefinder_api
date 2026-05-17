@@ -401,4 +401,62 @@ router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
   }
 });
 
+router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
+  const bid = req.params.bid;
+
+  try {
+    const [result]: any = await db.query(
+      `UPDATE booking_queues
+       SET booking_status = 1
+       WHERE booking_queue_id = ?`,
+      [bid]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: "ไม่พบรายการจอง",
+      });
+    }
+
+    return res.json({
+      message: "รับงานสำเร็จ",
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
+  const bid = req.params.bid;
+
+  try {
+    const [result]: any = await db.query(
+      `UPDATE booking_queues
+       SET booking_status = 3
+       WHERE booking_queue_id = ?`,
+      [bid]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: "ไม่พบรายการจอง",
+      });
+    }
+
+    return res.json({
+      message: "จบงานสำเร็จ",
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
 export default router;
