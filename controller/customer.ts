@@ -6,8 +6,6 @@ import db from "../db/dbconnect";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
 import cloudinary from "../src/config/configCloud";
 
-
-
 export const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -22,7 +20,6 @@ const uploadToCloudinary = (buffer: Buffer, folder: string) =>
     );
     streamifier.createReadStream(buffer).pipe(stream);
   });
-  
 
 router.get("/test-cloudinary", (req, res) => {
   res.json({
@@ -50,7 +47,6 @@ router.get("/customers", async (req: Request, res: Response) => {
   }
 });
 
-
 // 🔍 GET PROFILE
 router.get("/profile/:id", async (req: Request, res: Response) => {
   try {
@@ -59,7 +55,7 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
     const [rows]: any = await db.query(
       `SELECT cus_id, cus_name, cus_email, cus_phonenumber, cus_imageprofile 
        FROM customers WHERE cus_id = ?`,
-      [id]
+      [id],
     );
 
     if (!rows.length) {
@@ -71,7 +67,6 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
     res.status(500).json({ message: err.message });
   }
 });
-
 
 // 📝 REGISTER
 router.post(
@@ -91,7 +86,7 @@ router.post(
       const [dup]: any = await db.query(
         `SELECT cus_id FROM customers 
          WHERE cus_email = ? OR cus_phonenumber = ?`,
-        [email, cus_phonenumber]
+        [email, cus_phonenumber],
       );
 
       if (dup.length) {
@@ -112,7 +107,7 @@ router.post(
         `INSERT INTO customers 
         (cus_name, cus_phonenumber, cus_email, cus_password, cus_imageprofile)
         VALUES (?, ?, ?, ?, ?)`,
-        [cus_name, cus_phonenumber, email, hashed, imageUrl]
+        [cus_name, cus_phonenumber, email, hashed, imageUrl],
       );
 
       res.status(201).json({
@@ -122,9 +117,8 @@ router.post(
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
-  }
+  },
 );
-
 
 // ✏️ UPDATE PROFILE
 router.put(
@@ -143,7 +137,7 @@ router.put(
 
       const [rows]: any = await db.query(
         "SELECT * FROM customers WHERE cus_id = ?",
-        [id]
+        [id],
       );
 
       if (!rows.length) {
@@ -163,7 +157,7 @@ router.put(
       const [dup]: any = await db.query(
         `SELECT cus_id FROM customers 
          WHERE (cus_email = ? OR cus_phonenumber = ?) AND cus_id != ?`,
-        [email, cus_phonenumber || old.cus_phonenumber, id]
+        [email, cus_phonenumber || old.cus_phonenumber, id],
       );
 
       if (dup.length) {
@@ -200,7 +194,7 @@ router.put(
           password,
           image,
           id,
-        ]
+        ],
       );
 
       res.json({
@@ -210,9 +204,8 @@ router.put(
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
-  }
+  },
 );
-
 
 // ❌ DELETE
 router.delete("/profile/:id", async (req: Request, res: Response) => {
@@ -221,7 +214,7 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
 
     const [rows]: any = await db.query(
       "SELECT cus_id FROM customers WHERE cus_id = ?",
-      [id]
+      [id],
     );
 
     if (!rows.length) {
@@ -236,62 +229,58 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
   }
 });
 
-
-//  FAVORITE PLACE 
+//  FAVORITE PLACE
 // เพิ่มสถานที่โปรด
-router.post(
-  "/favorite/add",
-  async (req: Request, res: Response) => {
-    try {
-      const { cus_id, location_id } = req.body;
+router.post("/favorite/add", async (req: Request, res: Response) => {
+  try {
+    const { cus_id, location_id } = req.body;
 
-      // ตรวจสอบข้อมูล
-      if (!cus_id || !location_id) {
-        return res.status(400).json({
-          success: false,
-          message: "กรุณาระบุข้อมูลให้ครบ",
-        });
-      }
+    // ตรวจสอบข้อมูล
+    if (!cus_id || !location_id) {
+      return res.status(400).json({
+        success: false,
+        message: "กรุณาระบุข้อมูลให้ครบ",
+      });
+    }
 
-      // เช็คว่ามี favorite นี้แล้วหรือยัง
-      const [check]: any = await db.query(
-        `
+    // เช็คว่ามี favorite นี้แล้วหรือยัง
+    const [check]: any = await db.query(
+      `
         SELECT * FROM favorite_places
         WHERE cus_id = ? AND location_id = ?
         `,
-        [cus_id, location_id]
-      );
+      [cus_id, location_id],
+    );
 
-      if (check.length > 0) {
-        return res.status(400).json({
-          success: false,
-          message: "สถานที่นี้อยู่ในรายการโปรดแล้ว",
-        });
-      }
+    if (check.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "สถานที่นี้อยู่ในรายการโปรดแล้ว",
+      });
+    }
 
-      // เพิ่ม favorite
-      const [result] = await db.query<ResultSetHeader>(
-        `
+    // เพิ่ม favorite
+    const [result] = await db.query<ResultSetHeader>(
+      `
         INSERT INTO favorite_places
         (cus_id, location_id)
         VALUES (?, ?)
         `,
-        [cus_id, location_id]
-      );
+      [cus_id, location_id],
+    );
 
-      res.status(201).json({
-        success: true,
-        message: "เพิ่มรายการโปรดสำเร็จ",
-        favorite_id: result.insertId,
-      });
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err.message,
-      });
-    }
+    res.status(201).json({
+      success: true,
+      message: "เพิ่มรายการโปรดสำเร็จ",
+      favorite_id: result.insertId,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
-);
+});
 
 // ดึงรายการ favorite ของ customer
 router.get("/favorite/:cus_id", async (req: Request, res: Response) => {
@@ -300,24 +289,19 @@ router.get("/favorite/:cus_id", async (req: Request, res: Response) => {
 
     const [rows]: any = await db.query(
       `
-      SELECT
-        fp.favorite_id,
-        fp.location_id,
-
-        l.travel_name AS location_name,
-        l.travel_image AS image,
-        l.travel_detail AS detail
-
-      FROM favorite_places fp
-
-      JOIN location_travel l
-        ON fp.location_id = l.location_id
-
-      WHERE fp.cus_id = ?
-
-      ORDER BY fp.favorite_id DESC
-      `,
-      [cus_id]
+  SELECT
+    fp.favorite_id,
+    fp.location_id,
+    l.travel_name AS location_name,
+    l.travel_image AS image,
+    l.travel_detail AS detail
+  FROM favorite_places fp
+  LEFT JOIN location_travel l
+    ON fp.location_id = l.location_id
+  WHERE fp.cus_id = ?
+  ORDER BY fp.favorite_id DESC
+  `,
+      [cus_id],
     );
 
     res.json({
@@ -325,7 +309,6 @@ router.get("/favorite/:cus_id", async (req: Request, res: Response) => {
       count: rows.length,
       data: rows,
     });
-
   } catch (err: any) {
     res.status(500).json({
       success: false,
@@ -335,40 +318,40 @@ router.get("/favorite/:cus_id", async (req: Request, res: Response) => {
 });
 
 //  ลบ favorite
-router.delete("/favorite/delete/:favorite_id", async (req: Request, res: Response) => {
-  try {
-    const favorite_id = Number(req.params.favorite_id);
+router.delete(
+  "/favorite/delete/:favorite_id",
+  async (req: Request, res: Response) => {
+    try {
+      const favorite_id = Number(req.params.favorite_id);
 
-    const [check]: any = await db.query(
-      `SELECT * FROM favorite_places WHERE favorite_id = ?`,
-      [favorite_id]
-    );
+      const [check]: any = await db.query(
+        `SELECT * FROM favorite_places WHERE favorite_id = ?`,
+        [favorite_id],
+      );
 
-    if (!check.length) {
-      return res.status(404).json({
+      if (!check.length) {
+        return res.status(404).json({
+          success: false,
+          message: "ไม่พบรายการโปรด",
+        });
+      }
+
+      await db.query(`DELETE FROM favorite_places WHERE favorite_id = ?`, [
+        favorite_id,
+      ]);
+
+      res.json({
+        success: true,
+        message: "ลบรายการโปรดสำเร็จ",
+      });
+    } catch (err: any) {
+      res.status(500).json({
         success: false,
-        message: "ไม่พบรายการโปรด",
+        message: err.message,
       });
     }
-
-    await db.query(
-      `DELETE FROM favorite_places WHERE favorite_id = ?`,
-      [favorite_id]
-    );
-
-    res.json({
-      success: true,
-      message: "ลบรายการโปรดสำเร็จ",
-    });
-
-  } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
-});
-
+  },
+);
 
 // // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
 // router.post("/login", async (req: Request, res: Response) => {
