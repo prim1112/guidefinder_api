@@ -236,6 +236,147 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
   }
 });
 
+
+//  FAVORITE PLACE 
+// เพิ่มสถานที่โปรด
+router.post(
+  "/favorite/add",
+  async (req: Request, res: Response) => {
+    try {
+      const { cus_id, location_id } = req.body;
+
+      // ตรวจสอบข้อมูล
+      if (!cus_id || !location_id) {
+        return res.status(400).json({
+          success: false,
+          message: "กรุณาระบุข้อมูลให้ครบ",
+        });
+      }
+
+      // เช็คว่ามี favorite นี้แล้วหรือยัง
+      const [check]: any = await db.query(
+        `
+        SELECT * FROM favorite_places
+        WHERE cus_id = ? AND location_id = ?
+        `,
+        [cus_id, location_id]
+      );
+
+      if (check.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "สถานที่นี้อยู่ในรายการโปรดแล้ว",
+        });
+      }
+
+      // เพิ่ม favorite
+      const [result] = await db.query<ResultSetHeader>(
+        `
+        INSERT INTO favorite_places
+        (cus_id, location_id)
+        VALUES (?, ?)
+        `,
+        [cus_id, location_id]
+      );
+
+      res.status(201).json({
+        success: true,
+        message: "เพิ่มรายการโปรดสำเร็จ",
+        favorite_id: result.insertId,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        message: err.message,
+      });
+    }
+  }
+);
+
+// ดึงรายการ favorite ของ customer
+router.get(
+  "/favorite/:cus_id",
+  async (req: Request, res: Response) => {
+    try {
+      const cus_id = Number(req.params.cus_id);
+
+      const [rows]: any = await db.query(
+        `
+        SELECT
+          fp.favorite_id,
+          l.location_id,
+          l.location_name,
+          l.image,
+          l.province,
+          l.detail
+        FROM favorite_places fp
+        JOIN locations l
+          ON fp.location_id = l.location_id
+        WHERE fp.cus_id = ?
+        ORDER BY fp.favorite_id DESC
+        `,
+        [cus_id]
+      );
+
+      res.json({
+        success: true,
+        count: rows.length,
+        data: rows,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        message: err.message,
+      });
+    }
+  }
+);
+
+//  ลบ favorite
+router.delete(
+  "/favorite/delete/:favorite_id",
+  async (req: Request, res: Response) => {
+    try {
+      const favorite_id = Number(req.params.favorite_id);
+
+      // เช็คก่อนว่ามีข้อมูลไหม
+      const [check]: any = await db.query(
+        `
+        SELECT * FROM favorite_places
+        WHERE favorite_id = ?
+        `,
+        [favorite_id]
+      );
+
+      if (!check.length) {
+        return res.status(404).json({
+          success: false,
+          message: "ไม่พบรายการโปรด",
+        });
+      }
+
+      await db.query(
+        `
+        DELETE FROM favorite_places
+        WHERE favorite_id = ?
+        `,
+        [favorite_id]
+      );
+
+      res.json({
+        success: true,
+        message: "ลบรายการโปรดสำเร็จ",
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        message: err.message,
+      });
+    }
+  }
+);
+
+
 // // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
 // router.post("/login", async (req: Request, res: Response) => {
 //   const { email, password } = req.body;
