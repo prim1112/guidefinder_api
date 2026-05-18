@@ -304,14 +304,14 @@ router.get("/favorite/:cus_id", async (req: Request, res: Response) => {
         fp.favorite_id,
         fp.location_id,
 
-        t.travel_name AS location_name,
-        t.travel_image AS image,
-        t.travel_detail AS detail
+        l.travel_name AS location_name,
+        l.travel_image AS image,
+        l.travel_detail AS detail
 
       FROM favorite_places fp
 
-      JOIN travel_table t
-        ON fp.location_id = t.location_id
+      JOIN location_travel l
+        ON fp.location_id = l.location_id
 
       WHERE fp.cus_id = ?
 
@@ -325,6 +325,7 @@ router.get("/favorite/:cus_id", async (req: Request, res: Response) => {
       count: rows.length,
       data: rows,
     });
+
   } catch (err: any) {
     res.status(500).json({
       success: false,
@@ -338,12 +339,19 @@ router.delete("/favorite/delete/:favorite_id", async (req: Request, res: Respons
   try {
     const favorite_id = Number(req.params.favorite_id);
 
+    if (!favorite_id) {
+      return res.status(400).json({
+        success: false,
+        message: "favorite_id ไม่ถูกต้อง",
+      });
+    }
+
     const [check]: any = await db.query(
-      `SELECT * FROM favorite_places WHERE favorite_id = ?`,
+      `SELECT favorite_id FROM favorite_places WHERE favorite_id = ?`,
       [favorite_id]
     );
 
-    if (!check.length) {
+    if (check.length === 0) {
       return res.status(404).json({
         success: false,
         message: "ไม่พบรายการโปรด",
