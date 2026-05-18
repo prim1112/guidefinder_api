@@ -289,19 +289,19 @@ router.get("/favorite/:cus_id", async (req: Request, res: Response) => {
 
     const [rows]: any = await db.query(
       `
-  SELECT
-    fp.favorite_id,
-    fp.location_id,
-    l.travel_name AS location_name,
-    l.travel_image AS image,
-    l.travel_detail AS detail
-  FROM favorite_places fp
-  LEFT JOIN location_travel l
-    ON fp.location_id = l.location_id
-  WHERE fp.cus_id = ?
-  ORDER BY fp.favorite_id DESC
-  `,
-      [cus_id],
+      SELECT
+      fp.favorite_id,
+      fp.location_id,
+      l.travel_name,
+      l.travel_image,
+      l.travel_detail
+    FROM favorite_places fp
+    LEFT JOIN location_travel l
+      ON fp.location_id = l.id
+    WHERE fp.cus_id = ?
+    ORDER BY fp.favorite_id DESC;
+      `,
+          [cus_id],
     );
 
     res.json({
