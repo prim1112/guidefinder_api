@@ -107,7 +107,7 @@ router.get("/booking", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/booking/:gid", async (req: Request, res: Response) => {
+/*router.get("/booking/:gid", async (req: Request, res: Response) => {
   const gid = req.params.gid;
 
   try {
@@ -145,7 +145,7 @@ router.get("/booking/:gid", async (req: Request, res: Response) => {
       error: error.message,
     });
   }
-});
+});*/
 
 router.post("/booking", async (req: Request, res: Response) => {
   const {
@@ -301,6 +301,72 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
     });
   }
 });
+
+router.get(
+  "/booking/guide/:gid",
+  async (req: Request, res: Response) => {
+    const gid = req.params.gid;
+
+    try {
+
+      const [bookings]: any = await db.query(
+        `SELECT 
+          b.booking_queue_id,
+          b.booking_start_date,
+          b.booking_end_date,
+          b.booking_status,
+          b.booking_total_price,
+          b.booking_cus_amount,
+
+          l.travel_name,
+          l.travel_detail,
+          l.travel_image,
+
+          loc.location_province,
+
+          c.cus_name,
+          c.cus_email,
+          c.cus_phonenumber
+
+        FROM booking_queues b
+
+        LEFT JOIN location_travel l
+          ON b.ref_travel_id = l.location_id
+
+        LEFT JOIN location loc
+          ON l.location_id = loc.location_id
+
+        LEFT JOIN customers c
+          ON b.ref_cus_id = c.cus_id
+
+        WHERE b.ref_guid_id = ?
+
+        ORDER BY b.booking_queue_id DESC`,
+        [gid]
+      );
+
+      const result = bookings.map((b: any) => ({
+        ...b,
+        location_province: toThaiProvince(
+          b.location_province
+        ),
+      }));
+
+      return res.json({
+        message: "ดึงข้อมูลการจองของไกด์สำเร็จ",
+        data: result,
+      });
+
+    } catch (error: any) {
+
+      return res.status(500).json({
+        message: "Server Error",
+        error: error.message,
+      });
+
+    }
+  }
+);
 
 router.get("/booking/detail/:booking_id", async (req: Request, res: Response) => {
   const booking_id = req.params.booking_id;
