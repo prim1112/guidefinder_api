@@ -339,19 +339,12 @@ router.delete("/favorite/delete/:favorite_id", async (req: Request, res: Respons
   try {
     const favorite_id = Number(req.params.favorite_id);
 
-    if (!favorite_id) {
-      return res.status(400).json({
-        success: false,
-        message: "favorite_id ไม่ถูกต้อง",
-      });
-    }
-
     const [check]: any = await db.query(
-      `SELECT favorite_id FROM favorite_places WHERE favorite_id = ?`,
+      `SELECT * FROM favorite_places WHERE favorite_id = ?`,
       [favorite_id]
     );
 
-    if (check.length === 0) {
+    if (!check.length) {
       return res.status(404).json({
         success: false,
         message: "ไม่พบรายการโปรด",
