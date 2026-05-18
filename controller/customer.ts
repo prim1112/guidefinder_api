@@ -294,87 +294,79 @@ router.post(
 );
 
 // ดึงรายการ favorite ของ customer
-router.get(
-  "/favorite/:cus_id",
-  async (req: Request, res: Response) => {
-    try {
-      const cus_id = Number(req.params.cus_id);
+router.get("/favorite/:cus_id", async (req: Request, res: Response) => {
+  try {
+    const cus_id = Number(req.params.cus_id);
 
-      const [rows]: any = await db.query(
-        `
-        SELECT
-          fp.favorite_id,
-          l.location_id,
-          l.location_name,
-          l.image,
-          l.province,
-          l.detail
-        FROM favorite_places fp
-        JOIN locations l
-          ON fp.location_id = l.location_id
-        WHERE fp.cus_id = ?
-        ORDER BY fp.favorite_id DESC
-        `,
-        [cus_id]
-      );
+    const [rows]: any = await db.query(
+      `
+      SELECT
+        fp.favorite_id,
+        fp.location_id,
 
-      res.json({
-        success: true,
-        count: rows.length,
-        data: rows,
-      });
-    } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err.message,
-      });
-    }
+        t.travel_name AS location_name,
+        t.travel_image AS image,
+        t.travel_detail AS detail
+
+      FROM favorite_places fp
+
+      JOIN travel_table t
+        ON fp.location_id = t.location_id
+
+      WHERE fp.cus_id = ?
+
+      ORDER BY fp.favorite_id DESC
+      `,
+      [cus_id]
+    );
+
+    res.json({
+      success: true,
+      count: rows.length,
+      data: rows,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
-);
+});
 
 //  ลบ favorite
-router.delete(
-  "/favorite/delete/:favorite_id",
-  async (req: Request, res: Response) => {
-    try {
-      const favorite_id = Number(req.params.favorite_id);
+router.delete("/favorite/delete/:favorite_id", async (req: Request, res: Response) => {
+  try {
+    const favorite_id = Number(req.params.favorite_id);
 
-      // เช็คก่อนว่ามีข้อมูลไหม
-      const [check]: any = await db.query(
-        `
-        SELECT * FROM favorite_places
-        WHERE favorite_id = ?
-        `,
-        [favorite_id]
-      );
+    const [check]: any = await db.query(
+      `SELECT * FROM favorite_places WHERE favorite_id = ?`,
+      [favorite_id]
+    );
 
-      if (!check.length) {
-        return res.status(404).json({
-          success: false,
-          message: "ไม่พบรายการโปรด",
-        });
-      }
-
-      await db.query(
-        `
-        DELETE FROM favorite_places
-        WHERE favorite_id = ?
-        `,
-        [favorite_id]
-      );
-
-      res.json({
-        success: true,
-        message: "ลบรายการโปรดสำเร็จ",
-      });
-    } catch (err: any) {
-      res.status(500).json({
+    if (!check.length) {
+      return res.status(404).json({
         success: false,
-        message: err.message,
+        message: "ไม่พบรายการโปรด",
       });
     }
+
+    await db.query(
+      `DELETE FROM favorite_places WHERE favorite_id = ?`,
+      [favorite_id]
+    );
+
+    res.json({
+      success: true,
+      message: "ลบรายการโปรดสำเร็จ",
+    });
+
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
-);
+});
 
 
 // // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
