@@ -561,12 +561,17 @@ router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
 
 router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
-
   const io = req.app.get("io");
 
   try {
+    // 💡 JOIN ตาราง location_travel เพื่อเอา travel_name ออกมาตามโครงสร้างจริงของคุณ
     const [bookingDetails]: any = await db.query(
-      `SELECT tourist_id, attraction_name FROM booking_queues WHERE booking_queue_id = ?`,
+      `SELECT 
+        b.ref_cus_id AS tourist_id, 
+        lt.travel_name AS attraction_name 
+       FROM booking_queues b
+       INNER JOIN location_travel lt ON b.ref_travel_id = lt.location_id
+       WHERE b.booking_queue_id = ?`,
       [bid],
     );
 
@@ -576,6 +581,7 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
 
     const { tourist_id, attraction_name } = bookingDetails[0];
 
+    // อัปเดตสถานะเป็นสำเร็จ (booking_status = 3)
     const [result]: any = await db.query(
       `UPDATE booking_queues
        SET booking_status = 3
@@ -589,6 +595,7 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
 
     if (io) {
       io.to(tourist_id.toString()).emit("job_finished_notification", {
+        booking_queue_id: bid, // แนบ ID ไปให้ปุ่มรีวิวฝั่ง Flutter
         title: "การบริการเสร็จเรียบร้อย",
         message: `หากคุณพอใจ รบกวนช่วยให้คะแนนรีวิว\n${attraction_name || "สถานที่ท่องเที่ยว"}`,
       });
@@ -606,24 +613,22 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   }
 });
 
+
 router.get("/booking/history/:uid", async (req: Request, res: Response) => {
-  const uid = req.params.uid; // รับค่าคัสโตเมอร์ไอดีเข้ามา
+  const uid = req.params.uid;
 
   try {
+    // 💡 ดึงประวัติการจอง และดึงชื่อสถานที่จริงมาแสดงร่วมด้วย
     const [rows]: any = await db.query(
       `SELECT 
         b.booking_queue_id, 
-        t.travel_name AS attraction_name 
+        lt.travel_name AS attraction_name 
        FROM booking_queues b
-       INNER JOIN travels t ON b.ref_travel_id = t.ref_travel_id
+       INNER JOIN location_travel lt ON b.ref_travel_id = lt.location_id
        WHERE b.ref_cus_id = ? AND b.booking_status = 3
        ORDER BY b.booking_queue_id DESC`,
       [uid]
     );
-
-    if (rows.length === 0) {
-      return res.json([]);
-    }
 
     return res.json(rows);
 
