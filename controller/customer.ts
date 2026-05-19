@@ -282,7 +282,7 @@ router.post("/favorite/add", async (req: Request, res: Response) => {
   }
 });
 
-// ดึงรายการ favorite ของ customer
+// ดึงรายการ favorite ของ customer และเรียงตาม ก-ฮ (A-Z)
 router.get("/favorite/:cus_id", async (req: Request, res: Response) => {
   try {
     const cus_id = Number(req.params.cus_id);
@@ -290,18 +290,17 @@ router.get("/favorite/:cus_id", async (req: Request, res: Response) => {
     const [rows]: any = await db.query(
       `
       SELECT
-      fp.favorite_id,
-      fp.location_id,
-      l.travel_name,
-      l.travel_image,
-      l.travel_detail
-    FROM favorite_places fp
-    LEFT JOIN location_travel l
-      ON fp.location_id = l.id
-    WHERE fp.cus_id = ?
-    ORDER BY fp.favorite_id DESC;
+        fp.favorite_id,
+        fp.location_id,
+        l.travel_name,
+        l.travel_image,
+        l.travel_detail
+      FROM favorite_places fp
+      LEFT JOIN location_travel l ON fp.location_id = l.id
+      WHERE fp.cus_id = ?
+      ORDER BY l.travel_name ASC; -- เปลี่ยนตรงนี้เพื่อเรียงจาก ก-ฮ (A-Z)
       `,
-          [cus_id],
+      [cus_id],
     );
 
     res.json({
