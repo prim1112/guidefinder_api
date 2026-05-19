@@ -1,12 +1,14 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import http from "http";
-import { app } from "./app";
+// 💡 เปลี่ยนจากดึง app มาเฉยๆ เป็นดึง httpServer ที่เราเชื่อมท่อ Socket ไว้แล้วมาใช้แทนครับ
+import { httpServer } from "./app"; 
 
 const port = process.env.PORT || 3000;
-const server = http.createServer(app);
 
-server.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// ❌ ลบตัวแปร const server = http.createServer(app); อันเก่าออกไปได้เลย เพราะเราสร้างไว้ใน app.ts แล้ว
+
+// ✅ สั่งรันออนไลน์ผ่าน httpServer ท่อรวมพลังของเราได้เลย
+httpServer.listen(port, () => {
+  console.log(`🚀 Server with Socket.io running on port ${port}`);
 });
