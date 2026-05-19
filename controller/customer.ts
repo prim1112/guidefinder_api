@@ -30,7 +30,7 @@ router.get("/test-cloudinary", (req, res) => {
 });
 
 interface ReviewRequestBody {
-  booking_queue_id: number | string;
+  booking_queue_id: number ;
   attraction_rating: number;
   attraction_comment?: string;
   guide_rating: number;
@@ -363,7 +363,6 @@ router.delete(
 
 router.post('/reviews', async (req: Request<{}, {}, ReviewRequestBody>, res: Response) => {
   try {
-    // ดึงค่าออกมาจาก req.body
     const { 
       booking_queue_id, 
       attraction_rating, 
@@ -372,39 +371,53 @@ router.post('/reviews', async (req: Request<{}, {}, ReviewRequestBody>, res: Res
       guide_comment 
     } = req.body;
 
-    // ตรวจสอบข้อมูลที่จำเป็น (Validation)
-    if (!booking_queue_id || !attraction_rating || !guide_rating) {
+    // 1. ตรวจสอบข้อมูลที่จำเป็นว่าถูกส่งมาไหม
+    if (booking_queue_id === undefined || attraction_rating === undefined || guide_rating === undefined) {
       return res.status(400).json({ 
         success: false, 
         message: "กรุณาระบุ booking_queue_id และคะแนนดาวให้ครบถ้วน" 
       });
     }
 
-    // คำสั่ง SQL สำหรับบันทึกลงตาราง reviews
+    // 2. แปลงค่าให้เป็นตัวเลข (ป้องกันปัญหา String จากฝั่ง Mobile)
+    const parsedQueueId = Number(booking_queue_id);
+    const parsedAttrRating = Number(attraction_rating);
+    const parsedGuideRating = Number(guide_rating);
+
+    if (isNaN(parsedQueueId) || isNaN(parsedAttrRating) || isNaN(parsedGuideRating)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "รูปแบบข้อมูลไม่ถูกต้อง booking_queue_id และคะแนนดาวต้องเป็นตัวเลขเท่านั้น" 
+      });
+    }
+
+    // 3. คำสั่ง SQL
     const sql = `INSERT INTO reviews 
                 (booking_queue_id, attraction_rating, attraction_comment, guide_rating, guide_comment) 
                 VALUES (?, ?, ?, ?, ?)`;
 
+    // ใช้ค่าที่ผ่านการแปลงเรียบร้อยแล้ว
     const values = [
-      booking_queue_id, 
-      attraction_rating, 
-      attraction_comment || null, // ถ้าไม่ได้พิมพ์มา ให้ส่งเป็น null ลงฐานข้อมูล
-      guide_rating, 
-      guide_comment || null
+      parsedQueueId, 
+      parsedAttrRating, 
+      attraction_comment && attraction_comment.trim() !== "" ? attraction_comment : null, 
+      parsedGuideRating, 
+      guide_comment && guide_comment.trim() !== "" ? guide_comment : null
     ];
 
-    // สั่งรันคำสั่ง SQL ลงฐานข้อมูลด้วยแบบ async/await ตามสไตล์ของระบบลูกค้า
+    // 4. รันคำสั่งลงฐานข้อมูล
     const [result]: any = await db.query(sql, values);
     
-    // ส่งข้อความกลับไปบอกแอป Flutter
     res.status(201).json({ 
       success: true, 
       message: "บันทึกรีวิวเรียบร้อยแล้ว ขอบคุณครับ!",
-      reviews_id: result.insertId // แนบไอดีรีวิวที่เพิ่งสร้างกลับไปด้วย (ถ้าต้องการใช้)
+      reviews_id: result.insertId 
     });
 
   } catch (error: any) {
-    console.error("Database Error:", error);
+    // พิมพ์ออกมาดูที่ Terminal ฝั่ง Backend เพื่อดูว่าติดปัญหาที่จุดไหน (เลขคิวไม่มีจริง หรือต่อ db ไม่ติด)
+    console.error("🔥 Database Error Log:", error);
+    
     res.status(500).json({ 
       success: false, 
       message: "เกิดข้อผิดพลาดภายในระบบฐานข้อมูล",
