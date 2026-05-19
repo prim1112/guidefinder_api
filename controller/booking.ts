@@ -284,6 +284,37 @@ router.post("/booking", async (req: Request, res: Response) => {
   }
 });
 
+router.get(
+  "/booking/unavailable/:gid",
+  async (req: Request, res: Response) => {
+    const gid = req.params.gid;
+
+    try {
+      const [rows]: any = await db.query(
+        `
+        SELECT
+          booking_start_date,
+          booking_end_date
+        FROM booking_queues
+        WHERE ref_guid_id = ?
+        AND booking_status IN (0,1)
+        `,
+        [gid],
+      );
+
+      return res.json({
+        data: rows,
+      });
+
+    } catch (error: any) {
+      return res.status(500).json({
+        message: "Server Error",
+        error: error.message,
+      });
+    }
+  },
+);
+
 router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   const cid = req.params.cid;
 
