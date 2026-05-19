@@ -65,6 +65,7 @@ app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 app.use("/", index);
 app.use("/customer", customerRouter);
+app.use("/customer", index);
 app.use("/guide", guideRouter);
 app.use("/auth", loginRouter);
 app.use("/package", packageRouter);
