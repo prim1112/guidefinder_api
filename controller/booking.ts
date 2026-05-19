@@ -159,7 +159,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
-    // ✅ validate แบบชัดเจน
+    // ✅ validate
     if (
       !gid ||
       !cid ||
@@ -179,14 +179,16 @@ router.post("/booking", async (req: Request, res: Response) => {
     const safePeople = Number(people);
     const safePrice = Number(total_price);
 
-    // ✅ check guide (ปลอดภัย)
+    // ✅ check guide
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
       [gid],
     );
 
     if (guideRows.length === 0) {
-      return res.status(400).json({ message: "ไม่พบไกด์ในระบบ" });
+      return res.status(400).json({
+        message: "ไม่พบไกด์ในระบบ",
+      });
     }
 
     // ✅ check customer
@@ -196,10 +198,12 @@ router.post("/booking", async (req: Request, res: Response) => {
     );
 
     if (cusRows.length === 0) {
-      return res.status(400).json({ message: "ไม่พบลูกค้าในระบบ" });
+      return res.status(400).json({
+        message: "ไม่พบลูกค้าในระบบ",
+      });
     }
 
-    // ✅ FIX: check travel จริงใน table location_travel
+    // ✅ check location
     const [locRows]: any = await db.query(
       `SELECT location_id FROM location_travel WHERE location_id = ?`,
       [safeTravelId],
@@ -211,7 +215,34 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // ✅ insert booking
+    // =================================================
+    // ✅ CHECK DATE DUPLICATE (เช็กวันซ้ำ)
+    // =================================================
+    const [duplicate]: any = await db.query(
+      `
+      SELECT *
+      FROM booking_queues
+      WHERE ref_guid_id = ?
+      AND booking_status IN (0,1)
+      AND (
+        booking_start_date <= ?
+        AND booking_end_date >= ?
+      )
+      `,
+      [
+        gid,
+        end_date,
+        start_date,
+      ],
+    );
+
+    // ❌ ถ้าวันชน
+    if (duplicate.length > 0) {
+      return res.status(400).json({
+        message: "ช่วงเวลานี้ไกด์ไม่ว่าง",
+      });
+    }
+
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -242,7 +273,10 @@ router.post("/booking", async (req: Request, res: Response) => {
       message: "จองสำเร็จ",
       booking_queue_id: result.insertId,
     });
+
   } catch (err: any) {
+    console.log("BOOKING ERROR => ", err);
+
     return res.status(500).json({
       message: "Server Error",
       error: err.message,
