@@ -29,6 +29,14 @@ router.get("/test-cloudinary", (req, res) => {
   });
 });
 
+interface ReviewRequestBody {
+  booking_queue_id: number | string;
+  attraction_rating: number;
+  attraction_comment?: string;
+  guide_rating: number;
+  guide_comment?: string;
+}
+
 // 🔍 GET ALL CUSTOMERS
 router.get("/customers", async (req: Request, res: Response) => {
   try {
@@ -351,6 +359,59 @@ router.delete(
     }
   },
 );
+
+
+router.post('/reviews', async (req: Request<{}, {}, ReviewRequestBody>, res: Response) => {
+  try {
+    // ดึงค่าออกมาจาก req.body
+    const { 
+      booking_queue_id, 
+      attraction_rating, 
+      attraction_comment, 
+      guide_rating, 
+      guide_comment 
+    } = req.body;
+
+    // ตรวจสอบข้อมูลที่จำเป็น (Validation)
+    if (!booking_queue_id || !attraction_rating || !guide_rating) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "กรุณาระบุ booking_queue_id และคะแนนดาวให้ครบถ้วน" 
+      });
+    }
+
+    // คำสั่ง SQL สำหรับบันทึกลงตาราง reviews
+    const sql = `INSERT INTO reviews 
+                (booking_queue_id, attraction_rating, attraction_comment, guide_rating, guide_comment) 
+                VALUES (?, ?, ?, ?, ?)`;
+
+    const values = [
+      booking_queue_id, 
+      attraction_rating, 
+      attraction_comment || null, // ถ้าไม่ได้พิมพ์มา ให้ส่งเป็น null ลงฐานข้อมูล
+      guide_rating, 
+      guide_comment || null
+    ];
+
+    // สั่งรันคำสั่ง SQL ลงฐานข้อมูลด้วยแบบ async/await ตามสไตล์ของระบบลูกค้า
+    const [result]: any = await db.query(sql, values);
+    
+    // ส่งข้อความกลับไปบอกแอป Flutter
+    res.status(201).json({ 
+      success: true, 
+      message: "บันทึกรีวิวเรียบร้อยแล้ว ขอบคุณครับ!",
+      reviews_id: result.insertId // แนบไอดีรีวิวที่เพิ่งสร้างกลับไปด้วย (ถ้าต้องการใช้)
+    });
+
+  } catch (error: any) {
+    console.error("Database Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "เกิดข้อผิดพลาดภายในระบบฐานข้อมูล",
+      error: error.message 
+    });
+  }
+});
 
 // // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
 // router.post("/login", async (req: Request, res: Response) => {
