@@ -607,21 +607,31 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
 });
 
 router.get("/booking/history/:uid", async (req: Request, res: Response) => {
-  const uid = req.params.uid;
+  const uid = req.params.uid; // รับค่าคัสโตเมอร์ไอดีเข้ามา
 
   try {
-    // SELECT เอาเฉพาะรายการของ User คนนี้ที่ booking_status = 3 (จบงานแล้ว)
     const [rows]: any = await db.query(
-      `SELECT booking_queue_id, attraction_name 
-       FROM booking_queues 
-       WHERE tourist_id = ? AND booking_status = 3
-       ORDER BY booking_queue_id DESC`, 
+      `SELECT 
+        b.booking_queue_id, 
+        t.travel_name AS attraction_name 
+       FROM booking_queues b
+       INNER JOIN travels t ON b.ref_travel_id = t.ref_travel_id
+       WHERE b.ref_cus_id = ? AND b.booking_status = 3
+       ORDER BY b.booking_queue_id DESC`,
       [uid]
     );
 
+    if (rows.length === 0) {
+      return res.json([]);
+    }
+
     return res.json(rows);
+
   } catch (error: any) {
-    return res.status(500).json({ message: "Server Error", error: error.message });
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
   }
 });
 
