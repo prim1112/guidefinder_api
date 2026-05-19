@@ -606,4 +606,23 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/booking/history/:uid", async (req: Request, res: Response) => {
+  const uid = req.params.uid;
+
+  try {
+    // SELECT เอาเฉพาะรายการของ User คนนี้ที่ booking_status = 3 (จบงานแล้ว)
+    const [rows]: any = await db.query(
+      `SELECT booking_queue_id, attraction_name 
+       FROM booking_queues 
+       WHERE tourist_id = ? AND booking_status = 3
+       ORDER BY booking_queue_id DESC`, 
+      [uid]
+    );
+
+    return res.json(rows);
+  } catch (error: any) {
+    return res.status(500).json({ message: "Server Error", error: error.message });
+  }
+});
+
 export default router;
