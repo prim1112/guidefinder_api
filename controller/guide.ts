@@ -333,34 +333,34 @@ router.post("/approve/:gid", async (req: Request, res: Response) => {
 });
 
 // reject  guide_pending
-router.delete("/reject/:gid", async (req: Request, res: Response) => {
+router.put("/reject/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
   try {
+    // ตรวจสอบว่ามีไกด์อยู่จริง
     const [rows]: any = await db.query(
-      `SELECT guides_name, guides_email, guides_phonenumber 
-       FROM guide_pending 
-       WHERE gid = ?`,
-      [gid],
+      "SELECT guides_id FROM guides WHERE guides_id = ?",
+      [gid]
     );
 
     if (!rows.length) {
       return res.status(404).json({
-        message: "ไม่พบข้อมูลใน guide_pending",
+        message: "ไม่พบไกด์",
       });
     }
 
-    const guide = rows[0];
-
-    await db.query("DELETE FROM guide_pending WHERE gid = ?", [gid]);
+    // ❗ เปลี่ยนเป็น "ไม่ผ่านการตรวจสอบ"
+    await db.query(
+      "UPDATE guides SET guides_status = 2 WHERE guides_id = ?",
+      [gid]
+    );
 
     return res.json({
-      message: "ปฏิเสธและลบข้อมูลเรียบร้อยแล้ว",
-      deleted_data: guide,
+      message: "ปฏิเสธการตรวจสอบไกด์แล้ว (Rejected)",
+      gid,
     });
-  } catch (error: any) {
-    console.error(error);
 
+  } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
       error: error.message,
