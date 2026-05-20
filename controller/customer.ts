@@ -215,29 +215,59 @@ router.put(
   },
 );
 
-// ❌ DELETE
-router.delete("/profile/:id", async (req: Request, res: Response) => {
+router.post("/logout", (req: Request, res: Response) => {
+  try {
+    res.json({
+      success: true,
+      message: "ออกจากระบบสำเร็จแล้ว",
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.delete("/account/delete/:id", async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
-
     const [rows]: any = await db.query(
-      "SELECT cus_id FROM customers WHERE cus_id = ?",
+      "SELECT cus_id, cus_imageprofile FROM customers WHERE cus_id = ?",
       [id],
     );
 
     if (!rows.length) {
-      return res.status(404).json({ message: "ไม่พบผู้ใช้" });
+      return res.status(404).json({ success: false, message: "ไม่พบผู้ใช้ที่ต้องการลบ" });
     }
+
+    const user = rows[0];
+
+    if (user.cus_imageprofile) {
+      try {
+        const urlParts = user.cus_imageprofile.split("/");
+        const fileNameWithExtension = urlParts[urlParts.length - 1]; 
+        const fileName = fileNameWithExtension.split(".")[0]; 
+        const publicId = `customers/${fileName}`; 
+
+        await cloudinary.uploader.destroy(publicId);
+      } catch (cloudinaryErr) {
+        console.error("⚠️ ไม่สามารถลบรูปภาพบน Cloudinary ได้:", cloudinaryErr);
+       
+      }
+    }
+
+    await db.query("DELETE FROM favorite_places WHERE cus_id = ?", [id]);
 
     await db.query("DELETE FROM customers WHERE cus_id = ?", [id]);
 
-    res.json({ success: true, message: "ลบสำเร็จ" });
+    res.json({ 
+      success: true, 
+      message: "ลบบัญชีผู้ใช้และข้อมูลที่เกี่ยวข้องเสร็จสิ้น" 
+    });
+    
   } catch (err: any) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
-//  FAVORITE PLACE
 // เพิ่มสถานที่โปรด
 router.post("/favorite/add", async (req: Request, res: Response) => {
   try {
