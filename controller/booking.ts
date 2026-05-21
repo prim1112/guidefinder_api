@@ -114,6 +114,9 @@ router.get("/booking", async (req: Request, res: Response) => {
 
 
 router.post("/booking", async (req: Request, res: Response) => {
+
+  console.log(req.body);
+
   const {
     gid,
     cid,
@@ -128,13 +131,13 @@ router.post("/booking", async (req: Request, res: Response) => {
   try {
 
     if (
-      !gid ||
-      !cid ||
-      !travel_id ||
-      !people ||
+      gid === undefined ||
+      cid === undefined ||
+      travel_id === undefined ||
+      people === undefined ||
       !start_date ||
       !end_date ||
-      !total_price ||
+      total_price === undefined ||
       status === undefined
     ) {
       return res.status(400).json({
@@ -168,7 +171,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // check location_travel
+    // check location
     const [locRows]: any = await db.query(
       `SELECT id FROM location_travel WHERE id = ?`,
       [safeTravelId],
@@ -180,7 +183,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // check duplicate date
+    // check duplicate
     const [duplicate]: any = await db.query(
       `
       SELECT *
@@ -205,7 +208,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // insert booking
+    // insert
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -232,12 +235,17 @@ router.post("/booking", async (req: Request, res: Response) => {
       ],
     );
 
+    console.log(result);
+
     return res.status(201).json({
       message: "จองสำเร็จ",
       booking_queue_id: result.insertId,
     });
 
   } catch (error: any) {
+
+    console.log(error);
+
     return res.status(500).json({
       message: "Server Error",
       error: error.message,
