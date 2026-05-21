@@ -577,5 +577,97 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/reviews/guide/:gid", async (req: Request, res: Response) => {
+  const gid = req.params.gid;
+
+  try {
+    const [rows]: any = await db.query(
+      `
+      SELECT
+        r.reviews_id,
+
+        -- รีวิวไกด์
+        r.guide_rating,
+        r.guide_comment,
+
+        -- รีวิวสถานที่
+        r.attraction_rating,
+        r.attraction_comment,
+
+        -- ลูกค้า
+        c.cus_name,
+
+        -- สถานที่
+        lt.travel_name
+
+      FROM reviews r
+
+      INNER JOIN booking_queues b
+        ON r.booking_queue_id = b.booking_queue_id
+
+      INNER JOIN customers c
+        ON b.ref_cus_id = c.cus_id
+
+      INNER JOIN location_travel lt
+        ON b.ref_travel_id = lt.location_id
+
+      WHERE b.ref_guid_id = ?
+
+      ORDER BY r.reviews_id DESC
+      `,
+      [gid]
+    );
+
+    // ⭐ ค่าเฉลี่ยไกด์
+    const [guideAvg]: any = await db.query(
+      `
+      SELECT 
+        ROUND(AVG(r.guide_rating),1) AS avg_guide_rating
+      FROM reviews r
+
+      INNER JOIN booking_queues b
+        ON r.booking_queue_id = b.booking_queue_id
+
+      WHERE b.ref_guid_id = ?
+      `,
+      [gid]
+    );
+
+    // ⭐ ค่าเฉลี่ยสถานที่
+    const [attractionAvg]: any = await db.query(
+      `
+      SELECT 
+        ROUND(AVG(r.attraction_rating),1) AS avg_attraction_rating
+      FROM reviews r
+
+      INNER JOIN booking_queues b
+        ON r.booking_queue_id = b.booking_queue_id
+
+      WHERE b.ref_guid_id = ?
+      `,
+      [gid]
+    );
+
+    return res.json({
+      message: "ดึงรีวิวสำเร็จ",
+
+      average_guide_rating:
+        guideAvg[0].avg_guide_rating || 0,
+
+      average_attraction_rating:
+        attractionAvg[0].avg_attraction_rating || 0,
+
+      total_reviews: rows.length,
+
+      data: rows,
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
 
 export default router;

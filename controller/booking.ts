@@ -705,4 +705,84 @@ router.get("/booking/history/:uid", async (req: Request, res: Response) => {
   }
 });
 
+router.get(
+  "/reviews/location/:travel_id",
+  async (req: Request, res: Response) => {
+    const travel_id = req.params.travel_id;
+
+    try {
+      const [rows]: any = await db.query(
+        `
+        SELECT
+          r.reviews_id,
+
+          -- รีวิวสถานที่
+          r.attraction_rating,
+          r.attraction_comment,
+
+          -- รีวิวไกด์
+          r.guide_rating,
+          r.guide_comment,
+
+          -- ลูกค้า
+          c.cus_name,
+
+          -- ไกด์
+          g.guides_name
+
+        FROM reviews r
+
+        INNER JOIN booking_queues b
+          ON r.booking_queue_id = b.booking_queue_id
+
+        INNER JOIN customers c
+          ON b.ref_cus_id = c.cus_id
+
+        INNER JOIN guides g
+          ON b.ref_guid_id = g.guides_id
+
+        WHERE b.ref_travel_id = ?
+
+        ORDER BY r.reviews_id DESC
+        `,
+        [travel_id]
+      );
+
+      // ⭐ ค่าเฉลี่ยสถานที่
+      const [avgRows]: any = await db.query(
+        `
+        SELECT
+          ROUND(AVG(r.attraction_rating),1)
+          AS average_attraction_rating
+
+        FROM reviews r
+
+        INNER JOIN booking_queues b
+          ON r.booking_queue_id = b.booking_queue_id
+
+        WHERE b.ref_travel_id = ?
+        `,
+        [travel_id]
+      );
+
+      return res.json({
+        message: "ดึงรีวิวสถานที่สำเร็จ",
+
+        average_attraction_rating:
+          avgRows[0].average_attraction_rating || 0,
+
+        total_reviews: rows.length,
+
+        data: rows,
+      });
+
+    } catch (error: any) {
+      return res.status(500).json({
+        message: "Server Error",
+        error: error.message,
+      });
+    }
+  }
+);
+
 export default router;
