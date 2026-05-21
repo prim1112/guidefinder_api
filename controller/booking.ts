@@ -86,10 +86,8 @@ const provinceTH: { [key: string]: string } = {
 
 const toThaiProvince = (en: string) => provinceTH[en] || en;
 
-// ======================================================
-// GET ALL BOOKING
-// ======================================================
 
+// GET ALL BOOKING
 router.get("/booking", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
@@ -112,9 +110,8 @@ router.get("/booking", async (req: Request, res: Response) => {
   }
 });
 
-// ======================================================
 // CREATE BOOKING
-// ======================================================
+
 
 router.post("/booking", async (req: Request, res: Response) => {
   const {
@@ -129,6 +126,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
+
     if (
       !gid ||
       !cid ||
@@ -140,13 +138,11 @@ router.post("/booking", async (req: Request, res: Response) => {
       status === undefined
     ) {
       return res.status(400).json({
-        message: "กรุณากรอกข้อมูลให้ครบทุกช่อง",
+        message: "กรุณากรอกข้อมูลให้ครบ",
       });
     }
 
     const safeTravelId = Number(travel_id);
-    const safePeople = Number(people);
-    const safePrice = Number(total_price);
 
     // check guide
     const [guideRows]: any = await db.query(
@@ -156,7 +152,7 @@ router.post("/booking", async (req: Request, res: Response) => {
 
     if (guideRows.length === 0) {
       return res.status(400).json({
-        message: "ไม่พบไกด์ในระบบ",
+        message: "ไม่พบไกด์",
       });
     }
 
@@ -168,11 +164,11 @@ router.post("/booking", async (req: Request, res: Response) => {
 
     if (cusRows.length === 0) {
       return res.status(400).json({
-        message: "ไม่พบลูกค้าในระบบ",
+        message: "ไม่พบลูกค้า",
       });
     }
 
-    // check location
+    // check location_travel
     const [locRows]: any = await db.query(
       `SELECT id FROM location_travel WHERE id = ?`,
       [safeTravelId],
@@ -180,7 +176,7 @@ router.post("/booking", async (req: Request, res: Response) => {
 
     if (locRows.length === 0) {
       return res.status(400).json({
-        message: "ไม่พบสถานที่ในระบบ",
+        message: "ไม่พบสถานที่",
       });
     }
 
@@ -209,6 +205,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
+    // insert booking
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -229,8 +226,8 @@ router.post("/booking", async (req: Request, res: Response) => {
         safeTravelId,
         start_date,
         end_date,
-        safePeople,
-        safePrice,
+        people,
+        total_price,
         status,
       ],
     );
@@ -240,20 +237,16 @@ router.post("/booking", async (req: Request, res: Response) => {
       booking_queue_id: result.insertId,
     });
 
-  } catch (err: any) {
-    console.log("BOOKING ERROR => ", err);
-
+  } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
-      error: err.message,
+      error: error.message,
     });
   }
 });
 
-// ======================================================
-// GET UNAVAILABLE DATE
-// ======================================================
 
+// GET UNAVAILABLE DATE
 router.get(
   "/booking/unavailable/:gid",
   async (req: Request, res: Response) => {
@@ -285,9 +278,7 @@ router.get(
   },
 );
 
-// ======================================================
 // CUSTOMER BOOKING
-// ======================================================
 
 router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   const cid = req.params.cid;
@@ -341,9 +332,7 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   }
 });
 
-// ======================================================
 // GUIDE BOOKING
-// ======================================================
 
 router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
   const gid = req.params.gid;
@@ -405,9 +394,7 @@ router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
   }
 });
 
-// ======================================================
 // BOOKING DETAIL
-// ======================================================
 
 router.get(
   "/booking/detail/:booking_id",
@@ -478,9 +465,7 @@ router.get(
   },
 );
 
-// ======================================================
 // CANCEL BOOKING
-// ======================================================
 
 router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
@@ -513,9 +498,8 @@ router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
   }
 });
 
-// ======================================================
+
 // GUIDE BOOKING DETAIL
-// ======================================================
 
 router.get(
   "/booking/guide/detail/:booking_id",
@@ -593,9 +577,8 @@ router.get(
   },
 );
 
-// ======================================================
+
 // ACCEPT BOOKING
-// ======================================================
 
 router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
@@ -628,9 +611,7 @@ router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
   }
 });
 
-// ======================================================
 // FINISH BOOKING
-// ======================================================
 
 router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
