@@ -86,16 +86,22 @@ const provinceTH: { [key: string]: string } = {
 
 const toThaiProvince = (en: string) => provinceTH[en] || en;
 
-// get all booking
+// ======================================================
+// GET ALL BOOKING
+// ======================================================
+
 router.get("/booking", async (req: Request, res: Response) => {
   try {
-    const [rows]: any = await db.query("SELECT * FROM booking");
+    const [rows]: any = await db.query(
+      "SELECT * FROM booking_queues"
+    );
 
     return res.json({
       message: "ดึงข้อมูล Booking สำเร็จ",
       count: rows.length,
       data: rows,
     });
+
   } catch (error: any) {
     console.error("GET /booking error:", error);
 
@@ -106,45 +112,9 @@ router.get("/booking", async (req: Request, res: Response) => {
   }
 });
 
-/*router.get("/booking/:gid", async (req: Request, res: Response) => {
-  const gid = req.params.gid;
-
-  try {
-    // check gid is existd
-    const [guideRows]: any = await db.query(
-      `SELECT gid FROM guide WHERE gid = '${gid}'`,
-    );
-
-    if (!guideRows.length) {
-      return res.status(400).json({
-        message: "ไม่พบ gid ในระบบ guide",
-      });
-    }
-
-    const [bookings]: any = await db.query(
-      `SELECT * FROM booking WHERE gid = '${gid}'`,
-    );
-
-    if (!bookings.length) {
-      return res.status(404).json({
-        message: "ยังไม่มีการจองสำหรับไกด์คนนี้",
-      });
-    }
-
-    return res.json({
-      message: "ดึงข้อมูล Booking ของไกด์สำเร็จ",
-      count: bookings.length,
-      data: bookings,
-    });
-  } catch (error: any) {
-    console.error("GET /booking/:gid error:", error);
-
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
-  }
-});*/
+// ======================================================
+// CREATE BOOKING
+// ======================================================
 
 router.post("/booking", async (req: Request, res: Response) => {
   const {
@@ -159,7 +129,6 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
-    // ✅ validate
     if (
       !gid ||
       !cid ||
@@ -179,7 +148,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     const safePeople = Number(people);
     const safePrice = Number(total_price);
 
-    // ✅ check guide
+    // check guide
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
       [gid],
@@ -191,7 +160,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // ✅ check customer
+    // check customer
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
       [cid],
@@ -203,9 +172,9 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // ✅ check location
+    // check location
     const [locRows]: any = await db.query(
-      `SELECT location_id FROM location_travel WHERE location_id = ?`,
+      `SELECT id FROM location_travel WHERE id = ?`,
       [safeTravelId],
     );
 
@@ -215,9 +184,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // =================================================
-    // ✅ CHECK DATE DUPLICATE (เช็กวันซ้ำ)
-    // =================================================
+    // check duplicate date
     const [duplicate]: any = await db.query(
       `
       SELECT *
@@ -236,7 +203,6 @@ router.post("/booking", async (req: Request, res: Response) => {
       ],
     );
 
-    // ❌ ถ้าวันชน
     if (duplicate.length > 0) {
       return res.status(400).json({
         message: "ช่วงเวลานี้ไกด์ไม่ว่าง",
@@ -284,6 +250,10 @@ router.post("/booking", async (req: Request, res: Response) => {
   }
 });
 
+// ======================================================
+// GET UNAVAILABLE DATE
+// ======================================================
+
 router.get(
   "/booking/unavailable/:gid",
   async (req: Request, res: Response) => {
@@ -315,12 +285,17 @@ router.get(
   },
 );
 
+// ======================================================
+// CUSTOMER BOOKING
+// ======================================================
+
 router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   const cid = req.params.cid;
 
   try {
     const [bookings]: any = await db.query(
-      `SELECT 
+      `
+      SELECT 
         b.booking_queue_id,
         b.booking_start_date,
         b.booking_end_date,
@@ -336,18 +311,18 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
       FROM booking_queues b
 
       LEFT JOIN location_travel l 
-        ON b.ref_travel_id = l.location_id
+        ON b.ref_travel_id = l.id
 
       LEFT JOIN location loc
         ON l.location_id = loc.location_id
 
       WHERE b.ref_cus_id = ?
 
-      ORDER BY b.booking_queue_id DESC`,
+      ORDER BY b.booking_queue_id DESC
+      `,
       [cid],
     );
 
-    // ✅ FIX สำคัญ: ต้อง map แปลงจังหวัด
     const result = bookings.map((b: any) => ({
       ...b,
       location_province: toThaiProvince(b.location_province),
@@ -357,6 +332,7 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
       message: "ดึงข้อมูลการจองของลูกค้าสำเร็จ",
       data: result,
     });
+
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -365,12 +341,83 @@ router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
   }
 });
 
+// ======================================================
+// GUIDE BOOKING
+// ======================================================
+
 router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
   const gid = req.params.gid;
 
   try {
     const [bookings]: any = await db.query(
-      `SELECT 
+      `
+      SELECT 
+        b.booking_queue_id,
+        b.booking_start_date,
+        b.booking_end_date,
+        b.booking_status,
+        b.booking_total_price,
+        b.booking_cus_amount,
+
+        l.travel_name,
+        l.travel_detail,
+        l.travel_image,
+
+        loc.location_province,
+
+        c.cus_name,
+        c.cus_email,
+        c.cus_phonenumber
+
+      FROM booking_queues b
+
+      LEFT JOIN location_travel l
+        ON b.ref_travel_id = l.id
+
+      LEFT JOIN location loc
+        ON l.location_id = loc.location_id
+
+      LEFT JOIN customers c
+        ON b.ref_cus_id = c.cus_id
+
+      WHERE b.ref_guid_id = ?
+
+      ORDER BY b.booking_queue_id DESC
+      `,
+      [gid],
+    );
+
+    const result = bookings.map((b: any) => ({
+      ...b,
+      location_province: toThaiProvince(b.location_province),
+    }));
+
+    return res.json({
+      message: "ดึงข้อมูลการจองของไกด์สำเร็จ",
+      data: result,
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+// ======================================================
+// BOOKING DETAIL
+// ======================================================
+
+router.get(
+  "/booking/detail/:booking_id",
+  async (req: Request, res: Response) => {
+    const booking_id = req.params.booking_id;
+
+    try {
+      const [rows]: any = await db.query(
+        `
+        SELECT 
           b.booking_queue_id,
           b.booking_start_date,
           b.booking_end_date,
@@ -384,86 +431,25 @@ router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
 
           loc.location_province,
 
-          c.cus_name,
-          c.cus_email,
-          c.cus_phonenumber
+          g.guides_name,
+          g.guides_language,
+          g.guides_email,
+          g.guides_facebook,
+          g.guides_phonenumber
 
         FROM booking_queues b
 
         LEFT JOIN location_travel l
-          ON b.ref_travel_id = l.location_id
+          ON b.ref_travel_id = l.id
 
         LEFT JOIN location loc
           ON l.location_id = loc.location_id
 
-        LEFT JOIN customers c
-          ON b.ref_cus_id = c.cus_id
+        LEFT JOIN guides g
+          ON b.ref_guid_id = g.guides_id
 
-        WHERE b.ref_guid_id = ?
-
-        ORDER BY b.booking_queue_id DESC`,
-      [gid],
-    );
-
-    const result = bookings.map((b: any) => ({
-      ...b,
-      location_province: toThaiProvince(b.location_province),
-    }));
-
-    return res.json({
-      message: "ดึงข้อมูลการจองของไกด์สำเร็จ",
-      data: result,
-    });
-  } catch (error: any) {
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
-  }
-});
-
-router.get(
-  "/booking/detail/:booking_id",
-  async (req: Request, res: Response) => {
-    const booking_id = req.params.booking_id;
-
-    try {
-      const [rows]: any = await db.query(
-        `SELECT 
-        b.booking_queue_id,
-        b.booking_start_date,
-        b.booking_end_date,
-        b.booking_status,
-        b.booking_total_price,
-        b.booking_cus_amount,
-
-        -- สถานที่
-        l.travel_name,
-        l.travel_detail,
-        l.travel_image,
-
-        -- จังหวัด
-        loc.location_province,
-
-        -- ข้อมูลไกด์
-        g.guides_name,
-        g.guides_language,
-        g.guides_email,
-        g.guides_facebook,
-        g.guides_phonenumber
-
-      FROM booking_queues b
-
-      LEFT JOIN location_travel l
-        ON b.ref_travel_id = l.location_id
-
-      LEFT JOIN location loc
-        ON l.location_id = loc.location_id
-
-      LEFT JOIN guides g
-        ON b.ref_guid_id = g.guides_id
-
-      WHERE b.booking_queue_id = ?`,
+        WHERE b.booking_queue_id = ?
+        `,
         [booking_id],
       );
 
@@ -482,6 +468,7 @@ router.get(
         message: "ดึงรายละเอียดการจองสำเร็จ",
         data: booking,
       });
+
     } catch (error: any) {
       return res.status(500).json({
         message: "Server Error",
@@ -491,14 +478,20 @@ router.get(
   },
 );
 
+// ======================================================
+// CANCEL BOOKING
+// ======================================================
+
 router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
 
   try {
     const [result]: any = await db.query(
-      `UPDATE booking_queues
-       SET booking_status = 2
-       WHERE booking_queue_id = ?`,
+      `
+      UPDATE booking_queues
+      SET booking_status = 2
+      WHERE booking_queue_id = ?
+      `,
       [bid],
     );
 
@@ -511,6 +504,7 @@ router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
     return res.json({
       message: "ยกเลิกการจองสำเร็จ",
     });
+
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -519,6 +513,10 @@ router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
   }
 });
 
+// ======================================================
+// GUIDE BOOKING DETAIL
+// ======================================================
+
 router.get(
   "/booking/guide/detail/:booking_id",
   async (req: Request, res: Response) => {
@@ -526,49 +524,47 @@ router.get(
 
     try {
       const [rows]: any = await db.query(
-        `SELECT 
-        b.booking_queue_id,
-        b.booking_start_date,
-        b.booking_end_date,
-        b.booking_status,
-        b.booking_total_price,
-        b.booking_cus_amount,
+        `
+        SELECT 
+          b.booking_queue_id,
+          b.booking_start_date,
+          b.booking_end_date,
+          b.booking_status,
+          b.booking_total_price,
+          b.booking_cus_amount,
 
-        -- สถานที่
-        l.travel_name,
-        l.travel_detail,
-        l.travel_image,
+          l.travel_name,
+          l.travel_detail,
+          l.travel_image,
 
-        -- จังหวัด
-        loc.location_province,
+          loc.location_province,
 
-        -- ข้อมูลไกด์
-        g.guides_name,
-        g.guides_language,
-        g.guides_email,
-        g.guides_facebook,
-        g.guides_phonenumber,
+          g.guides_name,
+          g.guides_language,
+          g.guides_email,
+          g.guides_facebook,
+          g.guides_phonenumber,
 
-        -- ข้อมูลลูกค้า
-        c.cus_name,
-        c.cus_email,
-        c.cus_phonenumber
+          c.cus_name,
+          c.cus_email,
+          c.cus_phonenumber
 
-      FROM booking_queues b
+        FROM booking_queues b
 
-      LEFT JOIN location_travel l
-        ON b.ref_travel_id = l.location_id
+        LEFT JOIN location_travel l
+          ON b.ref_travel_id = l.id
 
-      LEFT JOIN location loc
-        ON l.location_id = loc.location_id
+        LEFT JOIN location loc
+          ON l.location_id = loc.location_id
 
-      LEFT JOIN guides g
-        ON b.ref_guid_id = g.guides_id
+        LEFT JOIN guides g
+          ON b.ref_guid_id = g.guides_id
 
-      LEFT JOIN customers c
-        ON b.ref_cus_id = c.cus_id
+        LEFT JOIN customers c
+          ON b.ref_cus_id = c.cus_id
 
-      WHERE b.booking_queue_id = ?`,
+        WHERE b.booking_queue_id = ?
+        `,
         [booking_id],
       );
 
@@ -587,6 +583,7 @@ router.get(
         message: "ดึงรายละเอียดการจองของไกด์สำเร็จ",
         data: booking,
       });
+
     } catch (error: any) {
       return res.status(500).json({
         message: "Server Error",
@@ -596,14 +593,20 @@ router.get(
   },
 );
 
+// ======================================================
+// ACCEPT BOOKING
+// ======================================================
+
 router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
 
   try {
     const [result]: any = await db.query(
-      `UPDATE booking_queues
-       SET booking_status = 1
-       WHERE booking_queue_id = ?`,
+      `
+      UPDATE booking_queues
+      SET booking_status = 1
+      WHERE booking_queue_id = ?
+      `,
       [bid],
     );
 
@@ -616,6 +619,7 @@ router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
     return res.json({
       message: "รับงานสำเร็จ",
     });
+
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -623,79 +627,70 @@ router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
     });
   }
 });
+
+// ======================================================
+// FINISH BOOKING
+// ======================================================
 
 router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
   const io = req.app.get("io");
 
   try {
-    // 💡 JOIN ตาราง location_travel เพื่อเอา travel_name ออกมาตามโครงสร้างจริงของคุณ
     const [bookingDetails]: any = await db.query(
-      `SELECT 
+      `
+      SELECT 
         b.ref_cus_id AS tourist_id, 
         lt.travel_name AS attraction_name 
-       FROM booking_queues b
-       INNER JOIN location_travel lt ON b.ref_travel_id = lt.location_id
-       WHERE b.booking_queue_id = ?`,
+
+      FROM booking_queues b
+
+      INNER JOIN location_travel lt 
+        ON b.ref_travel_id = lt.id
+
+      WHERE b.booking_queue_id = ?
+      `,
       [bid],
     );
 
     if (bookingDetails.length === 0) {
-      return res.status(404).json({ message: "ไม่พบรายการจอง" });
+      return res.status(404).json({
+        message: "ไม่พบรายการจอง",
+      });
     }
 
     const { tourist_id, attraction_name } = bookingDetails[0];
 
-    // อัปเดตสถานะเป็นสำเร็จ (booking_status = 3)
     const [result]: any = await db.query(
-      `UPDATE booking_queues
-       SET booking_status = 3
-       WHERE booking_queue_id = ?`,
+      `
+      UPDATE booking_queues
+      SET booking_status = 3
+      WHERE booking_queue_id = ?
+      `,
       [bid],
     );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "ไม่พบรายการจอง" });
+      return res.status(404).json({
+        message: "ไม่พบรายการจอง",
+      });
     }
 
     if (io) {
-      io.to(tourist_id.toString()).emit("job_finished_notification", {
-        booking_queue_id: bid, // แนบ ID ไปให้ปุ่มรีวิวฝั่ง Flutter
-        title: "การบริการเสร็จเรียบร้อย",
-        message: `หากคุณพอใจ รบกวนช่วยให้คะแนนรีวิว\n${attraction_name || "สถานที่ท่องเที่ยว"}`,
-      });
-      console.log(`ส่งแจ้งเตือนจบงานไปหา User: ${tourist_id} แล้ว`);
+      io.to(tourist_id.toString()).emit(
+        "job_finished_notification",
+        {
+          booking_queue_id: bid,
+          title: "การบริการเสร็จเรียบร้อย",
+          message:
+            `หากคุณพอใจ รบกวนช่วยให้คะแนนรีวิว\n${attraction_name || "สถานที่ท่องเที่ยว"}`
+        }
+      );
     }
 
     return res.json({
       message: "จบงานสำเร็จ",
     });
-  } catch (error: any) {
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
-  }
-});
-
-
-router.get("/booking/history/:uid", async (req: Request, res: Response) => {
-  const uid = req.params.uid;
-
-  try {
-    // 💡 ดึงประวัติการจอง และดึงชื่อสถานที่จริงมาแสดงร่วมด้วย
-    const [rows]: any = await db.query(
-      `SELECT 
-        b.booking_queue_id, 
-        lt.travel_name AS attraction_name 
-       FROM booking_queues b
-       INNER JOIN location_travel lt ON b.ref_travel_id = lt.location_id
-       WHERE b.ref_cus_id = ? AND b.booking_status = 3
-       ORDER BY b.booking_queue_id DESC`,
-      [uid]
-    );
-
-    return res.json(rows);
 
   } catch (error: any) {
     return res.status(500).json({
