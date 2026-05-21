@@ -280,48 +280,23 @@ router.get(
 
 // CUSTOMER BOOKING
 
-router.get("/booking/customer/:cid", async (req: Request, res: Response) => {
-  const cid = req.params.cid;
-
+router.get("/booking/customer/:id", async (req: Request, res: Response) => {
   try {
-    const [bookings]: any = await db.query(
+    const customerId = req.params.id;
+
+    const [rows]: any = await db.query(
       `
-      SELECT 
-        b.booking_queue_id,
-        b.booking_start_date,
-        b.booking_end_date,
-        b.booking_status,
-        b.booking_total_price,
-
-        l.travel_name,
-        l.travel_detail,
-        l.travel_image,
-
-        loc.location_province
-
-      FROM booking_queues b
-
-      LEFT JOIN location_travel l 
-        ON b.ref_travel_id = l.id
-
-      LEFT JOIN location loc
-        ON l.location_id = loc.location_id
-
-      WHERE b.ref_cus_id = ?
-
-      ORDER BY b.booking_queue_id DESC
+      SELECT *
+      FROM booking_queues
+      WHERE ref_cus_id = ?
+      ORDER BY booking_queue_id DESC
       `,
-      [cid],
+      [customerId]
     );
 
-    const result = bookings.map((b: any) => ({
-      ...b,
-      location_province: toThaiProvince(b.location_province),
-    }));
-
-    return res.json({
+    return res.status(200).json({
       message: "ดึงข้อมูลการจองของลูกค้าสำเร็จ",
-      data: result,
+      data: rows,
     });
 
   } catch (error: any) {
