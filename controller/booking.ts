@@ -118,7 +118,6 @@ router.post("/booking", async (req: Request, res: Response) => {
     start_date,
     end_date,
     total_price,
-    status,
   } = req.body;
 
   try {
@@ -132,19 +131,16 @@ router.post("/booking", async (req: Request, res: Response) => {
       people === undefined ||
       !start_date ||
       !end_date ||
-      total_price === undefined ||
-      status === undefined
+      total_price === undefined
     ) {
       await db.query("ROLLBACK");
       return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
     }
 
-    const safeTravelId = Number(travel_id);
-
     // ================= CHECK GUIDE =================
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid],
+      [gid]
     );
 
     if (guideRows.length === 0) {
@@ -155,7 +151,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     // ================= CHECK CUSTOMER =================
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid],
+      [cid]
     );
 
     if (cusRows.length === 0) {
@@ -166,7 +162,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     // ================= MAP LOCATION =================
     const [travelRows]: any = await db.query(
       `SELECT id FROM location_travel WHERE location_id = ?`,
-      [safeTravelId],
+      [travel_id]
     );
 
     if (travelRows.length === 0) {
@@ -176,24 +172,37 @@ router.post("/booking", async (req: Request, res: Response) => {
 
     const refTravelId = travelRows[0].id;
 
-    // ================= CHECK DUPLICATE =================
+    // ================= NORMALIZE DATE =================
+    const start = new Date(start_date);
+    const end = new Date(end_date);
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    // ================= CHECK OVERLAP (กันจองชน 100%) =================
     const [duplicate]: any = await db.query(
       `
-      SELECT *
+      SELECT 1
       FROM booking_queues
       WHERE ref_guid_id = ?
       AND booking_status IN (0,1)
-      AND (booking_start_date <= ? AND booking_end_date >= ?)
+      AND NOT (
+        booking_end_date < ?
+        OR booking_start_date > ?
+      )
+      LIMIT 1
       `,
-      [gid, end_date, start_date],
+      [gid, start, end]
     );
 
     if (duplicate.length > 0) {
       await db.query("ROLLBACK");
-      return res.status(400).json({ message: "ช่วงเวลานี้ไกด์ไม่ว่าง" });
+      return res.status(400).json({
+        message: "ช่วงเวลานี้ไกด์ไม่ว่าง",
+      });
     }
 
-    // ================= INSERT =================
+    // ================= INSERT BOOKING =================
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -212,12 +221,12 @@ router.post("/booking", async (req: Request, res: Response) => {
         gid,
         cid,
         refTravelId,
-        start_date,
-        end_date,
+        start,
+        end,
         people,
         total_price,
-        status,
-      ],
+        0, // pending status (backend fix)
+      ]
     );
 
     await db.query("COMMIT");
@@ -226,7 +235,6 @@ router.post("/booking", async (req: Request, res: Response) => {
       message: "จองสำเร็จ",
       booking_queue_id: result.insertId,
     });
-
   } catch (error: any) {
     await db.query("ROLLBACK");
 
