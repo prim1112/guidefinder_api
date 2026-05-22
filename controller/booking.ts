@@ -241,22 +241,22 @@ router.post("/booking", async (req: Request, res: Response) => {
 
 // GET UNAVAILABLE DATE
  router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
-  const gid = req.params.gid;
+  const gid = Number(req.params.gid);
 
   try {
     const [rows]: any = await db.query(
       `
       SELECT 
         booking_start_date,
-        booking_end_date
+        booking_end_date,
+        booking_status
       FROM booking_queues
       WHERE ref_guid_id = ?
-      AND booking_status != 2
       `,
-      [gid],
+      [gid]
     );
 
-    return res.json({
+    return res.status(200).json({
       message: "ดึงวันไม่ว่างสำเร็จ",
       data: rows,
     });
