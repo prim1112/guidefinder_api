@@ -268,24 +268,50 @@ router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
 });
 
 // CUSTOMER BOOKING
-
 router.get("/booking/customer/:id", async (req: Request, res: Response) => {
   try {
     const customerId = req.params.id;
 
+    // แก้ไขคำสั่ง SQL ตรงนี้ให้ทำการ LEFT JOIN เหมือนของไกด์ครับ
     const [rows]: any = await db.query(
       `
-      SELECT *
-      FROM booking_queues
-      WHERE ref_cus_id = ?
-      ORDER BY booking_queue_id DESC
+      SELECT 
+        b.booking_queue_id,
+        b.booking_start_date,
+        b.booking_end_date,
+        b.booking_status,
+        b.booking_total_price,
+        b.booking_cus_amount,
+
+        l.travel_name,
+        l.travel_detail,
+        l.travel_image,
+
+        loc.location_province
+
+      FROM booking_queues b
+
+      LEFT JOIN location_travel l
+        ON b.ref_travel_id = l.id
+
+      LEFT JOIN location loc
+        ON l.location_id = loc.location_id
+        
+      WHERE b.ref_cus_id = ?
+      ORDER BY b.booking_queue_id DESC
       `,
       [customerId],
     );
 
+    // แปลงชื่อจังหวัดให้เป็นภาษาไทยเหมือนฝั่งไกด์ (เผื่อในฐานข้อมูลเป็นภาษาอื่น)
+    const result = rows.map((b: any) => ({
+      ...b,
+      location_province: toThaiProvince(b.location_province),
+    }));
+
     return res.status(200).json({
       message: "ดึงข้อมูลการจองของลูกค้าสำเร็จ",
-      data: rows,
+      data: result, // เปลี่ยนจาก rows เป็น result
     });
   } catch (error: any) {
     return res.status(500).json({
@@ -296,7 +322,6 @@ router.get("/booking/customer/:id", async (req: Request, res: Response) => {
 });
 
 // GUIDE BOOKING
-
 router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
   const gid = req.params.gid;
 
@@ -357,7 +382,6 @@ router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
 });
 
 // BOOKING DETAIL
-
 router.get(
   "/booking/detail/:booking_id",
   async (req: Request, res: Response) => {
@@ -427,7 +451,6 @@ router.get(
 );
 
 // CANCEL BOOKING
-
 router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
 
@@ -459,7 +482,6 @@ router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
 });
 
 // GUIDE BOOKING DETAIL
-
 router.get(
   "/booking/guide/detail/:booking_id",
   async (req: Request, res: Response) => {
@@ -536,7 +558,6 @@ router.get(
 );
 
 // ACCEPT BOOKING
-
 router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
 
