@@ -240,25 +240,27 @@ router.post("/booking", async (req: Request, res: Response) => {
 });
 
 // GET UNAVAILABLE DATE
-router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
+ router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
   const gid = req.params.gid;
 
   try {
     const [rows]: any = await db.query(
       `
-        SELECT
-          booking_start_date,
-          booking_end_date
-        FROM booking_queues
-        WHERE ref_guid_id = ?
-        AND booking_status IN (0,1)
-        `,
+      SELECT
+        booking_start_date,
+        booking_end_date
+      FROM booking_queues
+      WHERE ref_guid_id = ?
+      AND booking_status != 2
+      `,
       [gid],
     );
 
     return res.json({
+      message: "ดึงวันไม่ว่างสำเร็จ",
       data: rows,
     });
+
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
