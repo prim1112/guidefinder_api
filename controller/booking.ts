@@ -86,20 +86,16 @@ const provinceTH: { [key: string]: string } = {
 
 const toThaiProvince = (en: string) => provinceTH[en] || en;
 
-
 // GET ALL BOOKING
 router.get("/booking", async (req: Request, res: Response) => {
   try {
-    const [rows]: any = await db.query(
-      "SELECT * FROM booking_queues"
-    );
+    const [rows]: any = await db.query("SELECT * FROM booking_queues");
 
     return res.json({
       message: "ดึงข้อมูล Booking สำเร็จ",
       count: rows.length,
       data: rows,
     });
-
   } catch (error: any) {
     console.error("GET /booking error:", error);
 
@@ -111,10 +107,7 @@ router.get("/booking", async (req: Request, res: Response) => {
 });
 
 // CREATE BOOKING
-
-
 router.post("/booking", async (req: Request, res: Response) => {
-
   console.log(req.body);
 
   const {
@@ -129,7 +122,6 @@ router.post("/booking", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
-
     // ================= CHECK INPUT =================
     if (
       gid === undefined ||
@@ -202,11 +194,7 @@ router.post("/booking", async (req: Request, res: Response) => {
         AND booking_end_date >= ?
       )
       `,
-      [
-        gid,
-        end_date,
-        start_date,
-      ],
+      [gid, end_date, start_date],
     );
 
     if (duplicate.length > 0) {
@@ -248,9 +236,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       message: "จองสำเร็จ",
       booking_queue_id: result.insertId,
     });
-
   } catch (error: any) {
-
     console.log(error);
 
     return res.status(500).json({
@@ -260,16 +246,13 @@ router.post("/booking", async (req: Request, res: Response) => {
   }
 });
 
-
 // GET UNAVAILABLE DATE
-router.get(
-  "/booking/unavailable/:gid",
-  async (req: Request, res: Response) => {
-    const gid = req.params.gid;
+router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
+  const gid = req.params.gid;
 
-    try {
-      const [rows]: any = await db.query(
-        `
+  try {
+    const [rows]: any = await db.query(
+      `
         SELECT
           booking_start_date,
           booking_end_date
@@ -277,21 +260,19 @@ router.get(
         WHERE ref_guid_id = ?
         AND booking_status IN (0,1)
         `,
-        [gid],
-      );
+      [gid],
+    );
 
-      return res.json({
-        data: rows,
-      });
-
-    } catch (error: any) {
-      return res.status(500).json({
-        message: "Server Error",
-        error: error.message,
-      });
-    }
-  },
-);
+    return res.json({
+      data: rows,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
 
 // CUSTOMER BOOKING
 
@@ -306,14 +287,13 @@ router.get("/booking/customer/:id", async (req: Request, res: Response) => {
       WHERE ref_cus_id = ?
       ORDER BY booking_queue_id DESC
       `,
-      [customerId]
+      [customerId],
     );
 
     return res.status(200).json({
       message: "ดึงข้อมูลการจองของลูกค้าสำเร็จ",
       data: rows,
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -375,7 +355,6 @@ router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
       message: "ดึงข้อมูลการจองของไกด์สำเร็จ",
       data: result,
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -445,7 +424,6 @@ router.get(
         message: "ดึงรายละเอียดการจองสำเร็จ",
         data: booking,
       });
-
     } catch (error: any) {
       return res.status(500).json({
         message: "Server Error",
@@ -479,7 +457,6 @@ router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
     return res.json({
       message: "ยกเลิกการจองสำเร็จ",
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -487,7 +464,6 @@ router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
     });
   }
 });
-
 
 // GUIDE BOOKING DETAIL
 
@@ -557,7 +533,6 @@ router.get(
         message: "ดึงรายละเอียดการจองของไกด์สำเร็จ",
         data: booking,
       });
-
     } catch (error: any) {
       return res.status(500).json({
         message: "Server Error",
@@ -566,7 +541,6 @@ router.get(
     }
   },
 );
-
 
 // ACCEPT BOOKING
 
@@ -592,7 +566,6 @@ router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
     return res.json({
       message: "รับงานสำเร็จ",
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -648,21 +621,16 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
     }
 
     if (io) {
-      io.to(tourist_id.toString()).emit(
-        "job_finished_notification",
-        {
-          booking_queue_id: bid,
-          title: "การบริการเสร็จเรียบร้อย",
-          message:
-            `หากคุณพอใจ รบกวนช่วยให้คะแนนรีวิว\n${attraction_name || "สถานที่ท่องเที่ยว"}`
-        }
-      );
+      io.to(tourist_id.toString()).emit("job_finished_notification", {
+        booking_queue_id: bid,
+        title: "การบริการเสร็จเรียบร้อย",
+        message: `หากคุณพอใจ รบกวนช่วยให้คะแนนรีวิว\n${attraction_name || "สถานที่ท่องเที่ยว"}`,
+      });
     }
 
     return res.json({
       message: "จบงานสำเร็จ",
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -670,7 +638,5 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
     });
   }
 });
-
-
 
 export default router;
