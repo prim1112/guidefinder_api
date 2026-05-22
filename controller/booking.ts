@@ -147,33 +147,29 @@ router.post("/booking", async (req: Request, res: Response) => {
 
     const safeTravelId = Number(travel_id);
 
-    // check guide
+    // 1. check guide
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
       [gid],
     );
 
     if (guideRows.length === 0) {
-      return res.status(400).json({
-        message: "ไม่พบไกด์",
-      });
+      return res.status(400).json({ message: "ไม่พบไกด์" });
     }
 
-    // check customer
+    // 2. check customer
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
       [cid],
     );
 
     if (cusRows.length === 0) {
-      return res.status(400).json({
-        message: "ไม่พบลูกค้า",
-      });
+      return res.status(400).json({ message: "ไม่พบลูกค้า" });
     }
 
-    // check location
+    // 3. 🔥 FIX: check location FROM "location" table (NOT location_travel)
     const [locRows]: any = await db.query(
-      `SELECT id FROM location_travel WHERE id = ?`,
+      `SELECT location_id FROM location WHERE location_id = ?`,
       [safeTravelId],
     );
 
@@ -183,7 +179,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // check duplicate
+    // 4. check duplicate booking
     const [duplicate]: any = await db.query(
       `
       SELECT *
@@ -208,7 +204,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // insert
+    // 5. insert booking
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -235,15 +231,12 @@ router.post("/booking", async (req: Request, res: Response) => {
       ],
     );
 
-    console.log(result);
-
     return res.status(201).json({
       message: "จองสำเร็จ",
       booking_queue_id: result.insertId,
     });
 
   } catch (error: any) {
-
     console.log(error);
 
     return res.status(500).json({
