@@ -246,7 +246,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
       `
-      SELECT
+      SELECT 
         booking_start_date,
         booking_end_date
       FROM booking_queues
