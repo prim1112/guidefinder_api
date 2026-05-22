@@ -130,6 +130,7 @@ router.post("/booking", async (req: Request, res: Response) => {
 
   try {
 
+    // ================= CHECK INPUT =================
     if (
       gid === undefined ||
       cid === undefined ||
@@ -147,39 +148,49 @@ router.post("/booking", async (req: Request, res: Response) => {
 
     const safeTravelId = Number(travel_id);
 
-    // 1. check guide
+    // ================= CHECK GUIDE =================
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
       [gid],
     );
 
     if (guideRows.length === 0) {
-      return res.status(400).json({ message: "ไม่พบไกด์" });
+      return res.status(400).json({
+        message: "ไม่พบไกด์",
+      });
     }
 
-    // 2. check customer
+    // ================= CHECK CUSTOMER =================
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
       [cid],
     );
 
     if (cusRows.length === 0) {
-      return res.status(400).json({ message: "ไม่พบลูกค้า" });
+      return res.status(400).json({
+        message: "ไม่พบลูกค้า",
+      });
     }
 
-    // 3. 🔥 FIX: check location FROM "location" table (NOT location_travel)
-    const [locRows]: any = await db.query(
-      `SELECT location_id FROM location WHERE location_id = ?`,
+    // ================= 🔥 FIX: MAP LOCATION =================
+    const [travelRows]: any = await db.query(
+      `
+      SELECT id 
+      FROM location_travel 
+      WHERE location_id = ?
+      `,
       [safeTravelId],
     );
 
-    if (locRows.length === 0) {
+    if (travelRows.length === 0) {
       return res.status(400).json({
         message: "ไม่พบสถานที่",
       });
     }
 
-    // 4. check duplicate booking
+    const refTravelId = travelRows[0].id;
+
+    // ================= CHECK DUPLICATE BOOKING =================
     const [duplicate]: any = await db.query(
       `
       SELECT *
@@ -204,7 +215,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       });
     }
 
-    // 5. insert booking
+    // ================= INSERT BOOKING =================
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -222,7 +233,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       [
         gid,
         cid,
-        safeTravelId,
+        refTravelId, // 🔥 FIXED HERE
         start_date,
         end_date,
         people,
@@ -231,12 +242,15 @@ router.post("/booking", async (req: Request, res: Response) => {
       ],
     );
 
+    console.log(result);
+
     return res.status(201).json({
       message: "จองสำเร็จ",
       booking_queue_id: result.insertId,
     });
 
   } catch (error: any) {
+
     console.log(error);
 
     return res.status(500).json({
