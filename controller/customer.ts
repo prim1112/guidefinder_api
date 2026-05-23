@@ -229,42 +229,72 @@ router.post("/logout", (req: Request, res: Response) => {
 router.delete("/account/delete/:id", async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "id ไม่ถูกต้อง",
+      });
+    }
+
+    // เช็ค user
     const [rows]: any = await db.query(
-      "SELECT cus_id, cus_imageprofile FROM customers WHERE cus_id = ?",
-      [id],
+      "SELECT * FROM customers WHERE cus_id = ?",
+      [id]
     );
 
-    if (!rows.length) {
-      return res.status(404).json({ success: false, message: "ไม่พบผู้ใช้ที่ต้องการลบ" });
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบผู้ใช้",
+      });
     }
 
     const user = rows[0];
 
+    // ลบรูป cloudinary
     if (user.cus_imageprofile) {
       try {
         const urlParts = user.cus_imageprofile.split("/");
-        const fileNameWithExtension = urlParts[urlParts.length - 1]; 
-        const fileName = fileNameWithExtension.split(".")[0]; 
-        const publicId = `customers/${fileName}`; 
+        const fileNameWithExtension = urlParts[urlParts.length - 1];
+
+        const fileName = fileNameWithExtension.substring(
+          0,
+          fileNameWithExtension.lastIndexOf(".")
+        );
+
+        const publicId = `customers/${fileName}`;
 
         await cloudinary.uploader.destroy(publicId);
-      } catch (cloudinaryErr) {
-        console.error("⚠️ ไม่สามารถลบรูปภาพบน Cloudinary ได้:", cloudinaryErr);
-       
+      } catch (error) {
+        console.error("ลบรูปไม่ได้:", error);
       }
     }
 
-    await db.query("DELETE FROM favorite_places WHERE cus_id = ?", [id]);
+    // ลบข้อมูลที่เกี่ยวข้องก่อน
+    await db.query(
+      "DELETE FROM favorite_places WHERE cus_id = ?",
+      [id]
+    );
 
-    await db.query("DELETE FROM customers WHERE cus_id = ?", [id]);
+    // ลบบัญชี
+    await db.query(
+      "DELETE FROM customers WHERE cus_id = ?",
+      [id]
+    );
 
-    res.json({ 
-      success: true, 
-      message: "ลบบัญชีผู้ใช้และข้อมูลที่เกี่ยวข้องเสร็จสิ้น" 
+    return res.status(200).json({
+      success: true,
+      message: "ลบบัญชีสำเร็จ",
     });
-    
+
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error("DELETE ERROR:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 });
 
