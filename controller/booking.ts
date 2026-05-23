@@ -663,4 +663,24 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/booking/history/customer/:id", async (req, res) => {
+  const id = req.params.id;
+
+  const [rows]: any = await db.query(
+    `
+    SELECT *
+    FROM booking_queues
+    WHERE ref_cus_id = ?
+    AND booking_status = 3
+    ORDER BY booking_queue_id DESC
+    `,
+    [id]
+  );
+
+  res.json({
+    message: "ดึงประวัติสำเร็จ",
+    data: rows,
+  });
+});
+
 export default router;
