@@ -107,6 +107,7 @@ router.get("/booking", async (req: Request, res: Response) => {
 });
 
 // CREATE BOOKING
+// CREATE BOOKING
 router.post("/booking", async (req: Request, res: Response) => {
   console.log(req.body);
 
@@ -134,7 +135,10 @@ router.post("/booking", async (req: Request, res: Response) => {
       total_price === undefined
     ) {
       await db.query("ROLLBACK");
-      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
+
+      return res.status(400).json({
+        message: "กรุณากรอกข้อมูลให้ครบ",
+      });
     }
 
     // ================= CHECK GUIDE =================
@@ -145,7 +149,10 @@ router.post("/booking", async (req: Request, res: Response) => {
 
     if (guideRows.length === 0) {
       await db.query("ROLLBACK");
-      return res.status(400).json({ message: "ไม่พบไกด์" });
+
+      return res.status(400).json({
+        message: "ไม่พบไกด์",
+      });
     }
 
     // ================= CHECK CUSTOMER =================
@@ -156,7 +163,10 @@ router.post("/booking", async (req: Request, res: Response) => {
 
     if (cusRows.length === 0) {
       await db.query("ROLLBACK");
-      return res.status(400).json({ message: "ไม่พบลูกค้า" });
+
+      return res.status(400).json({
+        message: "ไม่พบลูกค้า",
+      });
     }
 
     // ================= MAP LOCATION =================
@@ -167,7 +177,10 @@ router.post("/booking", async (req: Request, res: Response) => {
 
     if (travelRows.length === 0) {
       await db.query("ROLLBACK");
-      return res.status(400).json({ message: "ไม่พบสถานที่" });
+
+      return res.status(400).json({
+        message: "ไม่พบสถานที่",
+      });
     }
 
     const refTravelId = travelRows[0].id;
@@ -179,13 +192,14 @@ router.post("/booking", async (req: Request, res: Response) => {
     start.setHours(0, 0, 0, 0);
     end.setHours(0, 0, 0, 0);
 
-    // ================= CHECK OVERLAP (กันจองชน 100%) =================
+    // ================= CHECK OVERLAP =================
+    // ล็อกเฉพาะงานที่ไกด์ "รับแล้ว"
     const [duplicate]: any = await db.query(
       `
       SELECT 1
       FROM booking_queues
       WHERE ref_guid_id = ?
-      AND booking_status IN (0,1)
+      AND booking_status = 1
       AND NOT (
         booking_end_date < ?
         OR booking_start_date > ?
@@ -197,6 +211,7 @@ router.post("/booking", async (req: Request, res: Response) => {
 
     if (duplicate.length > 0) {
       await db.query("ROLLBACK");
+
       return res.status(400).json({
         message: "ช่วงเวลานี้ไกด์ไม่ว่าง",
       });
@@ -225,7 +240,7 @@ router.post("/booking", async (req: Request, res: Response) => {
         end,
         people,
         total_price,
-        0, // pending status (backend fix)
+        0,
       ]
     );
 
@@ -248,34 +263,37 @@ router.post("/booking", async (req: Request, res: Response) => {
 });
 
 // GET UNAVAILABLE DATE
- router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
-  const gid = Number(req.params.gid);
+router.get(
+  "/booking/unavailable/:gid",
+  async (req: Request, res: Response) => {
+    const gid = Number(req.params.gid);
 
-  try {
-    const [rows]: any = await db.query(
-      `
-      SELECT 
-        booking_start_date,
-        booking_end_date,
-        booking_status
-      FROM booking_queues
-      WHERE ref_guid_id = ?
-      `,
-      [gid]
-    );
+    try {
+      const [rows]: any = await db.query(
+        `
+        SELECT 
+          booking_start_date,
+          booking_end_date,
+          booking_status
+        FROM booking_queues
+        WHERE ref_guid_id = ?
+        AND booking_status = 1
+        `,
+        [gid]
+      );
 
-    return res.status(200).json({
-      message: "ดึงวันไม่ว่างสำเร็จ",
-      data: rows,
-    });
-
-  } catch (error: any) {
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
+      return res.status(200).json({
+        message: "ดึงวันไม่ว่างสำเร็จ",
+        data: rows,
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        message: "Server Error",
+        error: error.message,
+      });
+    }
   }
-});
+);
 
 // CUSTOMER BOOKING
 router.get("/booking/customer/:id", async (req: Request, res: Response) => {
