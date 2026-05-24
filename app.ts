@@ -11,6 +11,7 @@ import { router as loginRouter } from "./controller/login";
 import { router as packageRouter } from "./controller/package";
 import { router as locationRouter } from "./controller/location";
 import { router as bookingRouter } from "./controller/booking";
+import { router as adminRouter } from "./controller/admin";
 export const app = express();
 
 // 💡 1. สร้าง httpServer มารองรับตัวแปร app ดั้งเดิม
@@ -64,6 +65,7 @@ app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 app.use("/", index);
+app.use("/admin", adminRouter);
 app.use("/customer", customerRouter);
 app.use("/customer", index);
 app.use("/guide", guideRouter);
