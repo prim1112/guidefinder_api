@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 
-import { createServer } from "http"; 
+import { createServer } from "http";
 import { Server } from "socket.io";
 
 import { router as index } from "./controller/index";
@@ -12,36 +12,36 @@ import { router as packageRouter } from "./controller/package";
 import { router as locationRouter } from "./controller/location";
 import { router as bookingRouter } from "./controller/booking";
 import { router as adminRouter } from "./controller/admin";
+
 export const app = express();
 
-// 💡 1. สร้าง httpServer มารองรับตัวแปร app ดั้งเดิม
-export const httpServer = createServer(app); 
+export const httpServer = createServer(app);
 
-// 💡 2. ประกาศเปิดท่อ Socket.io ผูกเข้ากับ httpServer ตั้งค่า CORS และท่อส่งให้ครบถ้วน
 export const io = new Server(httpServer, {
   cors: {
-    origin: "*", // อนุญาตให้แอป Flutter ทุกเครื่องเชื่อมโยงสัญญาณเข้ามาได้
+    origin: "*",
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   },
-  transports: ['polling', 'websocket'] // สอดรับกับฝั่ง Flutter บนคลาวด์ Render.com
+  transports: ["polling", "websocket"],
 });
 
-// 💡 3. เอาตัวแปร io ไปฝังไว้ในตัวแปร app เพื่อส่งต่อให้พวกไฟล์สคริปต์เราเตอร์เรียกใช้ได้
 app.set("io", io);
 
-// 💡 4. เปิดระเบียงสแตนบายรอเวลาแอป Flutter ทำการเชื่อมต่อท่อเข้ามา
 io.on("connection", (socket) => {
-  console.log("มีผู้ใช้งานเชื่อมต่อ Socket เข้ามาแล้ว ID: " + socket.id);
-  
-  // รอฟังเมื่อลูกค้าส่ง ID ตัวเองมา เพื่อจับยัดเข้าห้องรับแจ้งเตือนส่วนตัว
+  console.log("🟢 SOCKET CONNECT:", socket.id);
+
   socket.on("join_room", (roomId) => {
     socket.join(roomId.toString());
-    console.log(`User เข้าห้องแจ้งเตือนสำเร็จ ID: ${roomId}`);
+
+    console.log("✅ JOIN ROOM:", roomId);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("❌ SOCKET DISCONNECT:", socket.id);
   });
 });
 
-// ✅ CORS
 const allowedOrigins = [
   "http://127.0.0.1:5500",
   "http://localhost:3000",
@@ -51,22 +51,24 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes(origin)) cb(null, true);
-      else cb(new Error("Not allowed by CORS"));
+      if (!origin || allowedOrigins.includes(origin)) {
+        cb(null, true);
+      } else {
+        cb(new Error("Not allowed by CORS"));
+      }
     },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 
 app.use(express.json());
-
 app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 app.use((req, res, next) => {
-  (req as any).userRole = req.headers['x-user-role'];
-  (req as any).userId = req.headers['x-user-id'];
+  (req as any).userRole = req.headers["x-user-role"];
+  (req as any).userId = req.headers["x-user-id"];
   next();
 });
 
@@ -79,9 +81,9 @@ app.use("/auth", loginRouter);
 app.use("/package", packageRouter);
 app.use("/location", locationRouter);
 app.use("/booking", bookingRouter);
-// app.use("/", (req, res) => {
-//   res.send("Hello World!!!");
-// });
 
+const PORT = process.env.PORT || 3000;
 
-export default app;
+httpServer.listen(PORT, () => {
+  console.log(`🚀 SERVER RUNNING ON PORT ${PORT}`);
+});
