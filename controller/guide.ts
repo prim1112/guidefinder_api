@@ -557,17 +557,19 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
 
   try {
 
-    console.log("DELETE GUIDE ID =", id);
-
+    // =========================
     // หา booking ของ guide
+    // =========================
     const [bookings]: any = await db.query(
-      "SELECT booking_queue_id FROM booking_queue WHERE ref_guid_id = ?",
+      "SELECT booking_queue_id FROM booking_queues WHERE ref_guid_id = ?",
       [id]
     );
 
-    console.log("BOOKINGS =", bookings);
+    console.log("BOOKING COUNT =>", bookings.length);
 
-    // ลบ review
+    // =========================
+    // ลบ review ก่อน
+    // =========================
     for (const booking of bookings) {
 
       await db.query(
@@ -576,19 +578,21 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
       );
     }
 
+    // =========================
     // ลบ booking
+    // =========================
     await db.query(
-      "DELETE FROM booking_queue WHERE ref_guid_id = ?",
+      "DELETE FROM booking_queues WHERE ref_guid_id = ?",
       [id]
     );
 
+    // =========================
     // ลบ guide
+    // =========================
     const [result]: any = await db.query(
       "DELETE FROM guides WHERE guides_id = ?",
       [id]
     );
-
-    console.log("DELETE RESULT =", result);
 
     if (result.affectedRows === 0) {
 
