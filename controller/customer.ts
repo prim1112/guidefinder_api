@@ -30,7 +30,7 @@ router.get("/test-cloudinary", (req, res) => {
 });
 
 interface ReviewRequestBody {
-  booking_queue_id: number ;
+  booking_queue_id: number;
   attraction_rating: number;
   attraction_comment?: string;
   guide_rating: number;
@@ -127,6 +127,35 @@ router.post(
     }
   },
 );
+
+router.delete("/admin/account/:id", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+
+    // role ของคน login
+    const { cus_role } = req.body;
+
+    // อนุญาตเฉพาะ admin
+    if (cus_role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "เฉพาะแอดมินเท่านั้น",
+      });
+    }
+
+    await db.query("DELETE FROM customers WHERE cus_id = ?", [id]);
+
+    res.json({
+      success: true,
+      message: "แอดมินลบบัญชีสำเร็จ",
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
 
 // ✏️ UPDATE PROFILE
 router.put(
@@ -240,7 +269,7 @@ router.delete("/account/delete/:id", async (req: Request, res: Response) => {
     // เช็ค user
     const [rows]: any = await db.query(
       "SELECT * FROM customers WHERE cus_id = ?",
-      [id]
+      [id],
     );
 
     if (rows.length === 0) {
@@ -260,7 +289,7 @@ router.delete("/account/delete/:id", async (req: Request, res: Response) => {
 
         const fileName = fileNameWithExtension.substring(
           0,
-          fileNameWithExtension.lastIndexOf(".")
+          fileNameWithExtension.lastIndexOf("."),
         );
 
         const publicId = `customers/${fileName}`;
@@ -272,22 +301,15 @@ router.delete("/account/delete/:id", async (req: Request, res: Response) => {
     }
 
     // ลบข้อมูลที่เกี่ยวข้องก่อน
-    await db.query(
-      "DELETE FROM favorite_places WHERE cus_id = ?",
-      [id]
-    );
+    await db.query("DELETE FROM favorite_places WHERE cus_id = ?", [id]);
 
     // ลบบัญชี
-    await db.query(
-      "DELETE FROM customers WHERE cus_id = ?",
-      [id]
-    );
+    await db.query("DELETE FROM customers WHERE cus_id = ?", [id]);
 
     return res.status(200).json({
       success: true,
       message: "ลบบัญชีสำเร็จ",
     });
-
   } catch (err: any) {
     console.error("DELETE ERROR:", err);
 
@@ -420,71 +442,83 @@ router.delete(
   },
 );
 
+router.post(
+  "/reviews",
+  async (req: Request<{}, {}, ReviewRequestBody>, res: Response) => {
+    try {
+      const {
+        booking_queue_id,
+        attraction_rating,
+        attraction_comment,
+        guide_rating,
+        guide_comment,
+      } = req.body;
 
-router.post('/reviews', async (req: Request<{}, {}, ReviewRequestBody>, res: Response) => {
-  try {
-    const { 
-      booking_queue_id, 
-      attraction_rating, 
-      attraction_comment, 
-      guide_rating, 
-      guide_comment 
-    } = req.body;
+      // 1. ตรวจสอบข้อมูลที่จำเป็นว่าถูกส่งมาไหม
+      if (
+        booking_queue_id === undefined ||
+        attraction_rating === undefined ||
+        guide_rating === undefined
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "กรุณาระบุ booking_queue_id และคะแนนดาวให้ครบถ้วน",
+        });
+      }
 
-    // 1. ตรวจสอบข้อมูลที่จำเป็นว่าถูกส่งมาไหม
-    if (booking_queue_id === undefined || attraction_rating === undefined || guide_rating === undefined) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "กรุณาระบุ booking_queue_id และคะแนนดาวให้ครบถ้วน" 
-      });
-    }
+      // 2. แปลงค่าให้เป็นตัวเลข (ป้องกันปัญหา String จากฝั่ง Mobile)
+      const parsedQueueId = Number(booking_queue_id);
+      const parsedAttrRating = Number(attraction_rating);
+      const parsedGuideRating = Number(guide_rating);
 
-    // 2. แปลงค่าให้เป็นตัวเลข (ป้องกันปัญหา String จากฝั่ง Mobile)
-    const parsedQueueId = Number(booking_queue_id);
-    const parsedAttrRating = Number(attraction_rating);
-    const parsedGuideRating = Number(guide_rating);
+      if (
+        isNaN(parsedQueueId) ||
+        isNaN(parsedAttrRating) ||
+        isNaN(parsedGuideRating)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "รูปแบบข้อมูลไม่ถูกต้อง booking_queue_id และคะแนนดาวต้องเป็นตัวเลขเท่านั้น",
+        });
+      }
 
-    if (isNaN(parsedQueueId) || isNaN(parsedAttrRating) || isNaN(parsedGuideRating)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "รูปแบบข้อมูลไม่ถูกต้อง booking_queue_id และคะแนนดาวต้องเป็นตัวเลขเท่านั้น" 
-      });
-    }
-
-    // 3. คำสั่ง SQL
-    const sql = `INSERT INTO reviews 
+      // 3. คำสั่ง SQL
+      const sql = `INSERT INTO reviews 
                 (booking_queue_id, attraction_rating, attraction_comment, guide_rating, guide_comment) 
                 VALUES (?, ?, ?, ?, ?)`;
 
-    // ใช้ค่าที่ผ่านการแปลงเรียบร้อยแล้ว
-    const values = [
-      parsedQueueId, 
-      parsedAttrRating, 
-      attraction_comment && attraction_comment.trim() !== "" ? attraction_comment : null, 
-      parsedGuideRating, 
-      guide_comment && guide_comment.trim() !== "" ? guide_comment : null
-    ];
+      // ใช้ค่าที่ผ่านการแปลงเรียบร้อยแล้ว
+      const values = [
+        parsedQueueId,
+        parsedAttrRating,
+        attraction_comment && attraction_comment.trim() !== ""
+          ? attraction_comment
+          : null,
+        parsedGuideRating,
+        guide_comment && guide_comment.trim() !== "" ? guide_comment : null,
+      ];
 
-    // 4. รันคำสั่งลงฐานข้อมูล
-    const [result]: any = await db.query(sql, values);
-    
-    res.status(201).json({ 
-      success: true, 
-      message: "บันทึกรีวิวเรียบร้อยแล้ว ขอบคุณครับ!",
-      reviews_id: result.insertId 
-    });
+      // 4. รันคำสั่งลงฐานข้อมูล
+      const [result]: any = await db.query(sql, values);
 
-  } catch (error: any) {
-    // พิมพ์ออกมาดูที่ Terminal ฝั่ง Backend เพื่อดูว่าติดปัญหาที่จุดไหน (เลขคิวไม่มีจริง หรือต่อ db ไม่ติด)
-    console.error("🔥 Database Error Log:", error);
-    
-    res.status(500).json({ 
-      success: false, 
-      message: "เกิดข้อผิดพลาดภายในระบบฐานข้อมูล",
-      error: error.message 
-    });
-  }
-});
+      res.status(201).json({
+        success: true,
+        message: "บันทึกรีวิวเรียบร้อยแล้ว ขอบคุณครับ!",
+        reviews_id: result.insertId,
+      });
+    } catch (error: any) {
+      // พิมพ์ออกมาดูที่ Terminal ฝั่ง Backend เพื่อดูว่าติดปัญหาที่จุดไหน (เลขคิวไม่มีจริง หรือต่อ db ไม่ติด)
+      console.error("🔥 Database Error Log:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "เกิดข้อผิดพลาดภายในระบบฐานข้อมูล",
+        error: error.message,
+      });
+    }
+  },
+);
 
 // // ✅ Login (ตรวจสอบรหัสผ่านที่ถูกเข้ารหัส)
 // router.post("/login", async (req: Request, res: Response) => {
