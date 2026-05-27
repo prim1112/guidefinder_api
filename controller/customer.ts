@@ -300,10 +300,15 @@ router.delete("/account/delete/:id", async (req: Request, res: Response) => {
       }
     }
 
-    // ลบข้อมูลที่เกี่ยวข้องก่อน
+    // === ลบข้อมูลในตารางลูกที่มีความสัมพันธ์ทั้งหมดออกก่อน ===
+    
+    // 1. ลบสถานที่โปรด
     await db.query("DELETE FROM favorite_places WHERE cus_id = ?", [id]);
 
-    // ลบบัญชี
+    // 2. ลบคิวการจอง (เพิ่มส่วนนี้เข้ามาเพื่อแก้ปัญหา Foreign Key Fail)
+    await db.query("DELETE FROM booking_queues WHERE ref_cus_id = ?", [id]);
+
+    // === ลบบัญชีลูกค้าหลัก ===
     await db.query("DELETE FROM customers WHERE cus_id = ?", [id]);
 
     return res.status(200).json({
