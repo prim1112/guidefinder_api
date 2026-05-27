@@ -552,50 +552,48 @@ router.put(
 
 //  DELETE GUIDE PROFILE
 router.delete("/profile/:id", async (req: Request, res: Response) => {
+
   const id = Number(req.params.id);
+
+  const conn = await db.getConnection();
 
   try {
 
-    // =========================
-    // หา booking ของ guide
-    // =========================
-    const [bookings]: any = await db.query(
+    await conn.beginTransaction();
+
+    const [bookings]: any = await conn.query(
       "SELECT booking_queue_id FROM booking_queue WHERE ref_guid_id = ?",
       [id]
     );
 
-    // =========================
-    // ลบ review ก่อน
-    // =========================
     for (const booking of bookings) {
 
-      await db.query(
+      await conn.query(
         "DELETE FROM review WHERE booking_queue_id = ?",
         [booking.booking_queue_id]
       );
     }
 
-    // =========================
-    // ลบ booking
-    // =========================
-    await db.query(
+    await conn.query(
       "DELETE FROM booking_queue WHERE ref_guid_id = ?",
       [id]
     );
 
-    // =========================
-    // ลบ guide
-    // =========================
-    const [result]: any = await db.query(
+    const [result]: any = await conn.query(
       "DELETE FROM guides WHERE guides_id = ?",
       [id]
     );
 
     if (result.affectedRows === 0) {
+
+      await conn.rollback();
+
       return res.status(404).json({
         message: "ไม่พบไกด์",
       });
     }
+
+    await conn.commit();
 
     return res.status(200).json({
       message: "ลบบัญชีสำเร็จ",
@@ -603,15 +601,21 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
 
   } catch (error: any) {
 
-    console.error("DELETE ERROR:", error);
+    await conn.rollback();
+
+    console.error(error);
 
     return res.status(500).json({
       message: "Server Error",
       error: error.message,
+      sqlMessage: error.sqlMessage,
     });
+
+  } finally {
+
+    conn.release();
   }
 });
-
 
 
 export default router;
