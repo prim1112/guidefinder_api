@@ -573,7 +573,7 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
     for (const booking of bookings) {
 
       await db.query(
-        "DELETE FROM review WHERE booking_queue_id = ?",
+        "DELETE FROM review_guides WHERE booking_queue_id = ?",
         [booking.booking_queue_id]
       );
     }
