@@ -18,7 +18,6 @@ router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   try {
-
     if (!email || !password) {
       return res.status(400).json({
         message: "❌ กรุณากรอก Email และ Password",
@@ -62,7 +61,6 @@ router.post("/login", async (req: Request, res: Response) => {
 
     if (guideRows.length > 0) {
       const guide = guideRows[0] as any;
-
 
       if (guide.guides_status === 0) {
         return res.status(403).json({
@@ -125,11 +123,9 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-
     return res.status(404).json({
       message: "❌ ไม่พบบัญชีนี้",
     });
-
   } catch (err: any) {
     console.error("Login Error:", err);
 
@@ -144,6 +140,10 @@ router.post("/forgot-password", async (req, res) => {
   const { email, user_type } = req.body;
 
   try {
+    if (user_type !== "customer" && user_type !== "guide") {
+      return res.status(400).json({ message: "user_type ไม่ถูกต้อง" });
+    }
+
     let user: any;
     let userId: number;
 
@@ -151,7 +151,7 @@ router.post("/forgot-password", async (req, res) => {
     if (user_type === "customer") {
       const [rows] = await db.execute<RowDataPacket[]>(
         "SELECT * FROM customers WHERE cus_email = ?",
-        [email]
+        [email],
       );
 
       if (rows.length === 0) {
@@ -166,7 +166,7 @@ router.post("/forgot-password", async (req, res) => {
     else {
       const [rows] = await db.execute<RowDataPacket[]>(
         "SELECT * FROM guides WHERE guides_email = ?",
-        [email]
+        [email],
       );
 
       if (rows.length === 0) {
@@ -177,35 +177,36 @@ router.post("/forgot-password", async (req, res) => {
       userId = user.guides_id;
     }
 
+    // 🔐 สร้าง token
     const resetCode = crypto.randomBytes(20).toString("hex");
+    const expireAt = new Date(Date.now() + 1000 * 60 * 15); // 15 นาที
 
+    // 💾 บันทึกลง DB
     await db.execute(
-      `INSERT INTO reset_password (ref_user_id, reset_code, user_type)
-       VALUES (?, ?, ?)`,
-      [Number(userId), resetCode, user_type] as any
+      `INSERT INTO reset_password (ref_user_id, reset_code, user_type, expire_at, is_used)
+       VALUES (?, ?, ?, ?, 0)`,
+      [userId, resetCode, user_type, expireAt] as any,
     );
 
     return res.json({
       message: "สร้างลิงก์รีเซ็ตสำเร็จ",
-      resetCode,
+      resetCode, // dev only
     });
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 });
 
-
 // RESET PASSWORD
-
 router.post("/reset-password", async (req, res) => {
   const { code, newPassword } = req.body;
 
   try {
+    // 🔎 ตรวจ token
     const [rows] = await db.execute<RowDataPacket[]>(
-      "SELECT * FROM reset_password WHERE reset_code = ?",
-      [code]
+      "SELECT * FROM reset_password WHERE reset_code = ? AND is_used = 0",
+      [code],
     );
 
     if (rows.length === 0) {
@@ -213,13 +214,19 @@ router.post("/reset-password", async (req, res) => {
     }
 
     const reset = rows[0] as any;
+
+    // ⏳ ตรวจหมดอายุ
+    if (new Date(reset.expire_at) < new Date()) {
+      return res.status(400).json({ message: "code หมดอายุแล้ว" });
+    }
+
     const hashed = await bcrypt.hash(newPassword, 10);
 
     // 👤 CUSTOMER
     if (reset.user_type === "customer") {
       await db.execute(
         "UPDATE customers SET cus_password = ? WHERE cus_id = ?",
-        [hashed, reset.ref_user_id]
+        [hashed, reset.ref_user_id],
       );
     }
 
@@ -227,22 +234,21 @@ router.post("/reset-password", async (req, res) => {
     else {
       await db.execute(
         "UPDATE guides SET guides_password = ? WHERE guides_id = ?",
-        [hashed, reset.ref_user_id]
+        [hashed, reset.ref_user_id],
       );
     }
 
+    // 🔒 mark ใช้แล้ว
     await db.execute(
-      "DELETE FROM reset_password WHERE reset_code = ?",
-      [code]
+      "UPDATE reset_password SET is_used = 1 WHERE reset_code = ?",
+      [code],
     );
 
     return res.json({ message: "รีเซ็ตรหัสผ่านสำเร็จ" });
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 });
-
 
 export default router;
