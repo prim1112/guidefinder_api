@@ -135,6 +135,7 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+
 // FORGOT PASSWORD
 router.post(
   "/forgot-password",
@@ -152,13 +153,21 @@ router.post(
 
       // CUSTOMER
       const [customerRows]: any = await db.execute(
-        "SELECT cus_id FROM customers WHERE cus_email = ?",
+        `
+        SELECT cus_id
+        FROM customers
+        WHERE cus_email = ?
+        `,
         [email]
       );
 
       // GUIDE
       const [guideRows]: any = await db.execute(
-        "SELECT guides_id FROM guides WHERE guides_email = ?",
+        `
+        SELECT guides_id
+        FROM guides
+        WHERE guides_email = ?
+        `,
         [email]
       );
 
@@ -169,7 +178,7 @@ router.post(
       if (customerRows.length > 0) {
 
         userType = "customer";
-        userId = customerRows[0].cus_id;
+        userId = Number(customerRows[0].cus_id);
 
       }
 
@@ -177,7 +186,7 @@ router.post(
       else if (guideRows.length > 0) {
 
         userType = "guide";
-        userId = guideRows[0].guides_id;
+        userId = Number(guideRows[0].guides_id);
 
       }
 
@@ -202,6 +211,10 @@ router.post(
           .slice(0, 19)
           .replace("T", " ");
 
+      // DEBUG
+      console.log("USER ID :", userId);
+      console.log("USER TYPE :", userType);
+
       // INSERT RESET PASSWORD
       await db.execute(
         `
@@ -216,7 +229,7 @@ router.post(
         VALUES (?, ?, ?, ?, ?)
         `,
         [
-          userId,
+          Number(userId),
           resetCode,
           userType,
           expireAt,
@@ -241,7 +254,6 @@ router.post(
     }
   }
 );
-
 
 
 // VERIFY PIN
@@ -274,6 +286,7 @@ router.post(
       );
 
       if (rows.length === 0) {
+
         return res.status(400).json({
           message: "PIN ไม่ถูกต้อง",
         });
@@ -281,13 +294,17 @@ router.post(
 
       const reset = rows[0];
 
+      // USED
       if (reset.is_used == 1) {
+
         return res.status(400).json({
           message: "PIN ถูกใช้งานแล้ว",
         });
       }
 
+      // EXPIRED
       if (new Date(reset.expire_at) < new Date()) {
+
         return res.status(400).json({
           message: "PIN หมดอายุแล้ว",
         });
@@ -325,6 +342,7 @@ router.post(
     try {
 
       if (!code || !newPassword) {
+
         return res.status(400).json({
           message: "ข้อมูลไม่ครบ",
         });
@@ -340,6 +358,7 @@ router.post(
       );
 
       if (rows.length === 0) {
+
         return res.status(400).json({
           message: "PIN ไม่ถูกต้อง",
         });
@@ -347,13 +366,17 @@ router.post(
 
       const reset = rows[0];
 
+      // USED
       if (reset.is_used == 1) {
+
         return res.status(400).json({
           message: "PIN ถูกใช้แล้ว",
         });
       }
 
+      // EXPIRED
       if (new Date(reset.expire_at) < new Date()) {
+
         return res.status(400).json({
           message: "PIN หมดอายุแล้ว",
         });
@@ -376,14 +399,13 @@ router.post(
           `,
           [
             hashed,
-            reset.ref_user_id,
+            Number(reset.ref_user_id),
           ]
         );
-
       }
 
       // GUIDE
-      else {
+      else if (reset.user_type === "guide") {
 
         await db.execute(
           `
@@ -393,7 +415,7 @@ router.post(
           `,
           [
             hashed,
-            reset.ref_user_id,
+            Number(reset.ref_user_id),
           ]
         );
       }
