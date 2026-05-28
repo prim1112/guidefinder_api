@@ -22,6 +22,7 @@
     "@types/multer": "^2.1.0",
     "@types/mysql": "^2.15.27",
     "@types/node": "^18.19.130",
+    "@types/nodemailer": "^8.0.0",
     "@types/socket.io": "^3.0.1",
     "@types/streamifier": "^0.1.2",
     "nodemon": "^3.1.14",

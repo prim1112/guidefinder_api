@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import db from "../db/dbconnect";
 import { RowDataPacket } from "mysql2";
 import crypto from "crypto";
+import { sendResetEmail } from "../services/mail.service";
 
 export const router = Router();
 
@@ -142,9 +143,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
 
   try {
     if (!email) {
-      return res.status(400).json({
-        message: "กรุณากรอกอีเมล",
-      });
+      return res.status(400).json({ message: "กรุณากรอกอีเมล" });
     }
 
     const [customerRows]: any = await db.execute(
@@ -167,9 +166,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       userType = "guide";
       userId = guideRows[0].guides_id;
     } else {
-      return res.status(404).json({
-        message: "ไม่พบบัญชีนี้",
-      });
+      return res.status(404).json({ message: "ไม่พบบัญชีนี้" });
     }
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -186,9 +183,12 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       [userId, resetCode, userType, expireAt, 0]
     );
 
+    // 🔥 IMPORTANT: ส่ง EMAIL ตรงนี้
+    await sendResetEmail(email, resetCode);
+
     return res.status(200).json({
       message: "ส่ง PIN สำเร็จ",
-      reset_id: result.insertId, // ⭐ สำคัญ
+      reset_id: result.insertId,
     });
 
   } catch (err: any) {
