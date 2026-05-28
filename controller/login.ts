@@ -205,7 +205,6 @@ router.post("/verify-pin", async (req: Request, res: Response) => {
       return res.status(400).json({ message: "กรุณากรอกรหัส PIN" });
     }
 
-    // 🔎 หา reset record
     const [rows]: any = await db.execute(
       `SELECT reset_id, ref_user_id, user_type, expire_at, is_used 
        FROM reset_password 
@@ -219,28 +218,25 @@ router.post("/verify-pin", async (req: Request, res: Response) => {
 
     const reset = rows[0];
 
-    // ❌ ใช้ไปแล้ว
-    if (reset.is_used === 1) {
+    if (reset.is_used == 1) {
       return res.status(400).json({ message: "PIN ถูกใช้งานแล้ว" });
     }
 
-    // ❌ หมดอายุ
     if (new Date(reset.expire_at) < new Date()) {
-      return res.status(400).json({ message: "PIN นี้หมดอายุแล้ว" });
+      return res.status(400).json({ message: "PIN หมดอายุแล้ว" });
     }
 
     return res.json({
-      message: "PIN ถูกต้อง สามารถรีเซ็ตรหัสผ่านได้",
-      data: {
-        reset_id: reset.reset_id,
-        user_type: reset.user_type,
-        ref_user_id: reset.ref_user_id,
-      },
+      message: "OK",
+      reset_id: reset.reset_id,
+      user_type: reset.user_type,
+      ref_user_id: reset.ref_user_id,
+      code: code
     });
 
   } catch (err) {
-    console.error("เกิดข้อผิดพลาดใน verify-pin:", err);
-    return res.status(500).json({ message: "Server error" });
+    console.error("VERIFY ERROR:", err);
+    return res.status(500).json({ message: "Server error", err });
   }
 });
 
@@ -249,10 +245,13 @@ router.post("/reset-password", async (req: Request, res: Response) => {
   const { code, newPassword } = req.body;
 
   try {
+    if (!code || !newPassword) {
+      return res.status(400).json({ message: "ข้อมูลไม่ครบ" });
+    }
+
     const [rows]: any = await db.execute(
       `SELECT * FROM reset_password 
-       WHERE reset_code = ? 
-       AND is_used = 0`,
+       WHERE reset_code = ?`,
       [code]
     );
 
@@ -261,6 +260,10 @@ router.post("/reset-password", async (req: Request, res: Response) => {
     }
 
     const reset = rows[0];
+
+    if (reset.is_used == 1) {
+      return res.status(400).json({ message: "PIN ถูกใช้แล้ว" });
+    }
 
     if (new Date(reset.expire_at) < new Date()) {
       return res.status(400).json({ message: "PIN หมดอายุแล้ว" });
@@ -288,7 +291,8 @@ router.post("/reset-password", async (req: Request, res: Response) => {
     return res.json({ message: "รีเซ็ตรหัสผ่านสำเร็จ" });
 
   } catch (err) {
-    return res.status(500).json({ message: "Server error" });
+    console.error("RESET ERROR:", err);
+    return res.status(500).json({ message: "Server error", err });
   }
 });
 
