@@ -140,7 +140,6 @@ router.post("/login", async (req: Request, res: Response) => {
 });
 
 // FORGOT PASSWORD
-
 router.post("/forgot-password", async (req, res) => {
   const { email, user_type } = req.body;
 
