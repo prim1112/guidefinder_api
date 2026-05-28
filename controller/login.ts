@@ -139,9 +139,8 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-// =====================
-// 🔑 FORGOT PASSWORD
-// =====================
+// FORGOT PASSWORD
+
 router.post("/forgot-password", async (req, res) => {
   const { email, user_type } = req.body;
 
@@ -182,9 +181,9 @@ router.post("/forgot-password", async (req, res) => {
     const resetCode = crypto.randomBytes(20).toString("hex");
 
     await db.execute(
-      `INSERT INTO reset_table (ref_user_id, reset_code, user_type)
+      `INSERT INTO reset_password (ref_user_id, reset_code, user_type)
        VALUES (?, ?, ?)`,
-      [userId, resetCode, user_type] as any
+      [Number(userId), resetCode, user_type] as any
     );
 
     return res.json({
@@ -193,20 +192,20 @@ router.post("/forgot-password", async (req, res) => {
     });
 
   } catch (err) {
+    console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 });
 
 
-// =====================
-// 🔓 RESET PASSWORD
-// =====================
+// RESET PASSWORD
+
 router.post("/reset-password", async (req, res) => {
   const { code, newPassword } = req.body;
 
   try {
     const [rows] = await db.execute<RowDataPacket[]>(
-      "SELECT * FROM reset_table WHERE reset_code = ?",
+      "SELECT * FROM reset_password WHERE reset_code = ?",
       [code]
     );
 
@@ -234,13 +233,14 @@ router.post("/reset-password", async (req, res) => {
     }
 
     await db.execute(
-      "DELETE FROM reset_table WHERE reset_code = ?",
+      "DELETE FROM reset_password WHERE reset_code = ?",
       [code]
     );
 
     return res.json({ message: "รีเซ็ตรหัสผ่านสำเร็จ" });
 
   } catch (err) {
+    console.error(err);
     return res.status(500).json({ message: "Server error" });
   }
 });
