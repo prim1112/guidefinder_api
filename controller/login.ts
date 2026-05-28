@@ -261,11 +261,11 @@ router.post(
   "/verify-pin",
   async (req: Request, res: Response) => {
 
-    const { code } = req.body;
+    const { pin } = req.body;
 
     try {
 
-      if (!code) {
+      if (!pin) {
         return res.status(400).json({
           message: "กรุณากรอกรหัส PIN",
         });
@@ -282,7 +282,7 @@ router.post(
         FROM reset_password
         WHERE reset_code = ?
         `,
-        [code]
+        [pin]
       );
 
       if (rows.length === 0) {
@@ -315,7 +315,7 @@ router.post(
         reset_id: reset.reset_id,
         ref_user_id: reset.ref_user_id,
         user_type: reset.user_type,
-        code,
+        pin,
       });
 
     } catch (err: any) {
