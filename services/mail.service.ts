@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+const nodemailer = require("nodemailer");
 
 export const sendResetEmail = async (email: string, pin: string) => {
   const transporter = nodemailer.createTransport({
