@@ -64,12 +64,6 @@ app.use(express.json());
 app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
-app.use((req, res, next) => {
-  (req as any).userRole = req.headers['x-user-role'];
-  (req as any).userId = req.headers['x-user-id'];
-  next();
-});
-
 app.use("/", index);
 app.use("/admin", adminRouter);
 app.use("/customer", customerRouter);
