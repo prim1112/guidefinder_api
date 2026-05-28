@@ -7,8 +7,8 @@ export const sendResetEmail = async (email: string, pin: string) => {
     secure: true,
     family: 4,
     auth: {
-      user: "yourgmail@gmail.com",
-      pass: "your_app_password",
+      user: "kawitsara47@gmail.com",
+      pass: "rmbh vnhj psro wupq",
     },
   });
 
