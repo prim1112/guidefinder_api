@@ -331,120 +331,52 @@ router.post(
   }
 );
 
+//reset-password
+router.post("/reset-password", async (req, res) => {
+  const { email, user_type, new_password } = req.body;
 
-// RESET PASSWORD
-router.post(
-  "/reset-password",
-  async (req: Request, res: Response) => {
+  // เช็คข้อมูล
+  if (!email || !user_type || !new_password) {
+    return res.status(400).json({
+      message: "ข้อมูลไม่ครบ",
+    });
+  }
 
-    const { code, newPassword } = req.body;
-
-    try {
-
-      if (!code || !newPassword) {
-
-        return res.status(400).json({
-          message: "ข้อมูลไม่ครบ",
-        });
-      }
-
-      const [rows]: any = await db.execute(
-        `
-        SELECT *
-        FROM reset_password
-        WHERE reset_code = ?
-        `,
-        [code]
-      );
-
-      if (rows.length === 0) {
-
-        return res.status(400).json({
-          message: "PIN ไม่ถูกต้อง",
-        });
-      }
-
-      const reset = rows[0];
-
-      // USED
-      if (reset.is_used == 1) {
-
-        return res.status(400).json({
-          message: "PIN ถูกใช้แล้ว",
-        });
-      }
-
-      // EXPIRED
-      if (new Date(reset.expire_at) < new Date()) {
-
-        return res.status(400).json({
-          message: "PIN หมดอายุแล้ว",
-        });
-      }
-
-      // HASH PASSWORD
-      const hashed = await bcrypt.hash(
-        newPassword,
-        10
-      );
-
-      // CUSTOMER
-      if (reset.user_type === "customer") {
-
-        await db.execute(
-          `
-          UPDATE customers
-          SET cus_password = ?
-          WHERE cus_id = ?
-          `,
-          [
-            hashed,
-            Number(reset.ref_user_id),
-          ]
-        );
-      }
-
-      // GUIDE
-      else if (reset.user_type === "guide") {
-
-        await db.execute(
-          `
-          UPDATE guides
-          SET guides_password = ?
-          WHERE guides_id = ?
-          `,
-          [
-            hashed,
-            Number(reset.ref_user_id),
-          ]
-        );
-      }
-
-      // USED
+  try {
+    // CUSTOMER
+    if (user_type === "customer") {
       await db.execute(
         `
-        UPDATE reset_password
-        SET is_used = 1
-        WHERE reset_code = ?
+        UPDATE customers
+        SET password = ?
+        WHERE email = ?
         `,
-        [code]
+        [new_password, email]
       );
-
-      return res.status(200).json({
-        message: "รีเซ็ตรหัสผ่านสำเร็จ",
-      });
-
-    } catch (err: any) {
-
-      console.error("RESET ERROR :", err);
-
-      return res.status(500).json({
-        message: "Server error",
-        error: err.message,
-        sqlMessage: err.sqlMessage,
-      });
     }
+
+    // GUIDE
+    else if (user_type === "guide") {
+      await db.execute(
+        `
+        UPDATE guides
+        SET password = ?
+        WHERE email = ?
+        `,
+        [new_password, email]
+      );
+    }
+
+    return res.status(200).json({
+      message: "เปลี่ยนรหัสผ่านสำเร็จ",
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Server error",
+    });
   }
-);
+});
 
 export default router;
