@@ -136,7 +136,6 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-
 // FORGOT PASSWORD
 router.post("/forgot-password", async (req: Request, res: Response) => {
   const { email } = req.body;
@@ -146,10 +145,9 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       return res.status(400).json({ message: "กรุณากรอกอีเมล" });
     }
 
-    // 👉 ใช้เฉพาะ guide (ถ้าคุณใช้ guide)
     const [guideRows]: any = await db.execute(
       `SELECT guides_id FROM guides WHERE guides_email = ?`,
-      [email]
+      [email],
     );
 
     if (guideRows.length === 0) {
@@ -159,6 +157,14 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
     const userId = guideRows[0].guides_id;
     const userType = "guide";
 
+    // 🔥 ปิด reset เก่าก่อน (สำคัญ)
+    await db.execute(
+      `UPDATE reset_password 
+       SET is_used = 1 
+       WHERE ref_user_id = ? AND is_used = 0`,
+      [userId],
+    );
+
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     const expireAt = new Date(Date.now() + 15 * 60 * 1000)
@@ -166,24 +172,22 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       .slice(0, 19)
       .replace("T", " ");
 
-    const [result]: any = await db.execute(
+    await db.execute(
       `INSERT INTO reset_password
       (ref_user_id, reset_code, user_type, expire_at, is_used)
       VALUES (?, ?, ?, ?, ?)`,
-      [userId, resetCode, userType, expireAt, 0]
+      [userId, resetCode, userType, expireAt, 0],
     );
 
-    // 🔥 สำคัญ: ไม่ต้อง await (ทำให้เร็ว)
-    sendResetEmail(email, resetCode)
-      .catch(err => console.log("EMAIL ERROR:", err));
+    sendResetEmail(email, resetCode).catch((err) =>
+      console.log("EMAIL ERROR:", err),
+    );
 
     return res.status(200).json({
       message: "ส่ง PIN สำเร็จ",
-      reset_id: result.insertId,
     });
-
   } catch (err: any) {
-    console.error("FORGOT ERROR:", err);
+    console.error(err);
     return res.status(500).json({
       message: "Server error",
       error: err.message,
@@ -191,69 +195,96 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
   }
 });
 
-
 // VERIFY PIN
 router.post("/verify-pin", async (req, res) => {
-  const { pin } = req.body;
+  const { email, pin } = req.body;
 
-  const [rows]: any = await db.execute(
-    `SELECT * FROM reset_password WHERE reset_code = ?`,
-    [pin]
-  );
+  try {
+    const [rows]: any = await db.execute(
+      `SELECT * 
+       FROM reset_password 
+       WHERE reset_code = ? 
+       AND is_used = 0
+       ORDER BY reset_id DESC LIMIT 1`,
+      [pin],
+    );
 
-  if (rows.length === 0) {
-    return res.status(400).json({ message: "PIN ไม่ถูกต้อง" });
+    if (rows.length === 0) {
+      return res.status(400).json({ message: "PIN ไม่ถูกต้อง" });
+    }
+
+    const reset = rows[0];
+
+    if (new Date(reset.expire_at) < new Date()) {
+      return res.status(400).json({ message: "PIN หมดอายุแล้ว" });
+    }
+
+    // mark verified (ยังไม่ใช้จริง)
+    await db.execute(
+      `UPDATE reset_password 
+       SET is_used = 1 
+       WHERE reset_id = ?`,
+      [reset.reset_id],
+    );
+
+    return res.json({
+      message: "OK",
+      reset_id: reset.reset_id,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
   }
-
-  const reset = rows[0];
-
-  if (reset.is_used) {
-    return res.status(400).json({ message: "PIN ถูกใช้งานแล้ว" });
-  }
-
-  if (new Date(reset.expire_at) < new Date()) {
-    return res.status(400).json({ message: "PIN หมดอายุแล้ว" });
-  }
-
-  await db.execute(
-    `UPDATE reset_password SET is_used = 1 WHERE reset_id = ?`,
-    [reset.reset_id]
-  );
-
-  return res.json({
-    message: "OK",
-    reset_id: reset.reset_id,
-  });
 });
 
 //reset-password
 router.post("/reset-password", async (req, res) => {
   const { reset_id, new_password } = req.body;
 
-  const [rows]: any = await db.execute(
-    `SELECT ref_user_id, user_type FROM reset_password WHERE reset_id = ?`,
-    [reset_id]
-  );
+  try {
+    if (!new_password || new_password.length < 6) {
+      return res.status(400).json({
+        message: "รหัสผ่านต้องอย่างน้อย 6 ตัวอักษร",
+      });
+    }
 
-  if (rows.length === 0) {
-    return res.status(400).json({ message: "ไม่พบคำขอรีเซ็ต" });
-  }
-
-  const { ref_user_id, user_type } = rows[0];
-
-  const hashed = await bcrypt.hash(new_password, 10);
-
-  if (user_type === "guide") {
-    await db.execute(
-      `UPDATE guides SET guides_password = ? WHERE guides_id = ?`,
-      [hashed, ref_user_id]
+    const [rows]: any = await db.execute(
+      `SELECT ref_user_id, user_type 
+       FROM reset_password 
+       WHERE reset_id = ? AND is_used = 1`,
+      [reset_id],
     );
+
+    if (rows.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "คำขอไม่ถูกต้องหรือยังไม่ยืนยัน PIN" });
+    }
+
+    const { ref_user_id, user_type } = rows[0];
+
+    const hashed = await bcrypt.hash(new_password, 10);
+
+    if (user_type === "guide") {
+      await db.execute(
+        `UPDATE guides 
+         SET guides_password = ? 
+         WHERE guides_id = ?`,
+        [hashed, ref_user_id],
+      );
+    }
+
+    return res.json({
+      message: "เปลี่ยนรหัสผ่านสำเร็จ",
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
   }
-
-  return res.json({
-    message: "เปลี่ยนรหัสผ่านสำเร็จ",
-  });
 });
-
 
 export default router;
