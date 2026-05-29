@@ -2,12 +2,10 @@ const nodemailer = require("nodemailer");
 
 export const sendResetEmail = async (email: string, pin: string) => {
   const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+    service: "gmail",
     auth: {
       user: "kawitsara47@gmail.com",
-      pass: "rmbh vnhj psro wupq", // App Password
+      pass: "rmbh vnhj psro wupq",
     },
   });
 
