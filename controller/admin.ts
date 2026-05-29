@@ -4,9 +4,8 @@ import db from "../db/dbconnect";
 
 export const router = Router();
 
-// ===============================
+
 // Middleware เช็ค role
-// ===============================
 const requireAdmin = (req: Request, res: Response, next: Function) => {
   const role = (req as any).userRole;
   if (role !== "admin" && role !== "superadmin") {
@@ -23,9 +22,8 @@ const requireSuperAdmin = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-// ===============================
+
 // GET: ดึงแอดมินทั้งหมด
-// ===============================
 router.get("/", requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
@@ -37,9 +35,7 @@ router.get("/", requireSuperAdmin, async (req: Request, res: Response) => {
   }
 });
 
-// ===============================
 // GET: ดึงแอดมินตาม ID
-// ===============================
 router.get("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
@@ -57,9 +53,8 @@ router.get("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
   }
 });
 
-// ===============================
+
 // POST: เพิ่มแอดมิน (superadmin)
-// ===============================
 router.post("/", requireSuperAdmin, async (req: Request, res: Response) => {
   const { admin_name, admin_phonenumber, admin_email, admin_password, admin_role } = req.body;
 
@@ -100,9 +95,8 @@ router.post("/", requireSuperAdmin, async (req: Request, res: Response) => {
   }
 });
 
-// ===============================
+
 // PUT: แก้ไขข้อมูลตัวเอง (superadmin)
-// ===============================
 router.put("/profile/me", requireSuperAdmin, async (req: Request, res: Response) => {
   const adminId = (req as any).userId; // รับ id จาก header
   const { admin_name, admin_phonenumber, admin_email, admin_password } = req.body;
@@ -145,9 +139,8 @@ router.put("/profile/me", requireSuperAdmin, async (req: Request, res: Response)
   }
 });
 
-// ===============================
+
 // PUT: แก้ไขแอดมิน (superadmin)
-// ===============================
 router.put("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { admin_name, admin_phonenumber, admin_email, admin_password, admin_role, admin_status } = req.body;
@@ -194,9 +187,8 @@ router.put("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
   }
 });
 
-// ===============================
+
 // DELETE: ลบแอดมิน (superadmin)
-// ===============================
 router.delete("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
 
@@ -219,6 +211,135 @@ router.delete("/:id", requireSuperAdmin, async (req: Request, res: Response) => 
     return res.json({ message: "✅ ลบแอดมินสำเร็จ" });
   } catch (err: any) {
     return res.status(500).json({ message: "❌ Server Error", error: err.message });
+  }
+});
+
+//แก้ไขข้อมูลไกด์
+router.put("/guides/:id", requireSuperAdmin, async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const {
+    guides_name,
+    guides_phonenumber,
+    guides_email,
+    guides_password,
+    guides_language,
+    guides_facebook,
+    guides_province,
+    guides_maxcus,
+    guides_pricepercusperday,
+    guides_status
+  } = req.body;
+
+  try {
+    const [rows]: any = await db.query(
+      "SELECT guides_id FROM guides WHERE guides_id = ?",
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "❌ ไม่พบไกด์" });
+    }
+
+    let hashedPassword = null;
+
+    if (guides_password) {
+      hashedPassword = await bcrypt.hash(guides_password, 10);
+    }
+
+    await db.query(
+      `UPDATE guides SET 
+        guides_name = ?,
+        guides_phonenumber = ?,
+        guides_email = ?,
+        guides_language = ?,
+        guides_facebook = ?,
+        guides_province = ?,
+        guides_maxcus = ?,
+        guides_pricepercusperday = ?,
+        guides_status = ?,
+        guides_password = COALESCE(?, guides_password)
+       WHERE guides_id = ?`,
+      [
+        guides_name,
+        guides_phonenumber,
+        guides_email,
+        guides_language,
+        guides_facebook,
+        guides_province,
+        guides_maxcus,
+        guides_pricepercusperday,
+        guides_status,
+        hashedPassword,
+        id
+      ]
+    );
+
+    return res.json({
+      message: "✅ แก้ไขข้อมูลไกด์สำเร็จ",
+      guides_id: id
+    });
+
+  } catch (err: any) {
+    return res.status(500).json({
+      message: "❌ Server Error",
+      error: err.message
+    });
+  }
+});
+
+//แก้ไขข้อมูลลูกค้า
+router.put("/customers/:id", requireSuperAdmin, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const {
+    cus_name,
+    cus_phonenumber,
+    cus_email,
+    cus_password
+  } = req.body;
+
+  try {
+    const [rows]: any = await db.query(
+      "SELECT cus_id FROM customers WHERE cus_id = ?",
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "❌ ไม่พบลูกค้า" });
+    }
+
+    let hashedPassword = null;
+
+    if (cus_password) {
+      hashedPassword = await bcrypt.hash(cus_password, 10);
+    }
+
+    await db.query(
+      `UPDATE customers SET 
+        cus_name = ?, 
+        cus_phonenumber = ?, 
+        cus_email = ?,
+        cus_password = COALESCE(?, cus_password)
+       WHERE cus_id = ?`,
+      [
+        cus_name,
+        cus_phonenumber,
+        cus_email,
+        hashedPassword,
+        id
+      ]
+    );
+
+    return res.json({
+      message: "✅ แก้ไขข้อมูลลูกค้าสำเร็จ",
+      cus_id: id
+    });
+
+  } catch (err: any) {
+    return res.status(500).json({
+      message: "❌ Server Error",
+      error: err.message
+    });
   }
 });
 
