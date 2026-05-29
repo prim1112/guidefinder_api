@@ -229,11 +229,22 @@ router.post("/verify-pin", async (req, res) => {
 
     const reset = rows[0];
 
+    // 🔥 FIX สำคัญ: check email ด้วย
+    const [user]: any = await db.execute(
+      `SELECT guides_email 
+       FROM guides 
+       WHERE guides_id = ? AND guides_email = ?`,
+      [reset.ref_user_id, email],
+    );
+
+    if (user.length === 0) {
+      return res.status(400).json({ message: "อีเมลไม่ตรงกับ PIN" });
+    }
+
     if (new Date(reset.expire_at) < new Date()) {
       return res.status(400).json({ message: "PIN หมดอายุแล้ว" });
     }
 
-    // mark verified (ยังไม่ใช้จริง)
     await db.execute(
       `UPDATE reset_password 
        SET is_used = 1 
@@ -258,6 +269,15 @@ router.post("/reset-password", async (req, res) => {
   const { reset_id, new_password } = req.body;
 
   try {
+    console.log("RESET_ID:", reset_id);
+    console.log("PASSWORD LENGTH:", new_password?.length);
+
+    if (!reset_id) {
+      return res.status(400).json({
+        message: "ไม่มี reset_id",
+      });
+    }
+
     if (!new_password || new_password.length < 6) {
       return res.status(400).json({
         message: "รหัสผ่านต้องอย่างน้อย 6 ตัวอักษร",
@@ -281,7 +301,7 @@ router.post("/reset-password", async (req, res) => {
 
     const hashed = await bcrypt.hash(new_password, 10);
 
-    // 👇 FIX: รองรับ 2 role
+    // ✔ guide
     if (user_type === "guide") {
       await db.execute(
         `UPDATE guides 
@@ -289,7 +309,9 @@ router.post("/reset-password", async (req, res) => {
          WHERE guides_id = ?`,
         [hashed, ref_user_id],
       );
-    } 
+    }
+
+    // ✔ customer
     else if (user_type === "customer") {
       await db.execute(
         `UPDATE customers 
@@ -302,9 +324,8 @@ router.post("/reset-password", async (req, res) => {
     return res.json({
       message: "เปลี่ยนรหัสผ่านสำเร็จ",
     });
-
   } catch (err: any) {
-    console.error(err);
+    console.error("RESET PASSWORD ERROR:", err);
     return res.status(500).json({
       message: "Server error",
       error: err.message,
