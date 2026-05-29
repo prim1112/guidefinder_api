@@ -5,23 +5,23 @@ export const sendResetEmail = async (email: string, pin: string) => {
     host: "smtp.gmail.com",
     port: 465,
     secure: true,
-    family: 4,
     auth: {
       user: "kawitsara47@gmail.com",
-      pass: "rmbh vnhj psro wupq",
+      pass: "rmbh vnhj psro wupq", // App Password
     },
   });
 
   try {
-    await transporter.sendMail({
-      from: '"Guide Finder" <yourgmail@gmail.com>',
+    const info = await transporter.sendMail({
+      from: '"Guide Finder" <kawitsara47@gmail.com>',
       to: email,
       subject: "Reset Password PIN",
       text: `รหัสรีเซ็ตรหัสผ่านของคุณคือ: ${pin}`,
     });
 
-    console.log("EMAIL SENT");
+    console.log("EMAIL SENT:", info.messageId);
   } catch (err) {
-    console.log("EMAIL ERROR:", err);
+    console.error("EMAIL FAILED:", err);
+    throw err; // 🔥 สำคัญมาก ต้องส่ง error กลับ
   }
 };
