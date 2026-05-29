@@ -272,15 +272,16 @@ router.post("/reset-password", async (req, res) => {
     );
 
     if (rows.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "คำขอไม่ถูกต้องหรือยังไม่ยืนยัน PIN" });
+      return res.status(400).json({
+        message: "คำขอไม่ถูกต้องหรือยังไม่ยืนยัน PIN",
+      });
     }
 
     const { ref_user_id, user_type } = rows[0];
 
     const hashed = await bcrypt.hash(new_password, 10);
 
+    // 👇 FIX: รองรับ 2 role
     if (user_type === "guide") {
       await db.execute(
         `UPDATE guides 
@@ -288,12 +289,22 @@ router.post("/reset-password", async (req, res) => {
          WHERE guides_id = ?`,
         [hashed, ref_user_id],
       );
+    } 
+    else if (user_type === "customer") {
+      await db.execute(
+        `UPDATE customers 
+         SET password = ? 
+         WHERE cus_id = ?`,
+        [hashed, ref_user_id],
+      );
     }
 
     return res.json({
       message: "เปลี่ยนรหัสผ่านสำเร็จ",
     });
+
   } catch (err: any) {
+    console.error(err);
     return res.status(500).json({
       message: "Server error",
       error: err.message,
