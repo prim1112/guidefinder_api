@@ -136,7 +136,6 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-
 // FORGOT PASSWORD
 router.post("/forgot-password", async (req: Request, res: Response) => {
   const { email } = req.body;
@@ -148,7 +147,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
 
     const [guideRows]: any = await db.execute(
       `SELECT guides_id FROM guides WHERE guides_email = ?`,
-      [email]
+      [email],
     );
 
     if (guideRows.length === 0) {
@@ -158,12 +157,12 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
     const userId = guideRows[0].guides_id;
     const userType = "guide";
 
-    // 🔥 ปิด reset เก่าก่อน (สำคัญ)
+    // ปิด reset เก่า
     await db.execute(
       `UPDATE reset_password 
        SET is_used = 1 
        WHERE ref_user_id = ? AND is_used = 0`,
-      [userId]
+      [userId],
     );
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -173,20 +172,34 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       .slice(0, 19)
       .replace("T", " ");
 
+    // insert ใหม่
     await db.execute(
       `INSERT INTO reset_password
       (ref_user_id, reset_code, user_type, expire_at, is_used)
       VALUES (?, ?, ?, ?, ?)`,
-      [userId, resetCode, userType, expireAt, 0]
+      [userId, resetCode, userType, expireAt, 0],
     );
 
-    sendResetEmail(email, resetCode)
-      .catch(err => console.log("EMAIL ERROR:", err));
+    // 🔥 FIX สำคัญ: ต้อง await + จับ error จริง
+    try {
+      console.log("SENDING EMAIL TO:", email);
+      console.log("RESET CODE:", resetCode);
+
+      await sendResetEmail(email, resetCode);
+
+      console.log("EMAIL SENT SUCCESS");
+    } catch (err: any) {
+      console.error("EMAIL FAILED:", err);
+
+      return res.status(500).json({
+        message: "ส่งอีเมลไม่สำเร็จ",
+        error: err.message,
+      });
+    }
 
     return res.status(200).json({
       message: "ส่ง PIN สำเร็จ",
     });
-
   } catch (err: any) {
     console.error(err);
     return res.status(500).json({
@@ -195,7 +208,6 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
     });
   }
 });
-
 
 // VERIFY PIN
 router.post("/verify-pin", async (req, res) => {
@@ -208,7 +220,7 @@ router.post("/verify-pin", async (req, res) => {
        WHERE reset_code = ? 
        AND is_used = 0
        ORDER BY reset_id DESC LIMIT 1`,
-      [pin]
+      [pin],
     );
 
     if (rows.length === 0) {
@@ -226,14 +238,13 @@ router.post("/verify-pin", async (req, res) => {
       `UPDATE reset_password 
        SET is_used = 1 
        WHERE reset_id = ?`,
-      [reset.reset_id]
+      [reset.reset_id],
     );
 
     return res.json({
       message: "OK",
       reset_id: reset.reset_id,
     });
-
   } catch (err: any) {
     return res.status(500).json({
       message: "Server error",
@@ -257,11 +268,13 @@ router.post("/reset-password", async (req, res) => {
       `SELECT ref_user_id, user_type 
        FROM reset_password 
        WHERE reset_id = ? AND is_used = 1`,
-      [reset_id]
+      [reset_id],
     );
 
     if (rows.length === 0) {
-      return res.status(400).json({ message: "คำขอไม่ถูกต้องหรือยังไม่ยืนยัน PIN" });
+      return res
+        .status(400)
+        .json({ message: "คำขอไม่ถูกต้องหรือยังไม่ยืนยัน PIN" });
     }
 
     const { ref_user_id, user_type } = rows[0];
@@ -273,14 +286,13 @@ router.post("/reset-password", async (req, res) => {
         `UPDATE guides 
          SET guides_password = ? 
          WHERE guides_id = ?`,
-        [hashed, ref_user_id]
+        [hashed, ref_user_id],
       );
     }
 
     return res.json({
       message: "เปลี่ยนรหัสผ่านสำเร็จ",
     });
-
   } catch (err: any) {
     return res.status(500).json({
       message: "Server error",
@@ -288,6 +300,5 @@ router.post("/reset-password", async (req, res) => {
     });
   }
 });
-
 
 export default router;
