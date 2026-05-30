@@ -4,7 +4,6 @@ import db from "../db/dbconnect";
 
 export const router = Router();
 
-
 // Middleware เช็ค role
 const requireAdmin = (req: Request, res: Response, next: Function) => {
   const role = (req as any).userRole;
@@ -22,16 +21,17 @@ const requireSuperAdmin = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-
 // GET: ดึงแอดมินทั้งหมด
 router.get("/", requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
-      "SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_role, admin_status FROM admin"
+      "SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_role, admin_status FROM admin",
     );
     return res.json({ message: "✅ สำเร็จ", data: rows });
   } catch (err: any) {
-    return res.status(500).json({ message: "❌ Server Error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "❌ Server Error", error: err.message });
   }
 });
 
@@ -41,7 +41,7 @@ router.get("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
       "SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_role, admin_status FROM admin WHERE admin_id = ?",
-      [id]
+      [id],
     );
 
     if (!rows.length) {
@@ -49,14 +49,21 @@ router.get("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
     }
     return res.json({ message: "✅ สำเร็จ", data: rows[0] });
   } catch (err: any) {
-    return res.status(500).json({ message: "❌ Server Error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "❌ Server Error", error: err.message });
   }
 });
 
-
 // POST: เพิ่มแอดมิน (superadmin)
 router.post("/", requireSuperAdmin, async (req: Request, res: Response) => {
-  const { admin_name, admin_phonenumber, admin_email, admin_password, admin_role } = req.body;
+  const {
+    admin_name,
+    admin_phonenumber,
+    admin_email,
+    admin_password,
+    admin_role,
+  } = req.body;
 
   if (!admin_name || !admin_email || !admin_password) {
     return res.status(400).json({ message: "❌ กรุณากรอกข้อมูลให้ครบ" });
@@ -65,7 +72,7 @@ router.post("/", requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const [existing]: any = await db.query(
       "SELECT admin_id FROM admin WHERE admin_email = ?",
-      [admin_email]
+      [admin_email],
     );
 
     if (existing.length > 0) {
@@ -83,7 +90,7 @@ router.post("/", requireSuperAdmin, async (req: Request, res: Response) => {
         admin_email,
         hashedPassword,
         admin_role || "admin",
-      ]
+      ],
     );
 
     return res.status(201).json({
@@ -91,64 +98,78 @@ router.post("/", requireSuperAdmin, async (req: Request, res: Response) => {
       admin_id: result.insertId,
     });
   } catch (err: any) {
-    return res.status(500).json({ message: "❌ Server Error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "❌ Server Error", error: err.message });
   }
 });
 
-
 // PUT: แก้ไขข้อมูลตัวเอง (superadmin)
-router.put("/profile/me", requireSuperAdmin, async (req: Request, res: Response) => {
-  const adminId = (req as any).userId; // รับ id จาก header
-  const { admin_name, admin_phonenumber, admin_email, admin_password } = req.body;
+router.put(
+  "/profile/me",
+  requireSuperAdmin,
+  async (req: Request, res: Response) => {
+    const adminId = (req as any).userId; // รับ id จาก header
+    const { admin_name, admin_phonenumber, admin_email, admin_password } =
+      req.body;
 
-  try {
-    const [existing]: any = await db.query(
-      "SELECT admin_id FROM admin WHERE admin_id = ?",
-      [adminId]
-    );
+    try {
+      const [existing]: any = await db.query(
+        "SELECT admin_id FROM admin WHERE admin_id = ?",
+        [adminId],
+      );
 
-    if (!existing.length) {
-      return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
-    }
+      if (!existing.length) {
+        return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
+      }
 
-    if (admin_password) {
-      const hashedPassword = await bcrypt.hash(admin_password, 10);
-      await db.query(
-        `UPDATE admin SET 
+      if (admin_password) {
+        const hashedPassword = await bcrypt.hash(admin_password, 10);
+        await db.query(
+          `UPDATE admin SET 
           admin_name = ?, 
           admin_phonenumber = ?, 
           admin_email = ?,
           admin_password = ?
          WHERE admin_id = ?`,
-        [admin_name, admin_phonenumber, admin_email, hashedPassword, adminId]
-      );
-    } else {
-      await db.query(
-        `UPDATE admin SET 
+          [admin_name, admin_phonenumber, admin_email, hashedPassword, adminId],
+        );
+      } else {
+        await db.query(
+          `UPDATE admin SET 
           admin_name = ?, 
           admin_phonenumber = ?, 
           admin_email = ?
          WHERE admin_id = ?`,
-        [admin_name, admin_phonenumber, admin_email, adminId]
-      );
+          [admin_name, admin_phonenumber, admin_email, adminId],
+        );
+      }
+
+      return res.json({ message: "✅ แก้ไขข้อมูลตัวเองสำเร็จ" });
+    } catch (err: any) {
+      return res
+        .status(500)
+        .json({ message: "❌ Server Error", error: err.message });
     }
-
-    return res.json({ message: "✅ แก้ไขข้อมูลตัวเองสำเร็จ" });
-  } catch (err: any) {
-    return res.status(500).json({ message: "❌ Server Error", error: err.message });
-  }
-});
-
+  },
+);
 
 // PUT: แก้ไขแอดมิน (superadmin)
 router.put("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { admin_name, admin_phonenumber, admin_email, admin_password, admin_role, admin_status } = req.body;
+  const {
+    admin_name,
+    admin_phonenumber,
+    admin_email,
+    admin_password,
+    admin_role,
+    admin_status,
+  } = req.body;
 
   try {
     const [existing]: any = await db.query(
       "SELECT admin_id FROM admin WHERE admin_id = ?",
-      [id]
+      [id],
     );
 
     if (!existing.length) {
@@ -166,7 +187,15 @@ router.put("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
           admin_status = ?,
           admin_password = ?
          WHERE admin_id = ?`,
-        [admin_name, admin_phonenumber, admin_email, admin_role, admin_status, hashedPassword, id]
+        [
+          admin_name,
+          admin_phonenumber,
+          admin_email,
+          admin_role,
+          admin_status,
+          hashedPassword,
+          id,
+        ],
       );
     } else {
       await db.query(
@@ -177,45 +206,57 @@ router.put("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
           admin_role = ?,
           admin_status = ?
          WHERE admin_id = ?`,
-        [admin_name, admin_phonenumber, admin_email, admin_role, admin_status, id]
+        [
+          admin_name,
+          admin_phonenumber,
+          admin_email,
+          admin_role,
+          admin_status,
+          id,
+        ],
       );
     }
 
     return res.json({ message: "✅ แก้ไขแอดมินสำเร็จ" });
   } catch (err: any) {
-    return res.status(500).json({ message: "❌ Server Error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "❌ Server Error", error: err.message });
   }
 });
-
 
 // DELETE: ลบแอดมิน (superadmin)
-router.delete("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
-  const { id } = req.params;
+router.delete("/:id", requireSuperAdmin, async (req: Request, res: Response) => { const { id } = req.params;
 
-  try {
-    const [existing]: any = await db.query(
-      "SELECT admin_id, admin_role FROM admin WHERE admin_id = ?",
-      [id]
-    );
+    try {
+      const [existing]: any = await db.query(
+        "SELECT admin_id, admin_role FROM admin WHERE admin_id = ?",
+        [id],
+      );
 
-    if (!existing.length) {
-      return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
+      if (!existing.length) {
+        return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
+      }
+
+      if (existing[0].admin_role === "superadmin") {
+        return res
+          .status(400)
+          .json({ message: "❌ ไม่สามารถลบ Superadmin ได้" });
+      }
+
+      await db.query("DELETE FROM admin WHERE admin_id = ?", [id]);
+
+      return res.json({ message: "✅ ลบแอดมินสำเร็จ" });
+    } catch (err: any) {
+      return res
+        .status(500)
+        .json({ message: "❌ Server Error", error: err.message });
     }
+  },
+);
 
-    if (existing[0].admin_role === "superadmin") {
-      return res.status(400).json({ message: "❌ ไม่สามารถลบ Superadmin ได้" });
-    }
-
-    await db.query("DELETE FROM admin WHERE admin_id = ?", [id]);
-
-    return res.json({ message: "✅ ลบแอดมินสำเร็จ" });
-  } catch (err: any) {
-    return res.status(500).json({ message: "❌ Server Error", error: err.message });
-  }
-});
-
-//แก้ไขข้อมูลไกด์
-router.put("/guides/:id", requireSuperAdmin, async (req: Request, res: Response) => {
+// แก้ไขข้อมูลไกด์
+router.put("/guides/:id", requireAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
 
   const {
@@ -228,38 +269,40 @@ router.put("/guides/:id", requireSuperAdmin, async (req: Request, res: Response)
     guides_province,
     guides_maxcus,
     guides_pricepercusperday,
-    guides_status
+    guides_status,
   } = req.body;
 
   try {
     const [rows]: any = await db.query(
       "SELECT guides_id FROM guides WHERE guides_id = ?",
-      [id]
+      [id],
     );
 
     if (!rows.length) {
-      return res.status(404).json({ message: "❌ ไม่พบไกด์" });
+      return res.status(404).json({
+        message: "❌ ไม่พบไกด์",
+      });
     }
 
     let hashedPassword = null;
 
-    if (guides_password) {
+    if (guides_password && guides_password.trim() !== "") {
       hashedPassword = await bcrypt.hash(guides_password, 10);
     }
 
     await db.query(
-      `UPDATE guides SET 
-        guides_name = ?,
-        guides_phonenumber = ?,
-        guides_email = ?,
-        guides_language = ?,
-        guides_facebook = ?,
-        guides_province = ?,
-        guides_maxcus = ?,
-        guides_pricepercusperday = ?,
-        guides_status = ?,
-        guides_password = COALESCE(?, guides_password)
-       WHERE guides_id = ?`,
+      `UPDATE guides SET
+          guides_name = ?,
+          guides_phonenumber = ?,
+          guides_email = ?,
+          guides_language = ?,
+          guides_facebook = ?,
+          guides_province = ?,
+          guides_maxcus = ?,
+          guides_pricepercusperday = ?,
+          guides_status = ?,
+          guides_password = COALESCE(?, guides_password)
+        WHERE guides_id = ?`,
       [
         guides_name,
         guides_phonenumber,
@@ -271,78 +314,72 @@ router.put("/guides/:id", requireSuperAdmin, async (req: Request, res: Response)
         guides_pricepercusperday,
         guides_status,
         hashedPassword,
-        id
-      ]
+        id,
+      ],
     );
 
-    return res.json({
+    return res.status(200).json({
+      success: true,
       message: "✅ แก้ไขข้อมูลไกด์สำเร็จ",
-      guides_id: id
+      guides_id: id,
     });
-
   } catch (err: any) {
     return res.status(500).json({
+      success: false,
       message: "❌ Server Error",
-      error: err.message
+      error: err.message,
     });
   }
 });
 
-//แก้ไขข้อมูลลูกค้า
-router.put("/customers/:id", requireSuperAdmin, async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const {
-    cus_name,
-    cus_phonenumber,
-    cus_email,
-    cus_password
-  } = req.body;
+// แก้ไขข้อมูลลูกค้า
+router.put("/customers/:id",requireAdmin, async (req: Request, res: Response) => { const { id } = req.params;
 
-  try {
-    const [rows]: any = await db.query(
-      "SELECT cus_id FROM customers WHERE cus_id = ?",
-      [id]
-    );
+    const { cus_name, cus_phonenumber, cus_email, cus_password } = req.body;
 
-    if (!rows.length) {
-      return res.status(404).json({ message: "❌ ไม่พบลูกค้า" });
+    try {
+      const [rows]: any = await db.query(
+        "SELECT cus_id FROM customers WHERE cus_id = ?",
+        [id],
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({
+          message: "❌ ไม่พบลูกค้า",
+        });
+      }
+
+      let hashedPassword = null;
+
+      if (cus_password && cus_password.trim() !== "") {
+        hashedPassword = await bcrypt.hash(cus_password, 10);
+      }
+
+      await db.query(
+        `UPDATE customers SET
+          cus_name = ?,
+          cus_phonenumber = ?,
+          cus_email = ?,
+          cus_password = COALESCE(?, cus_password)
+        WHERE cus_id = ?`,
+        [cus_name, cus_phonenumber, cus_email, hashedPassword, id],
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "✅ แก้ไขข้อมูลลูกค้าสำเร็จ",
+        cus_id: id,
+      });
+    } catch (err: any) {
+      console.error(err);
+
+      return res.status(500).json({
+        success: false,
+        message: "❌ Server Error",
+        error: err.message,
+      });
     }
-
-    let hashedPassword = null;
-
-    if (cus_password) {
-      hashedPassword = await bcrypt.hash(cus_password, 10);
-    }
-
-    await db.query(
-      `UPDATE customers SET 
-        cus_name = ?, 
-        cus_phonenumber = ?, 
-        cus_email = ?,
-        cus_password = COALESCE(?, cus_password)
-       WHERE cus_id = ?`,
-      [
-        cus_name,
-        cus_phonenumber,
-        cus_email,
-        hashedPassword,
-        id
-      ]
-    );
-
-    return res.json({
-      message: "✅ แก้ไขข้อมูลลูกค้าสำเร็จ",
-      cus_id: id
-    });
-
-  } catch (err: any) {
-    return res.status(500).json({
-      message: "❌ Server Error",
-      error: err.message
-    });
-  }
-});
-
-
+  },
+);
 
 export default router;
