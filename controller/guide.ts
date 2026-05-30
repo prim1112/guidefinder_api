@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import cloudinary from "../src/config/configCloud";
 import db from "../db/dbconnect";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
+import { sendGuideApprovedEmail, sendGuideRejectedEmail,} from "../services/mail.service";
 
 export const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -48,7 +49,6 @@ router.get("/province/:province", async (req: Request, res: Response) => {
   const province = req.params.province?.trim();
 
   try {
-
     // เช็ก province ว่าง
     if (!province) {
       return res.status(400).json({
@@ -78,9 +78,7 @@ router.get("/province/:province", async (req: Request, res: Response) => {
       count: rows.length,
       data: rows,
     });
-
   } catch (error: any) {
-
     console.error("GET GUIDE BY PROVINCE ERROR:", error);
 
     return res.status(500).json({
@@ -94,7 +92,6 @@ router.get("/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
   try {
-
     /// ✅ ดึงข้อมูลไกด์ก่อน
     const [guideRows]: any = await db.query(
       `
@@ -109,7 +106,7 @@ router.get("/:gid", async (req: Request, res: Response) => {
       FROM guides
       WHERE guides_id = ?
       `,
-      [gid]
+      [gid],
     );
 
     /// ❌ ไม่พบไกด์
@@ -142,7 +139,7 @@ router.get("/:gid", async (req: Request, res: Response) => {
       WHERE TRIM(l.location_province)
         = TRIM(?)
       `,
-      [guide.guides_province]
+      [guide.guides_province],
     );
 
     /// ✅ ส่งข้อมูลกลับ
@@ -152,24 +149,16 @@ router.get("/:gid", async (req: Request, res: Response) => {
         guides_name: guide.guides_name,
         guides_language: guide.guides_language,
         guides_province: guide.guides_province,
-        guides_imageprofile:
-          guide.guides_imageprofile,
-        guides_maxcus:
-          guide.guides_maxcus,
-        guides_pricepercusperday:
-          guide.guides_pricepercusperday,
+        guides_imageprofile: guide.guides_imageprofile,
+        guides_maxcus: guide.guides_maxcus,
+        guides_pricepercusperday: guide.guides_pricepercusperday,
 
         /// ✅ สถานที่ท่องเที่ยวทั้งหมด
         travels: travelRows,
       },
     });
-
   } catch (err: any) {
-
-    console.error(
-      "GUIDE DETAIL ERROR:",
-      err.message
-    );
+    console.error("GUIDE DETAIL ERROR:", err.message);
 
     return res.status(500).json({
       message: "server error",
@@ -294,53 +283,68 @@ router.post("/approve/:gid", async (req: Request, res: Response) => {
   try {
     await conn.beginTransaction();
 
-    // 1. ค้นหาในตาราง `guides` โดยใช้ Column `guides_id`
+    // ค้นหาข้อมูลไกด์
     const [rows]: any = await conn.query(
-      "SELECT * FROM `guides` WHERE `guides_id` = ?",
+      `SELECT guides_id,
+              guides_name,
+              guides_email
+       FROM guides
+       WHERE guides_id = ?`,
       [gid],
     );
 
     if (!rows.length) {
       await conn.rollback();
+
       return res.status(404).json({
-        message: `ไม่พบข้อมูลไกด์รหัส ${gid} ในระบบ`,
+        message: `ไม่พบข้อมูลไกด์รหัส ${gid}`,
       });
     }
 
-    // 2. อัปเดต guides_status เป็น 1 (อนุมัติ)
-    // ใช้ชื่อตาราง `guides` ให้ตรงกับที่คุณแจ้งมา
+    // อนุมัติไกด์
     await conn.query(
-      "UPDATE `guides` SET `guides_status` = 1 WHERE `guides_id` = ?",
+      `UPDATE guides
+       SET guides_status = 1
+       WHERE guides_id = ?`,
       [gid],
     );
 
+    // ส่งอีเมลแจ้งอนุมัติ
+    await sendGuideApprovedEmail(rows[0].guides_email, rows[0].guides_name);
+
     await conn.commit();
 
-    return res.json({
-      message: "อนุมัติไกด์สำเร็จแล้ว",
-      gid: gid,
+    return res.status(200).json({
+      message: "อนุมัติไกด์สำเร็จและส่งอีเมลแล้ว",
+      gid,
     });
   } catch (error: any) {
-    if (conn) await conn.rollback();
-    console.error("SQL Error:", error);
+    await conn.rollback();
+
+    console.error(error);
+
     return res.status(500).json({
       message: "Server Error",
-      error: error.sqlMessage || error.message,
+      error: error.message,
     });
   } finally {
-    if (conn) conn.release();
+    conn.release();
   }
 });
 
-// reject  guide_pending
+// ==================== REJECT GUIDE ====================
 router.put("/reject/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
   try {
-    // ตรวจสอบว่ามีไกด์อยู่จริง
+    // ค้นหาข้อมูลไกด์
     const [rows]: any = await db.query(
-      "SELECT guides_id FROM guides WHERE guides_id = ?",
-      [gid]
+      `SELECT guides_id,
+              guides_name,
+              guides_email
+       FROM guides
+       WHERE guides_id = ?`,
+      [gid],
     );
 
     if (!rows.length) {
@@ -349,18 +353,24 @@ router.put("/reject/:gid", async (req: Request, res: Response) => {
       });
     }
 
-    // ❗ เปลี่ยนเป็น "ไม่ผ่านการตรวจสอบ"
+    // เปลี่ยนสถานะเป็น Rejected
     await db.query(
-      "UPDATE guides SET guides_status = 2 WHERE guides_id = ?",
-      [gid]
+      `UPDATE guides
+       SET guides_status = 2
+       WHERE guides_id = ?`,
+      [gid],
     );
 
-    return res.json({
-      message: "ปฏิเสธการตรวจสอบไกด์แล้ว (Rejected)",
+    // ส่งอีเมลแจ้งไม่ผ่านการอนุมัติ
+    await sendGuideRejectedEmail(rows[0].guides_email, rows[0].guides_name);
+
+    return res.status(200).json({
+      message: "ปฏิเสธไกด์และส่งอีเมลแล้ว",
       gid,
     });
-
   } catch (error: any) {
+    console.error(error);
+
     return res.status(500).json({
       message: "Server Error",
       error: error.message,
@@ -475,15 +485,15 @@ router.put(
 
       // 1. [VALIDATION] เช็คข้อมูลที่ "จำเป็นต้องมี" (ตัดจังหวัดออกตามที่สั่ง)
       if (!guides_name || !guides_phonenumber || !guides_email) {
-        return res.status(400).json({ 
-          message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ, เบอร์โทร, อีเมล)" 
+        return res.status(400).json({
+          message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ, เบอร์โทร, อีเมล)",
         });
       }
 
       // 2. ตรวจสอบว่ามีไกด์คนนี้ในระบบไหม
       const [rows]: any = await db.query(
         "SELECT * FROM guides WHERE guides_id = ?",
-        [id]
+        [id],
       );
 
       if (!rows.length) {
@@ -508,7 +518,7 @@ router.put(
       if (req.file) {
         const result = await uploadToCloudinary(
           req.file.buffer,
-          "guides/profile"
+          "guides/profile",
         );
         imageUrl = result.secure_url;
       }
@@ -529,17 +539,16 @@ router.put(
           guides_phonenumber,
           guides_email,
           hashedPassword,
-          guides_facebook || null, 
+          guides_facebook || null,
           guides_language || null,
           imageUrl,
           id,
-        ]
+        ],
       );
 
       return res.json({
         message: "อัปเดตโปรไฟล์สำเร็จ",
       });
-
     } catch (error: any) {
       console.error("Update Error:", error);
       return res.status(500).json({
@@ -547,22 +556,20 @@ router.put(
         error: error.message,
       });
     }
-  }
+  },
 );
 
 //  DELETE GUIDE PROFILE
 router.delete("/profile/:id", async (req: Request, res: Response) => {
-
   const id = Number(req.params.id);
 
   try {
-
     // =========================
     // หา booking ของ guide
     // =========================
     const [bookings]: any = await db.query(
       "SELECT booking_queue_id FROM booking_queues WHERE ref_guid_id = ?",
-      [id]
+      [id],
     );
 
     console.log("BOOKING COUNT =>", bookings.length);
@@ -571,31 +578,25 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
     // ลบ review ก่อน
     // =========================
     for (const booking of bookings) {
-
-      await db.query(
-        "DELETE FROM review_guides WHERE booking_queue_id = ?",
-        [booking.booking_queue_id]
-      );
+      await db.query("DELETE FROM review_guides WHERE booking_queue_id = ?", [
+        booking.booking_queue_id,
+      ]);
     }
 
     // =========================
     // ลบ booking
     // =========================
-    await db.query(
-      "DELETE FROM booking_queues WHERE ref_guid_id = ?",
-      [id]
-    );
+    await db.query("DELETE FROM booking_queues WHERE ref_guid_id = ?", [id]);
 
     // =========================
     // ลบ guide
     // =========================
     const [result]: any = await db.query(
       "DELETE FROM guides WHERE guides_id = ?",
-      [id]
+      [id],
     );
 
     if (result.affectedRows === 0) {
-
       return res.status(404).json({
         message: "ไม่พบไกด์",
       });
@@ -604,9 +605,7 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
     return res.status(200).json({
       message: "ลบบัญชีสำเร็จ",
     });
-
   } catch (error: any) {
-
     console.error("DELETE ERROR =", error);
 
     return res.status(500).json({
@@ -617,6 +616,5 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
     });
   }
 });
-
 
 export default router;
