@@ -56,7 +56,7 @@ router.get("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
 });
 
 // POST: เพิ่มแอดมิน (superadmin)
-router.post("/", requireSuperAdmin, async (req: Request, res: Response) => {
+router.post("/admin", requireSuperAdmin, async (req: Request, res: Response) => {
   const {
     admin_name,
     admin_phonenumber,
@@ -155,7 +155,7 @@ router.put(
 );
 
 // PUT: แก้ไขแอดมิน (superadmin)
-router.put("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
+router.put("/edit:id", requireSuperAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   const {
     admin_name,
@@ -226,7 +226,7 @@ router.put("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
 });
 
 // DELETE: ลบแอดมิน (superadmin)
-router.delete("/:id", requireSuperAdmin, async (req: Request, res: Response) => { const { id } = req.params;
+router.delete("/delete:id", requireSuperAdmin, async (req: Request, res: Response) => { const { id } = req.params;
 
     try {
       const [existing]: any = await db.query(
