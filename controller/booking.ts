@@ -616,6 +616,59 @@ router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
   }
 });
 
+// START BOOKING (เริ่มทริป)
+router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
+  const bid = req.params.bid;
+
+  try {
+    // 1. ดึงสถานะปัจจุบัน
+    const [rows]: any = await db.query(
+      `
+      SELECT booking_status 
+      FROM booking_queues 
+      WHERE booking_queue_id = ?
+      `,
+      [bid]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        message: "ไม่พบรายการจอง",
+      });
+    }
+
+    const booking = rows[0];
+
+    // 2. เช็คต้องเป็น "รับงานแล้ว" เท่านั้น
+    // (ของคุณใช้ 1 = accepted)
+    if (booking.booking_status !== 1) {
+      return res.status(400).json({
+        message: "ยังเริ่มทริปไม่ได้ (ต้องรับงานก่อน)",
+      });
+    }
+
+    // 3. อัปเดตเป็น "กำลังทริป"
+    await db.query(
+      `
+      UPDATE booking_queues
+      SET booking_status = 2
+      WHERE booking_queue_id = ?
+      `,
+      [bid]
+    );
+
+    return res.json({
+      message: "เริ่มทริปแล้ว",
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
 // FINISH BOOKING
 
 router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
