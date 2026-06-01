@@ -3,8 +3,6 @@ import cors from "cors";
 
 import { createServer } from "http"; 
 import { Server } from "socket.io";
-// 🔒 คอมเมนต์ปิดการ Import ยามดักสิทธิ์ JWT ไว้ชั่วคราวสำหรับรอบสุดท้าย
-// import { verifyToken, isAdmin } from "./src/middleware/auth";
 
 import { router as index } from "./controller/index";
 import { router as customerRouter } from "./controller/customer";
@@ -43,19 +41,13 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ CORS
-const allowedOrigins = [
-  "http://127.0.0.1:5500",
-  "http://localhost:3000",
-  "https://guidefinder-api.onrender.com",
-];
-
+// ============================================================
+// 🔓 ปรับแก้ CORS ตรงนี้: อนุญาตให้ทุก Origin (*) ยิงเข้ามาได้เลยชั่วคราว
+// ป้องกันไม่ให้บล็อก Emulator ตัวใหม่จนพ่นหน้า HTML กลับไป
+// ============================================================
 app.use(
   cors({
-    origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes(origin)) cb(null, true);
-      else cb(new Error("Not allowed by CORS"));
-    },
+    origin: "*", 
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
@@ -69,9 +61,7 @@ app.use(express.urlencoded({ limit: "100mb", extended: true }));
 app.use("/", index);
 app.use("/auth", loginRouter);
 
-// ------------------------------------------------------------
 // 🛠️ ปรับเปลี่ยนตรงนี้สำหรับรอบสุดท้าย (คอมเมนต์ JWT ออกแล้วให้วิ่งเข้าตรงๆ)
-// ------------------------------------------------------------
 // app.use("/admin", verifyToken, isAdmin, adminRouter); // 🔒 ปิดยามตรวจตั๋ว JWT
 app.use("/admin", adminRouter);                         // 🚀 เปิดทางสว่างให้ Flutter ยิงเข้าตรงๆ ได้ทันที
 
@@ -82,9 +72,5 @@ app.use("/auth", loginRouter);
 app.use("/package", packageRouter);
 app.use("/location", locationRouter);
 app.use("/booking", bookingRouter);
-
-// app.use("/", (req, res) => {
-//   res.send("Hello World!!!");
-// });
 
 export default app;
