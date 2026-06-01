@@ -111,15 +111,8 @@ router.get("/booking", async (req: Request, res: Response) => {
 router.post("/booking", async (req: Request, res: Response) => {
   console.log(req.body);
 
-  const {
-    gid,
-    cid,
-    travel_id,
-    people,
-    start_date,
-    end_date,
-    total_price,
-  } = req.body;
+  const { gid, cid, travel_id, people, start_date, end_date, total_price } =
+    req.body;
 
   try {
     await db.query("START TRANSACTION");
@@ -144,7 +137,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     // ================= CHECK GUIDE =================
     const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid]
+      [gid],
     );
 
     if (guideRows.length === 0) {
@@ -158,7 +151,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     // ================= CHECK CUSTOMER =================
     const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid]
+      [cid],
     );
 
     if (cusRows.length === 0) {
@@ -172,7 +165,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     // ================= MAP LOCATION =================
     const [travelRows]: any = await db.query(
       `SELECT id FROM location_travel WHERE location_id = ?`,
-      [travel_id]
+      [travel_id],
     );
 
     if (travelRows.length === 0) {
@@ -206,7 +199,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       )
       LIMIT 1
       `,
-      [gid, start, end]
+      [gid, start, end],
     );
 
     if (duplicate.length > 0) {
@@ -232,16 +225,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
-      [
-        gid,
-        cid,
-        refTravelId,
-        start,
-        end,
-        people,
-        total_price,
-        0,
-      ]
+      [gid, cid, refTravelId, start, end, people, total_price, 0],
     );
 
     await db.query("COMMIT");
@@ -263,14 +247,12 @@ router.post("/booking", async (req: Request, res: Response) => {
 });
 
 // GET UNAVAILABLE DATE
-router.get(
-  "/booking/unavailable/:gid",
-  async (req: Request, res: Response) => {
-    const gid = Number(req.params.gid);
+router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
+  const gid = Number(req.params.gid);
 
-    try {
-      const [rows]: any = await db.query(
-        `
+  try {
+    const [rows]: any = await db.query(
+      `
         SELECT 
           booking_start_date,
           booking_end_date,
@@ -279,21 +261,20 @@ router.get(
         WHERE ref_guid_id = ?
         AND booking_status = 1
         `,
-        [gid]
-      );
+      [gid],
+    );
 
-      return res.status(200).json({
-        message: "ดึงวันไม่ว่างสำเร็จ",
-        data: rows,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        message: "Server Error",
-        error: error.message,
-      });
-    }
+    return res.status(200).json({
+      message: "ดึงวันไม่ว่างสำเร็จ",
+      data: rows,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
   }
-);
+});
 
 // CUSTOMER BOOKING
 router.get("/booking/customer/:id", async (req: Request, res: Response) => {
@@ -627,7 +608,7 @@ router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
       FROM booking_queues 
       WHERE booking_queue_id = ?
       `,
-      [bid]
+      [bid],
     );
 
     if (rows.length === 0) {
@@ -650,13 +631,12 @@ router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
       SET booking_status = 3
       WHERE booking_queue_id = ?
       `,
-      [bid]
+      [bid],
     );
 
     return res.json({
       message: "เริ่มทริปแล้ว",
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
@@ -677,12 +657,9 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
       SELECT 
         b.ref_cus_id AS tourist_id, 
         lt.travel_name AS attraction_name 
-
       FROM booking_queues b
-
       INNER JOIN location_travel lt 
         ON b.ref_travel_id = lt.id
-
       WHERE b.booking_queue_id = ?
       `,
       [bid],
@@ -696,10 +673,11 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
 
     const { tourist_id, attraction_name } = bookingDetails[0];
 
+    // ✅ แก้ไข: เปลี่ยนจาก SET booking_status = 3 เป็นเลข 4 เพื่อส่งไปหน้าจบทริป
     const [result]: any = await db.query(
       `
       UPDATE booking_queues
-      SET booking_status = 3
+      SET booking_status = 4
       WHERE booking_queue_id = ?
       `,
       [bid],
