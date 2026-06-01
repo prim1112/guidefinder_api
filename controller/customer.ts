@@ -128,34 +128,6 @@ router.post(
   },
 );
 
-router.delete("/admin/account/:id", async (req: Request, res: Response) => {
-  try {
-    const id = Number(req.params.id);
-
-    // role ของคน login
-    const { cus_role } = req.body;
-
-    // อนุญาตเฉพาะ admin
-    if (cus_role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        message: "เฉพาะแอดมินเท่านั้น",
-      });
-    }
-
-    await db.query("DELETE FROM customers WHERE cus_id = ?", [id]);
-
-    res.json({
-      success: true,
-      message: "แอดมินลบบัญชีสำเร็จ",
-    });
-  } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
-});
 
 // ✏️ UPDATE PROFILE
 router.put( "/profile/:id", upload.single("cus_imageprofile"),
