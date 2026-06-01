@@ -621,7 +621,6 @@ router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
 
   try {
-    // 1. ดึงสถานะปัจจุบัน
     const [rows]: any = await db.query(
       `
       SELECT booking_status 
@@ -632,26 +631,23 @@ router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({
-        message: "ไม่พบรายการจอง",
-      });
+      return res.status(404).json({ message: "ไม่พบรายการจอง" });
     }
 
     const booking = rows[0];
 
-    // 2. เช็คต้องเป็น "รับงานแล้ว" เท่านั้น
-    // (ของคุณใช้ 1 = accepted)
+    // ต้องเป็นรับงานแล้วเท่านั้น
     if (booking.booking_status !== 1) {
       return res.status(400).json({
         message: "ยังเริ่มทริปไม่ได้ (ต้องรับงานก่อน)",
       });
     }
 
-    // 3. อัปเดตเป็น "กำลังทริป"
+    // ✅ เปลี่ยนเป็น 3 = เริ่มทริป (ให้ตรง Flutter)
     await db.query(
       `
       UPDATE booking_queues
-      SET booking_status = 2
+      SET booking_status = 3
       WHERE booking_queue_id = ?
       `,
       [bid]
