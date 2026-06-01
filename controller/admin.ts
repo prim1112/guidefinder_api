@@ -4,7 +4,7 @@ import db from "../db/dbconnect";
 
 export const router = Router();
 
-// Middleware เช็ค role
+/*// Middleware เช็ค role
 const requireAdmin = (req: Request, res: Response, next: Function) => {
   console.log("ROLE =", (req as any).userRole);
 
@@ -25,10 +25,10 @@ const requireSuperAdmin = (req: Request, res: Response, next: Function) => {
     return res.status(403).json({ message: "❌ ต้องเป็น Superadmin เท่านั้น" });
   }
   next();
-};
+};*/
 
 // GET: ดึงแอดมินทั้งหมด
-router.get("/", requireSuperAdmin, async (req: Request, res: Response) => {
+router.get("/alladmin", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
       "SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_role, admin_status FROM admin",
@@ -42,7 +42,7 @@ router.get("/", requireSuperAdmin, async (req: Request, res: Response) => {
 });
 
 // GET: ดึงแอดมินตาม ID
-router.get("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
+router.get("/admin/:id",  async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const [rows]: any = await db.query(
@@ -63,9 +63,7 @@ router.get("/:id", requireSuperAdmin, async (req: Request, res: Response) => {
 
 // POST: เพิ่มแอดมิน (superadmin)
 router.post(
-  "/admin",
-  requireSuperAdmin,
-  async (req: Request, res: Response) => {
+  "/aad/admin", async (req: Request, res: Response) => {
     const {
       admin_name,
       admin_phonenumber,
@@ -116,9 +114,7 @@ router.post(
 
 // PUT: แก้ไขข้อมูลตัวเอง (superadmin)
 router.put(
-  "/profile/me",
-  requireSuperAdmin,
-  async (req: Request, res: Response) => {
+  "/profile/me", async (req: Request, res: Response) => {
     const adminId = (req as any).userId; // รับ id จาก header
     const { admin_name, admin_phonenumber, admin_email, admin_password } =
       req.body;
@@ -166,9 +162,7 @@ router.put(
 
 // PUT: แก้ไขแอดมิน (superadmin)
 router.put(
-  "/edit:id",
-  requireSuperAdmin,
-  async (req: Request, res: Response) => {
+  "/edit:id", async (req: Request, res: Response) => {
     const { id } = req.params;
     const {
       admin_name,
@@ -241,9 +235,7 @@ router.put(
 
 // DELETE: ลบแอดมิน (superadmin)
 router.delete(
-  "/delete:id",
-  requireSuperAdmin,
-  async (req: Request, res: Response) => {
+  "/delete:id", async (req: Request, res: Response) => {
     const { id } = req.params;
 
     try {
@@ -274,7 +266,7 @@ router.delete(
 );
 
 // แก้ไขข้อมูลไกด์
-router.put("/guides/:id", requireAdmin, async (req: Request, res: Response) => {
+router.put("/guides/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
   const {
@@ -352,7 +344,8 @@ router.put("/guides/:id", requireAdmin, async (req: Request, res: Response) => {
 
 // แก้ไขข้อมูลลูกค้า
 router.put(
-  "/customers/:id", requireAdmin, async (req: Request, res: Response) => {
+  "/customers/:id",
+  async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -391,6 +384,7 @@ router.put(
 
       if (!rows.length) {
         return res.status(404).json({
+          success: false,
           message: "❌ ไม่พบลูกค้า",
         });
       }
