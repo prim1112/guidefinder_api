@@ -352,8 +352,7 @@ router.put("/guides/:id", requireAdmin, async (req: Request, res: Response) => {
 
 // แก้ไขข้อมูลลูกค้า
 router.put(
-  "/customers/:id",
-  async (req: Request, res: Response) => {
+  "/customers/:id", requireAdmin, async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -369,6 +368,18 @@ router.put(
       return res.status(403).json({
         success: false,
         message: "❌ ไม่มีสิทธิ์เข้าถึง",
+      });
+    }
+
+    // ตรวจข้อมูลบังคับ
+    if (
+      !cus_name?.trim() ||
+      !cus_phonenumber?.trim() ||
+      !cus_email?.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "❌ กรุณากรอกข้อมูลให้ครบถ้วน",
       });
     }
 
