@@ -427,10 +427,9 @@ router.delete("/account/:id", async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 
-    // role ของคนที่ล็อกอินเข้ามาและกดสั่งลบ
     const { cus_role } = req.body;
 
-    // 🚀 แก้ไขเงื่อนไข: อนุญาตให้ทั้ง admin และ superadmin สามารถกดลบได้
+    // 🚀 อนุญาตให้ทั้ง admin และ superadmin สามารถกดลบได้
     if (cus_role !== "admin" && cus_role !== "superadmin") {
       return res.status(403).json({
         success: false,
@@ -438,15 +437,21 @@ router.delete("/account/:id", async (req: Request, res: Response) => {
       });
     }
 
-    // สั่งลบข้อมูลใน Database
+    // 1. ลบคิวการจอง (ตัดปัญหา Foreign Key Fail)
+    // สั่งล้างข้อมูลการจองทั้งหมดที่ติดสัญญากับลูกค้ารายนี้ออกไปก่อน
+    await db.query("DELETE FROM booking_queues WHERE ref_cus_id = ?", [id]);
+
+    // 2. ลบบัญชีลูกค้าหลัก
+    // เมื่อไม่มีตารางอื่นผูกมัดแล้ว บรรทัดนี้จะทำงานผ่านฉลุย 100%
     await db.query("DELETE FROM customers WHERE cus_id = ?", [id]);
 
-    // 💡 สำคัญมาก: เปลี่ยนคีย์ชื่อ "message" ให้ตรงกับที่ Flutter รอแกะ (Flutter ใช้ data["message"])
+    // ตอบกลับไปหา Flutter แบบสำเร็จ
     res.json({
       success: true,
-      message: "✅ แอดมินลบบัญชีสำเร็จ",
+      message: "✅ แอดมินลบบัญชีและล้างประวัติการจองสำเร็จ",
     });
   } catch (err: any) {
+    console.error("Delete Customer Error:", err);
     res.status(500).json({
       success: false,
       message: err.message,
