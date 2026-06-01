@@ -158,9 +158,7 @@ router.delete("/admin/account/:id", async (req: Request, res: Response) => {
 });
 
 // ✏️ UPDATE PROFILE
-router.put(
-  "/profile/:id",
-  upload.single("cus_imageprofile"),
+router.put( "/profile/:id", upload.single("cus_imageprofile"),
   async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);

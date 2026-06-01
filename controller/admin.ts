@@ -333,9 +333,17 @@ router.put("/guides/:id", requireAdmin, async (req: Request, res: Response) => {
 });
 
 // แก้ไขข้อมูลลูกค้า
-router.put("/customers/:id",requireAdmin, async (req: Request, res: Response) => { const { id } = req.params;
-
-    const { cus_name, cus_phonenumber, cus_email, cus_password } = req.body;
+router.put(
+  "/customers/:id",
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const {
+      cus_name,
+      cus_phonenumber,
+      cus_email,
+      cus_password,
+    } = req.body;
 
     try {
       const [rows]: any = await db.query(
@@ -362,17 +370,20 @@ router.put("/customers/:id",requireAdmin, async (req: Request, res: Response) =>
           cus_email = ?,
           cus_password = COALESCE(?, cus_password)
         WHERE cus_id = ?`,
-        [cus_name, cus_phonenumber, cus_email, hashedPassword, id],
+        [
+          cus_name,
+          cus_phonenumber,
+          cus_email,
+          hashedPassword,
+          id,
+        ],
       );
 
       return res.status(200).json({
         success: true,
         message: "✅ แก้ไขข้อมูลลูกค้าสำเร็จ",
-        cus_id: id,
       });
     } catch (err: any) {
-      console.error(err);
-
       return res.status(500).json({
         success: false,
         message: "❌ Server Error",
