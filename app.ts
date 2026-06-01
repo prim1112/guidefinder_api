@@ -3,6 +3,7 @@ import cors from "cors";
 
 import { createServer } from "http"; 
 import { Server } from "socket.io";
+import { verifyToken, isAdmin } from "./src/middleware/auth";
 
 import { router as index } from "./controller/index";
 import { router as customerRouter } from "./controller/customer";
@@ -65,7 +66,9 @@ app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 app.use("/", index);
-app.use("/admin", adminRouter);
+app.use("/auth", loginRouter);
+app.use("/admin", verifyToken, isAdmin, adminRouter);
+//app.use("/admin", adminRouter);
 app.use("/customer", customerRouter);
 app.use("/customer", index);
 app.use("/guide", guideRouter);

@@ -422,7 +422,7 @@ router.put("/customers/:id", async (req: Request, res: Response) => {
   },
 );
 
-router.delete("/account/:id", async (req: Request, res: Response) => {
+router.delete("/admin/account/:id", async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 

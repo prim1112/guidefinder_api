@@ -4,8 +4,11 @@ import db from "../db/dbconnect";
 import { RowDataPacket } from "mysql2";
 import crypto from "crypto";
 import { sendResetEmail } from "../services/mail.service";
+import jwt from "jsonwebtoken";
 
 export const router = Router();
+
+const SECRET_KEY = process.env.JWT_SECRET || "SUPER_SECRET_KEY_DO_NOT_SHARE";
 
 // helper เช็ค password (รองรับ hash + plain)
 async function checkPassword(input: string, stored: string) {
@@ -104,18 +107,23 @@ router.post("/login", async (req: Request, res: Response) => {
 
     if (adminRows.length > 0) {
       const admin = adminRows[0] as any;
-
       const isValid = await checkPassword(password, admin.admin_password);
 
       if (!isValid) {
-        return res.status(401).json({
-          message: "❌ รหัสผ่านไม่ถูกต้อง",
-        });
+        return res.status(401).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
       }
+
+      // สร้างตั๋ว JWT แก่ Admin (ใช้ค่าสิทธิ์ดึงมาจากฟิลด์ admin_role ตรงๆ)
+      const token = jwt.sign(
+        { userId: admin.admin_id, role: admin.admin_role },
+        SECRET_KEY,
+        { expiresIn: "1d" }
+      );
 
       return res.json({
         message: `✅ Login สำเร็จ (${admin.admin_role})`,
-        role: admin.admin_role, // ✅ ส่ง 'admin' หรือ 'superadmin' ตาม DB
+        role: admin.admin_role,
+        token: token, // 👈 ส่ง Token กลับไปให้เว็บ/แอปแอดมิน
         user: {
           id: admin.admin_id,
           name: admin.admin_name,
@@ -124,15 +132,10 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    return res.status(404).json({
-      message: "❌ ไม่พบบัญชีนี้",
-    });
+    return res.status(404).json({ message: "❌ ไม่พบบัญชีนี้" });
   } catch (err: any) {
     console.error("Login Error:", err);
-
-    return res.status(500).json({
-      message: "❌ Server Error",
-    });
+    return res.status(500).json({ message: "❌ Server Error" });
   }
 });
 
