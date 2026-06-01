@@ -422,26 +422,29 @@ router.put("/customers/:id", async (req: Request, res: Response) => {
   },
 );
 
-router.delete("/admin/account/:id", async (req: Request, res: Response) => {
+
+router.delete("/account/:id", async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 
-    // role ของคน login
+    // role ของคนที่ล็อกอินเข้ามาและกดสั่งลบ
     const { cus_role } = req.body;
 
-    // อนุญาตเฉพาะ admin
-    if (cus_role !== "admin") {
+    // 🚀 แก้ไขเงื่อนไข: อนุญาตให้ทั้ง admin และ superadmin สามารถกดลบได้
+    if (cus_role !== "admin" && cus_role !== "superadmin") {
       return res.status(403).json({
         success: false,
-        message: "เฉพาะแอดมินเท่านั้น",
+        message: "❌ เฉพาะแอดมินหรือซูเปอร์แอดมินเท่านั้น",
       });
     }
 
+    // สั่งลบข้อมูลใน Database
     await db.query("DELETE FROM customers WHERE cus_id = ?", [id]);
 
+    // 💡 สำคัญมาก: เปลี่ยนคีย์ชื่อ "message" ให้ตรงกับที่ Flutter รอแกะ (Flutter ใช้ data["message"])
     res.json({
       success: true,
-      message: "แอดมินลบบัญชีสำเร็จ",
+      message: "✅ แอดมินลบบัญชีสำเร็จ",
     });
   } catch (err: any) {
     res.status(500).json({
