@@ -2,7 +2,6 @@ import { Request, Response, Router } from "express";
 import bcrypt from "bcrypt";
 import db from "../db/dbconnect";
 import { RowDataPacket } from "mysql2";
-import crypto from "crypto";
 import { sendResetEmail } from "../services/mail.service";
 import jwt from "jsonwebtoken";
 
@@ -10,14 +9,22 @@ export const router = Router();
 
 const SECRET_KEY = process.env.JWT_SECRET || "SUPER_SECRET_KEY_DO_NOT_SHARE";
 
-// helper เช็ค password (รองรับ hash + plain)
-async function checkPassword(input: string, stored: string) {
-  if (stored.startsWith("$2b$")) {
-    return await bcrypt.compare(input, stored);
-  }
-  return input === stored;
-}
 
+// ============================
+// 🔐 JWT HELPER
+// ============================
+const createToken = (userId: number, role: string) => {
+  return jwt.sign(
+    { userId, role },
+    SECRET_KEY,
+    { expiresIn: "1d" }
+  );
+};
+
+
+// ============================
+// 🔑 LOGIN (ALL ROLES)
+// ============================
 router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -28,10 +35,10 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    // 1. CUSTOMER
+    // ================= CUSTOMER =================
     const [customerRows] = await db.execute<RowDataPacket[]>(
       "SELECT * FROM customers WHERE cus_email = ?",
-      [email],
+      [email]
     );
 
     if (customerRows.length > 0) {
@@ -40,14 +47,15 @@ router.post("/login", async (req: Request, res: Response) => {
       const isValid = await bcrypt.compare(password, user.cus_password);
 
       if (!isValid) {
-        return res.status(401).json({
-          message: "❌ รหัสผ่านไม่ถูกต้อง",
-        });
+        return res.status(401).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
       }
 
+      const token = createToken(user.cus_id, "customer");
+
       return res.json({
-        message: "✅ Login สำเร็จ (Customer)",
-        role: "customers",
+        message: "Login สำเร็จ (Customer)",
+        role: "customer",
+        token,
         user: {
           id: user.cus_id,
           name: user.cus_name,
@@ -57,38 +65,36 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    // 2. GUIDE
+
+    // ================= GUIDE =================
     const [guideRows] = await db.execute<RowDataPacket[]>(
       "SELECT * FROM guides WHERE guides_email = ?",
-      [email],
+      [email]
     );
 
     if (guideRows.length > 0) {
       const guide = guideRows[0] as any;
 
       if (guide.guides_status === 0) {
-        return res.status(403).json({
-          message: "⏳ บัญชีรออนุมัติจากแอดมิน",
-        });
+        return res.status(403).json({ message: "⏳ รออนุมัติ" });
       }
 
       if (guide.guides_status === 2) {
-        return res.status(403).json({
-          message: "❌ บัญชีถูกปฏิเสธ",
-        });
+        return res.status(403).json({ message: "❌ ถูกปฏิเสธ" });
       }
 
       const isValid = await bcrypt.compare(password, guide.guides_password);
 
       if (!isValid) {
-        return res.status(401).json({
-          message: "❌ รหัสผ่านไม่ถูกต้อง",
-        });
+        return res.status(401).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
       }
 
+      const token = createToken(guide.guides_id, "guide");
+
       return res.json({
-        message: "✅ Login สำเร็จ (Guide)",
+        message: "Login สำเร็จ (Guide)",
         role: "guide",
+        token,
         user: {
           id: guide.guides_id,
           name: guide.guides_name,
@@ -98,32 +104,29 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    // 3. ADMIN
 
+    // ================= ADMIN / SUPERADMIN =================
     const [adminRows] = await db.execute<RowDataPacket[]>(
       "SELECT * FROM admin WHERE admin_email = ? LIMIT 1",
-      [email],
+      [email]
     );
 
     if (adminRows.length > 0) {
       const admin = adminRows[0] as any;
-      const isValid = await checkPassword(password, admin.admin_password);
+
+      const isValid = await bcrypt.compare(password, admin.admin_password);
 
       if (!isValid) {
         return res.status(401).json({ message: "❌ รหัสผ่านไม่ถูกต้อง" });
       }
 
-      // สร้างตั๋ว JWT แก่ Admin (ใช้ค่าสิทธิ์ดึงมาจากฟิลด์ admin_role ตรงๆ)
-      const token = jwt.sign(
-        { userId: admin.admin_id, role: admin.admin_role },
-        SECRET_KEY,
-        { expiresIn: "1d" }
-      );
+      const role = admin.admin_role; // "admin" | "superadmin"
+      const token = createToken(admin.admin_id, role);
 
       return res.json({
-        message: `✅ Login สำเร็จ (${admin.admin_role})`,
-        role: admin.admin_role,
-        token: token, // 👈 ส่ง Token กลับไปให้เว็บ/แอปแอดมิน
+        message: `Login สำเร็จ (${role})`,
+        role: role,
+        token,
         user: {
           id: admin.admin_id,
           name: admin.admin_name,
@@ -133,14 +136,18 @@ router.post("/login", async (req: Request, res: Response) => {
     }
 
     return res.status(404).json({ message: "❌ ไม่พบบัญชีนี้" });
+
   } catch (err: any) {
     console.error("Login Error:", err);
     return res.status(500).json({ message: "❌ Server Error" });
   }
 });
 
-// FORGOT PASSWORD
-router.post("/forgot-password", async (req, res) => {
+
+// ============================
+// 🔐 FORGOT PASSWORD
+// ============================
+router.post("/forgot-password", async (req: Request, res: Response) => {
   const { email } = req.body;
 
   try {
@@ -171,7 +178,7 @@ router.post("/forgot-password", async (req, res) => {
       .slice(0, 19)
       .replace("T", " ");
 
-    const [result]: any = await db.execute(
+    await db.execute(
       `INSERT INTO reset_password (ref_user_id, reset_code, user_type, expire_at, is_used)
        VALUES (?, ?, ?, ?, ?)`,
       [userId, resetCode, "guide", expireAt, 0]
@@ -179,9 +186,7 @@ router.post("/forgot-password", async (req, res) => {
 
     await sendResetEmail(email, resetCode);
 
-    return res.json({
-      message: "ส่ง PIN สำเร็จ",
-    });
+    return res.json({ message: "ส่ง PIN สำเร็จ" });
 
   } catch (err: any) {
     return res.status(500).json({
@@ -191,8 +196,11 @@ router.post("/forgot-password", async (req, res) => {
   }
 });
 
-// VERIFY PIN
-router.post("/verify-pin", async (req, res) => {
+
+// ============================
+// 🔐 VERIFY PIN
+// ============================
+router.post("/verify-pin", async (req: Request, res: Response) => {
   const { pin } = req.body;
 
   try {
@@ -210,7 +218,7 @@ router.post("/verify-pin", async (req, res) => {
     const reset = rows[0];
 
     if (new Date(reset.expire_at) < new Date()) {
-      return res.status(400).json({ message: "PIN หมดอายุแล้ว" });
+      return res.status(400).json({ message: "PIN หมดอายุ" });
     }
 
     await db.execute(
@@ -220,7 +228,7 @@ router.post("/verify-pin", async (req, res) => {
 
     return res.json({
       message: "OK",
-      reset_id: reset.reset_id, // ⭐ สำคัญมาก
+      reset_id: reset.reset_id,
     });
 
   } catch (err: any) {
@@ -231,14 +239,17 @@ router.post("/verify-pin", async (req, res) => {
   }
 });
 
-//reset-password
-router.post("/reset-password", async (req, res) => {
+
+// ============================
+// 🔐 RESET PASSWORD
+// ============================
+router.post("/reset-password", async (req: Request, res: Response) => {
   const { reset_id, new_password } = req.body;
 
   try {
     if (!new_password || new_password.length < 6) {
       return res.status(400).json({
-        message: "รหัสผ่านต้องอย่างน้อย 6 ตัวอักษร",
+        message: "รหัสผ่านต้องอย่างน้อย 6 ตัว",
       });
     }
 
@@ -250,9 +261,7 @@ router.post("/reset-password", async (req, res) => {
     );
 
     if (rows.length === 0) {
-      return res.status(400).json({
-        message: "คำขอไม่ถูกต้อง",
-      });
+      return res.status(400).json({ message: "คำขอไม่ถูกต้อง" });
     }
 
     const { ref_user_id, user_type } = rows[0];
