@@ -353,10 +353,24 @@ router.put("/guides/:id", requireAdmin, async (req: Request, res: Response) => {
 // แก้ไขข้อมูลลูกค้า
 router.put(
   "/customers/:id",
-  requireAdmin,
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { cus_name, cus_phonenumber, cus_email, cus_password } = req.body;
+
+    const {
+      cus_name,
+      cus_phonenumber,
+      cus_email,
+      cus_password,
+      role,
+    } = req.body;
+
+    // ตรวจสิทธิ์
+    if (role !== "admin" && role !== "superadmin") {
+      return res.status(403).json({
+        success: false,
+        message: "❌ ไม่มีสิทธิ์เข้าถึง",
+      });
+    }
 
     try {
       const [rows]: any = await db.query(
@@ -383,7 +397,13 @@ router.put(
           cus_email = ?,
           cus_password = COALESCE(?, cus_password)
         WHERE cus_id = ?`,
-        [cus_name, cus_phonenumber, cus_email, hashedPassword, id],
+        [
+          cus_name,
+          cus_phonenumber,
+          cus_email,
+          hashedPassword,
+          id,
+        ],
       );
 
       return res.status(200).json({
@@ -393,8 +413,7 @@ router.put(
     } catch (err: any) {
       return res.status(500).json({
         success: false,
-        message: "❌ Server Error",
-        error: err.message,
+        message: err.message,
       });
     }
   },
