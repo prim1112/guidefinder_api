@@ -3,12 +3,27 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+console.log("EMAIL_USER =", process.env.EMAIL_USER);
+console.log(
+  "EMAIL_PASS =",
+  process.env.EMAIL_PASS ? "FOUND" : "NOT FOUND"
+);
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+});
+
+// เช็ค SMTP ตอน Server Start
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("SMTP ERROR =", error);
+  } else {
+    console.log("SMTP READY");
+  }
 });
 
 // ส่ง PIN รีเซ็ตรหัสผ่าน
@@ -47,17 +62,24 @@ export const sendGuideApprovedEmail = async (
   email: string,
   guideName: string
 ) => {
-  return await transporter.sendMail({
-    from: `"Guide Finder" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "บัญชีมัคคุเทศก์ได้รับการอนุมัติแล้ว",
-    html: `
-      <h2>ยินดีด้วย!</h2>
-      <p>สวัสดี ${guideName}</p>
-      <p>บัญชีมัคคุเทศก์ของคุณได้รับการอนุมัติเรียบร้อยแล้ว</p>
-      <p>ขณะนี้คุณสามารถเข้าสู่ระบบและเริ่มรับงานนำเที่ยวได้</p>
-    `,
-  });
+  try {
+    const result = await transporter.sendMail({
+      from: `"Guide Finder" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "บัญชีมัคคุเทศก์ได้รับการอนุมัติแล้ว",
+      html: `
+        <h2>ยินดีด้วย!</h2>
+        <p>สวัสดี ${guideName}</p>
+        <p>บัญชีมัคคุเทศก์ของคุณได้รับการอนุมัติเรียบร้อยแล้ว</p>
+        <p>ขณะนี้คุณสามารถเข้าสู่ระบบและเริ่มรับงานนำเที่ยวได้</p>
+      `,
+    });
+
+    return result;
+  } catch (error) {
+    console.error("APPROVED EMAIL ERROR =", error);
+    throw error;
+  }
 };
 
 // ส่งอีเมลไม่ผ่านการอนุมัติ
@@ -65,15 +87,22 @@ export const sendGuideRejectedEmail = async (
   email: string,
   guideName: string
 ) => {
-  return await transporter.sendMail({
-    from: `"Guide Finder" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "ผลการตรวจสอบบัญชีมัคคุเทศก์",
-    html: `
-      <h2>ผลการตรวจสอบบัญชี</h2>
-      <p>สวัสดี ${guideName}</p>
-      <p>บัญชีมัคคุเทศก์ของคุณยังไม่ผ่านการตรวจสอบ</p>
-      <p>กรุณาแก้ไขข้อมูลหรือเอกสารและส่งตรวจสอบอีกครั้ง</p>
-    `,
-  });
+  try {
+    const result = await transporter.sendMail({
+      from: `"Guide Finder" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "ผลการตรวจสอบบัญชีมัคคุเทศก์",
+      html: `
+        <h2>ผลการตรวจสอบบัญชี</h2>
+        <p>สวัสดี ${guideName}</p>
+        <p>บัญชีมัคคุเทศก์ของคุณยังไม่ผ่านการตรวจสอบ</p>
+        <p>กรุณาแก้ไขข้อมูลหรือเอกสารและส่งตรวจสอบอีกครั้ง</p>
+      `,
+    });
+
+    return result;
+  } catch (error) {
+    console.error("REJECTED EMAIL ERROR =", error);
+    throw error;
+  }
 };
