@@ -387,4 +387,22 @@ router.post("/reset-password", async (req, res) => {
   }
 });
 
+router.get("/test-email", async (req, res) => {
+  try {
+    await sendResetEmail(
+      "อีเมลที่ต้องการทดสอบ@gmail.com",
+      "123456"
+    );
+
+    res.json({
+      message: "ส่งเมลสำเร็จ",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "ส่งเมลไม่สำเร็จ",
+    });
+  }
+});
+
 export default router;

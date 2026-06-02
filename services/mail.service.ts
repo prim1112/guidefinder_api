@@ -1,7 +1,17 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
 
-const resend = new Resend("re_iqSAYnFG_FBgVjRn3AQ8FDqfroYeanfrM");
+dotenv.config();
 
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+// ส่ง PIN รีเซ็ตรหัสผ่าน
 export const sendResetEmail = async (
   email: string,
   pin: string
@@ -9,8 +19,8 @@ export const sendResetEmail = async (
   try {
     console.log("SEND EMAIL TO =", email);
 
-    const result = await resend.emails.send({
-      from: "Guide Finder <onboarding@resend.dev>",
+    const result = await transporter.sendMail({
+      from: `"Guide Finder" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Reset Password PIN",
       html: `
@@ -23,7 +33,7 @@ export const sendResetEmail = async (
       `,
     });
 
-    console.log("RESEND RESULT =", result);
+    console.log("EMAIL SENT =", result.messageId);
 
     return result;
   } catch (error) {
@@ -37,8 +47,8 @@ export const sendGuideApprovedEmail = async (
   email: string,
   guideName: string
 ) => {
-  await resend.emails.send({
-    from: "Guide Finder <onboarding@resend.dev>",
+  return await transporter.sendMail({
+    from: `"Guide Finder" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: "บัญชีมัคคุเทศก์ได้รับการอนุมัติแล้ว",
     html: `
@@ -55,8 +65,8 @@ export const sendGuideRejectedEmail = async (
   email: string,
   guideName: string
 ) => {
-  await resend.emails.send({
-    from: "Guide Finder <onboarding@resend.dev>",
+  return await transporter.sendMail({
+    from: `"Guide Finder" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: "ผลการตรวจสอบบัญชีมัคคุเทศก์",
     html: `
