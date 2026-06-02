@@ -160,7 +160,7 @@ router.post("/forgot-password", async (req, res) => {
       `SELECT guides_id
        FROM guides
        WHERE guides_email = ?`,
-      [email]
+      [email],
     );
 
     console.log("GUIDE ROWS =", guideRows);
@@ -176,7 +176,7 @@ router.post("/forgot-password", async (req, res) => {
         `SELECT cus_id
          FROM customers
          WHERE cus_email = ?`,
-        [email]
+        [email],
       );
 
       console.log("CUSTOMER ROWS =", customerRows);
@@ -201,18 +201,14 @@ router.post("/forgot-password", async (req, res) => {
        SET is_used = 1
        WHERE ref_user_id = ?
        AND user_type = ?`,
-      [userId, userType]
+      [userId, userType],
     );
 
-    const resetCode = Math.floor(
-      100000 + Math.random() * 900000
-    ).toString();
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     console.log("RESET CODE =", resetCode);
 
-    const expireAt = new Date(
-      Date.now() + 15 * 60 * 1000
-    )
+    const expireAt = new Date(Date.now() + 15 * 60 * 1000)
       .toISOString()
       .slice(0, 19)
       .replace("T", " ");
@@ -227,13 +223,7 @@ router.post("/forgot-password", async (req, res) => {
         is_used
       )
       VALUES (?, ?, ?, ?, ?)`,
-      [
-        userId,
-        resetCode,
-        userType,
-        expireAt,
-        0,
-      ]
+      [userId, resetCode, userType, expireAt, 0],
     );
 
     console.log("RESET PASSWORD ID =", insertResult.insertId);
@@ -247,7 +237,6 @@ router.post("/forgot-password", async (req, res) => {
     return res.status(200).json({
       message: "ส่ง PIN สำเร็จ",
     });
-
   } catch (err: any) {
     console.error("FORGOT PASSWORD ERROR =", err);
 
@@ -257,7 +246,6 @@ router.post("/forgot-password", async (req, res) => {
     });
   }
 });
-
 
 // VERIFY PIN
 router.post("/verify-pin", async (req, res) => {
@@ -277,7 +265,7 @@ router.post("/verify-pin", async (req, res) => {
        AND is_used = 0
        ORDER BY reset_id DESC
        LIMIT 1`,
-      [pin]
+      [pin],
     );
 
     if (rows.length === 0) {
@@ -298,14 +286,13 @@ router.post("/verify-pin", async (req, res) => {
       `UPDATE reset_password
        SET is_used = 1
        WHERE reset_id = ?`,
-      [reset.reset_id]
+      [reset.reset_id],
     );
 
     return res.status(200).json({
       message: "OK",
       reset_id: reset.reset_id,
     });
-
   } catch (err: any) {
     return res.status(500).json({
       message: "Server error",
@@ -313,7 +300,6 @@ router.post("/verify-pin", async (req, res) => {
     });
   }
 });
-
 
 // RESET PASSWORD
 router.post("/reset-password", async (req, res) => {
@@ -339,7 +325,7 @@ router.post("/reset-password", async (req, res) => {
        FROM reset_password
        WHERE reset_id = ?
        AND is_used = 1`,
-      [reset_id]
+      [reset_id],
     );
 
     if (rows.length === 0) {
@@ -350,10 +336,7 @@ router.post("/reset-password", async (req, res) => {
 
     const { ref_user_id, user_type } = rows[0];
 
-    const hashedPassword = await bcrypt.hash(
-      new_password,
-      10
-    );
+    const hashedPassword = await bcrypt.hash(new_password, 10);
 
     // GUIDE
     if (user_type === "guide") {
@@ -361,7 +344,7 @@ router.post("/reset-password", async (req, res) => {
         `UPDATE guides
          SET guides_password = ?
          WHERE guides_id = ?`,
-        [hashedPassword, ref_user_id]
+        [hashedPassword, ref_user_id],
       );
     }
 
@@ -371,14 +354,13 @@ router.post("/reset-password", async (req, res) => {
         `UPDATE customers
          SET cus_password = ?
          WHERE cus_id = ?`,
-        [hashedPassword, ref_user_id]
+        [hashedPassword, ref_user_id],
       );
     }
 
     return res.status(200).json({
       message: "เปลี่ยนรหัสผ่านสำเร็จ",
     });
-
   } catch (err: any) {
     return res.status(500).json({
       message: "Server error",
@@ -389,10 +371,7 @@ router.post("/reset-password", async (req, res) => {
 
 router.get("/test-email", async (req, res) => {
   try {
-    await sendResetEmail(
-      "อีเมลที่ต้องการทดสอบ@gmail.com",
-      "123456"
-    );
+    await sendResetEmail("milin04122562@gmail.com", "123456");
 
     res.json({
       message: "ส่งเมลสำเร็จ",
