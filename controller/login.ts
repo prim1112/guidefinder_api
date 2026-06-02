@@ -142,6 +142,10 @@ router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
 
   try {
+    console.log("=================================");
+    console.log("FORGOT PASSWORD REQUEST");
+    console.log("EMAIL =", email);
+
     if (!email) {
       return res.status(400).json({
         message: "กรุณากรอกอีเมล",
@@ -151,7 +155,7 @@ router.post("/forgot-password", async (req, res) => {
     let userId: number | null = null;
     let userType: string | null = null;
 
-    // หาใน guides
+    // GUIDE
     const [guideRows]: any = await db.execute(
       `SELECT guides_id
        FROM guides
@@ -159,12 +163,14 @@ router.post("/forgot-password", async (req, res) => {
       [email]
     );
 
+    console.log("GUIDE ROWS =", guideRows);
+
     if (guideRows.length > 0) {
       userId = guideRows[0].guides_id;
       userType = "guide";
     }
 
-    // หาใน customers
+    // CUSTOMER
     if (!userId) {
       const [customerRows]: any = await db.execute(
         `SELECT cus_id
@@ -173,11 +179,16 @@ router.post("/forgot-password", async (req, res) => {
         [email]
       );
 
+      console.log("CUSTOMER ROWS =", customerRows);
+
       if (customerRows.length > 0) {
         userId = customerRows[0].cus_id;
         userType = "customer";
       }
     }
+
+    console.log("USER TYPE =", userType);
+    console.log("USER ID =", userId);
 
     if (!userId || !userType) {
       return res.status(404).json({
@@ -185,7 +196,6 @@ router.post("/forgot-password", async (req, res) => {
       });
     }
 
-    // ปิด PIN เก่าทั้งหมด
     await db.execute(
       `UPDATE reset_password
        SET is_used = 1
@@ -198,6 +208,8 @@ router.post("/forgot-password", async (req, res) => {
       100000 + Math.random() * 900000
     ).toString();
 
+    console.log("RESET CODE =", resetCode);
+
     const expireAt = new Date(
       Date.now() + 15 * 60 * 1000
     )
@@ -205,7 +217,7 @@ router.post("/forgot-password", async (req, res) => {
       .slice(0, 19)
       .replace("T", " ");
 
-    await db.execute(
+    const [insertResult]: any = await db.execute(
       `INSERT INTO reset_password
       (
         ref_user_id,
@@ -224,13 +236,21 @@ router.post("/forgot-password", async (req, res) => {
       ]
     );
 
+    console.log("RESET PASSWORD ID =", insertResult.insertId);
+
+    console.log("START SEND EMAIL");
+
     await sendResetEmail(email, resetCode);
+
+    console.log("EMAIL SENT SUCCESS");
 
     return res.status(200).json({
       message: "ส่ง PIN สำเร็จ",
     });
 
   } catch (err: any) {
+    console.error("FORGOT PASSWORD ERROR =", err);
+
     return res.status(500).json({
       message: "Server error",
       error: err.message,
