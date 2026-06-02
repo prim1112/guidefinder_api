@@ -521,6 +521,45 @@ router.patch("/booking/cancel/:bid", async (req, res) => {
   }
 });
 
+router.patch("/booking/guide/cancel/:bid", async (req, res) => {
+  const bid = req.params.bid;
+
+  try {
+    const [rows]: any = await db.query(
+      `SELECT booking_status FROM booking_queues WHERE booking_queue_id = ?`,
+      [bid]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "ไม่พบข้อมูล" });
+    }
+
+    const status = rows[0].booking_status;
+
+    // ❌ เริ่มทริปแล้วห้ามยกเลิก
+    if (status >= 3) {
+      return res.status(400).json({
+        message: "ไม่สามารถยกเลิกได้"
+      });
+    }
+
+    await db.query(
+      `UPDATE booking_queues SET booking_status = 5 WHERE booking_queue_id = ?`,
+      [bid]
+    );
+
+    return res.json({
+      message: "ไกด์ยกเลิกงานสำเร็จ"
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message
+    });
+  }
+});
+
 // ACCEPT BOOKING
 router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
@@ -601,7 +640,6 @@ router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
 });
 
 // FINISH BOOKING
-
 router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
   const io = req.app.get("io");
