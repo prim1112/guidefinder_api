@@ -185,13 +185,13 @@ router.post("/booking", async (req: Request, res: Response) => {
     end.setHours(0, 0, 0, 0);
 
     // ================= CHECK OVERLAP =================
-    // ล็อกเฉพาะงานที่ไกด์ "รับแล้ว" (เปลี่ยนเช็ค booking_status = 2 ให้ตรงกัน)
+    // ล็อกคิวเฉพาะทริปที่มีสถานะ ไกด์รับงานแล้ว (2) หรือ กำลังไปทริป (3)
     const [duplicate]: any = await db.query(
       `
       SELECT 1
       FROM booking_queues
       WHERE ref_guid_id = ?
-      AND booking_status = 2
+      AND booking_status IN (2, 3)
       AND NOT (
         booking_end_date < ?
         OR booking_start_date > ?
@@ -210,6 +210,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     }
 
     // ================= INSERT BOOKING =================
+    // กำหนดค่าเริ่มต้นเป็นเลข 1 (1 = pending รอการยืนยันจากไกด์)
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
@@ -224,7 +225,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
-      [gid, cid, refTravelId, start, end, people, total_price, 0],
+      [gid, cid, refTravelId, start, end, people, total_price, 1],
     );
 
     await db.query("COMMIT");
@@ -258,7 +259,7 @@ router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
           booking_status
         FROM booking_queues
         WHERE ref_guid_id = ?
-        AND booking_status = 2
+        AND booking_status IN (2, 3)
         `,
       [gid],
     );
@@ -477,19 +478,18 @@ router.patch("/booking/cancel/:bid", async (req, res) => {
     const booking = rows[0];
     const currentStatus = Number(booking.booking_status);
 
-    // ❌ ห้ามยกเลิกถ้าเริ่มทริปแล้ว จบงาน หรือเคยยกเลิกไปแล้ว (3, 4, 5)
+    // ❌ ห้ามยกเลิกถ้าเริ่มทริปแล้ว (3 = in progress, 4 = completed, 5 = cancelled)
     if (currentStatus >= 3) {
       return res.status(400).json({
         message: "ไม่สามารถยกเลิกได้ เนื่องจากทริปเริ่มต้นหรือจบไปแล้ว",
       });
     }
 
-    // ⏳ [แก้ไขกฎการเช็ค 3 วัน] ให้ทำงานเฉพาะ "เมื่อไกด์รับงานแล้ว (สถานะ 2)" เท่านั้น
+    // ⏳ กฎการเช็คเวลา 3 วัน ทำเฉพาะ "เมื่อไกด์รับงานแล้ว (2 = accepted)" เท่านั้น
     if (currentStatus === 2) {
       const tripDate = new Date(booking.booking_start_date);
       const now = new Date();
       
-      // ปรับเวลาให้เป็น 00:00 เพื่อคำนวณจำนวนวันแบบข้ามคืนที่แน่นอน
       tripDate.setHours(0, 0, 0, 0);
       now.setHours(0, 0, 0, 0);
 
@@ -502,7 +502,7 @@ router.patch("/booking/cancel/:bid", async (req, res) => {
       }
     }
 
-    // ✅ อัปเดตสถานะเป็น 5 (ยกเลิกแล้ว)
+    // ✅ เปลี่ยนสถานะเป็น 5 = cancelled
     await db.query(
       `
       UPDATE booking_queues
@@ -523,7 +523,7 @@ router.patch("/booking/cancel/:bid", async (req, res) => {
   }
 });
 
-// GUIDE CANCEL BOOKING (ไกด์กดยกเลิกงาน)
+// GUIDE CANCEL BOOKING (ไกด์กดยกเลิก)
 router.patch("/booking/guide/cancel/:bid", async (req, res) => {
   const bid = req.params.bid;
 
@@ -541,10 +541,11 @@ router.patch("/booking/guide/cancel/:bid", async (req, res) => {
 
     if (status >= 3) {
       return res.status(400).json({
-        message: "ไม่สามารถยกเลิกได้"
+        message: "ไม่สามารถยกเลิกได้เนื่องจากทริปดำเนินอยู่หรือจบลงแล้ว"
       });
     }
 
+    // ✅ เปลี่ยนสถานะเป็น 5 = cancelled
     await db.query(
       `UPDATE booking_queues SET booking_status = 5 WHERE booking_queue_id = ?`,
       [bid]
@@ -567,7 +568,7 @@ router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
 
   try {
-    // ✅ [แก้ไข] อัปเดตสถานะเป็นเลข 2 (ไกด์รับงานแล้ว) เพื่อให้ตรงตาม Flow ของ Flutter
+    // ✅ เปลี่ยนเป็นเลข 2 = accepted
     const [result]: any = await db.query(
       `
       UPDATE booking_queues
@@ -614,13 +615,14 @@ router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
 
     const booking = rows[0];
 
-    // ✅ [แก้ไข] ต้องผ่านการรับงาน (สถานะเลข 2) มาก่อนเท่านั้น ถึงจะยอมให้เริ่มทริปได้
+    // ✅ ต้องเป็นไกด์รับงานแล้ว (2 = accepted) เท่านั้นถึงจะสไลด์หรือกดเริ่มทริปได้
     if (Number(booking.booking_status) !== 2) {
       return res.status(400).json({
         message: "ยังเริ่มทริปไม่ได้ (ไกด์ต้องกดรับงานก่อน)",
       });
     }
 
+    // ✅ เปลี่ยนสถานะเป็น 3 = in progress
     await db.query(
       `
       UPDATE booking_queues
@@ -668,7 +670,7 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
 
     const { tourist_id, attraction_name } = bookingDetails[0];
 
-    // อัปเดตเป็นเลข 4 เพื่อไปหน้าประวัติ/รีวิวตามโครงสร้างเดิม
+    // ✅ เปลี่ยนสถานะเป็น 4 = completed
     const [result]: any = await db.query(
       `
       UPDATE booking_queues
@@ -703,6 +705,7 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   }
 });
 
+// CUSTOMER HISTORY (ประวัติที่สำเร็จแล้ว)
 router.get("/history/customer/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
