@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
 // ใช้ ENV แทนการ hardcode (สำคัญมาก)
-const resend = new Resend(process.env.re_iwNoewN4_J94Ft9PVZYyYNae7gqGBf3g1);
+const resend = new Resend(process.env.RESEND_API_KEY!);
 
 // 1. RESET PASSWORD EMAIL
 export const sendResetEmail = async (email: string, pin: string) => {
