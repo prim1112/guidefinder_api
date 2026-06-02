@@ -499,9 +499,7 @@ router.post("/booking", async (req: Request, res: Response) => {
   }
 });
 
-router.patch(
-  "/booking/cancel/customer/:bid",
-  async (req: Request, res: Response) => {
+router.patch("/booking/cancel/customer/:bid",async (req: Request, res: Response) => {
     const bid = req.params.bid;
 
     try {
