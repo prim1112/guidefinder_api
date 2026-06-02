@@ -86,94 +86,394 @@ const provinceTH: { [key: string]: string } = {
 
 const toThaiProvince = (en: string) => provinceTH[en] || en;
 
-/* ================= GET ALL BOOKING ================= */
+// GET ALL BOOKING
 router.get("/booking", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query("SELECT * FROM booking_queues");
 
     return res.json({
       message: "ดึงข้อมูล Booking สำเร็จ",
+      count: rows.length,
       data: rows,
     });
   } catch (error: any) {
-    return res.status(500).json({ message: error.message });
+    console.error("GET /booking error:", error);
+
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
   }
 });
 
-/* ================= CREATE BOOKING (FINAL) ================= */
+// CREATE BOOKING
 router.post("/booking", async (req: Request, res: Response) => {
+  console.log(req.body);
+
   const { gid, cid, travel_id, people, start_date, end_date, total_price } =
     req.body;
 
-  const conn = await db.getConnection();
-
   try {
-    await conn.beginTransaction();
+    await db.query("START TRANSACTION");
 
-    // validate
-    if (!gid || !cid || !travel_id || !people || !start_date || !end_date) {
-      await conn.rollback();
-      return res.status(400).json({ message: "กรอกข้อมูลไม่ครบ" });
+    // ================= CHECK INPUT =================
+    if (
+      gid === undefined ||
+      cid === undefined ||
+      travel_id === undefined ||
+      people === undefined ||
+      !start_date ||
+      !end_date ||
+      total_price === undefined
+    ) {
+      await db.query("ROLLBACK");
+
+      return res.status(400).json({
+        message: "กรุณากรอกข้อมูลให้ครบ",
+      });
     }
 
-    // check guide
-    const [guide]: any = await conn.query(
+    // ================= CHECK GUIDE =================
+    const [guideRows]: any = await db.query(
       `SELECT guides_id FROM guides WHERE guides_id = ?`,
-      [gid]
+      [gid],
     );
-    if (!guide.length) {
-      await conn.rollback();
-      return res.status(400).json({ message: "ไม่พบไกด์" });
+
+    if (guideRows.length === 0) {
+      await db.query("ROLLBACK");
+
+      return res.status(400).json({
+        message: "ไม่พบไกด์",
+      });
     }
 
-    // check customer
-    const [cus]: any = await conn.query(
+    // ================= CHECK CUSTOMER =================
+    const [cusRows]: any = await db.query(
       `SELECT cus_id FROM customers WHERE cus_id = ?`,
-      [cid]
+      [cid],
     );
-    if (!cus.length) {
-      await conn.rollback();
-      return res.status(400).json({ message: "ไม่พบลูกค้า" });
+
+    if (cusRows.length === 0) {
+      await db.query("ROLLBACK");
+
+      return res.status(400).json({
+        message: "ไม่พบลูกค้า",
+      });
     }
 
-    // travel map
-    const [travel]: any = await conn.query(
+    // ================= MAP LOCATION =================
+    const [travelRows]: any = await db.query(
       `SELECT id FROM location_travel WHERE location_id = ?`,
-      [travel_id]
+      [travel_id],
     );
 
-    if (!travel.length) {
-      await conn.rollback();
-      return res.status(400).json({ message: "ไม่พบสถานที่" });
+    if (travelRows.length === 0) {
+      await db.query("ROLLBACK");
+
+      return res.status(400).json({
+        message: "ไม่พบสถานที่",
+      });
     }
 
-    const refTravelId = travel[0].id;
+    const refTravelId = travelRows[0].id;
 
+    // ================= NORMALIZE DATE =================
     const start = new Date(start_date);
     const end = new Date(end_date);
 
     start.setHours(0, 0, 0, 0);
     end.setHours(0, 0, 0, 0);
 
-    // overlap check
-    const [dup]: any = await conn.query(
+    // ================= CHECK OVERLAP =================
+    // ล็อกคิวเฉพาะงานที่ไกด์ "รับแล้ว (1)" หรือ "กำลังเดินทาง (2)"
+    const [duplicate]: any = await db.query(
       `
-      SELECT 1 FROM booking_queues
+      SELECT 1
+      FROM booking_queues
       WHERE ref_guid_id = ?
-      AND booking_status IN (2,3)
-      AND NOT (booking_end_date < ? OR booking_start_date > ?)
+      AND booking_status IN (1, 2)
+      AND NOT (
+        booking_end_date < ?
+        OR booking_start_date > ?
+      )
       LIMIT 1
       `,
-      [gid, start, end]
+      [gid, start, end],
     );
 
-    if (dup.length) {
-      await conn.rollback();
-      return res.status(400).json({ message: "ไกด์ไม่ว่างในช่วงนี้" });
+    if (duplicate.length > 0) {
+      await db.query("ROLLBACK");
+
+      return res.status(400).json({
+        message: "ช่วงเวลานี้ไกด์ไม่ว่าง",
+      });
     }
 
-    // insert
-    const [result]: any = await conn.query(
+    // ================= INSERT BOOKING =================
+    // ค่าเริ่มต้นเป็น 0 (0 = รอการยืนยันจากไกด์)
+    const [result]: any = await db.query(
+      `
+      INSERT INTO booking_queues (
+        ref_guid_id,
+        ref_cus_id,
+        ref_travel_id,
+        booking_start_date,
+        booking_end_date,
+        booking_cus_amount,
+        booking_total_price,
+        booking_status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [gid, cid, refTravelId, start, end, people, total_price, 0],
+    );
+
+    await db.query("COMMIT");
+
+    return res.status(201).json({
+      message: "จองสำเร็จ",
+      booking_queue_id: result.insertId,
+    });
+  } catch (error: any) {
+    await db.query("ROLLBACK");
+
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+// GET UNAVAILABLE DATE
+router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
+  const gid = Number(req.params.gid);
+
+  try {
+    const [rows]: any = await db.query(
+      `
+        SELECT 
+          booking_start_date,
+          booking_end_date,
+          booking_status
+        FROM booking_queues
+        WHERE ref_guid_id = ?
+        AND booking_status IN (1, 2)
+        `,
+      [gid],
+    );
+
+    return res.status(200).json({
+      message: "ดึงวันไม่ว่างสำเร็จ",
+      data: rows,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+// CUSTOMER BOOKING
+router.get("/booking/customer/:id", async (req: Request, res: Response) => {
+  try {
+    const customerId = req.params.id;
+
+    const [rows]: any = await db.query(
+      `
+      SELECT 
+        b.booking_queue_id,
+        b.booking_start_date,
+        b.booking_end_date,
+        b.booking_status,
+        b.booking_total_price,
+        b.booking_cus_amount,
+
+        l.travel_name,
+        l.travel_detail,
+        l.travel_image,
+
+        loc.location_province
+
+      FROM booking_queues b
+
+      LEFT JOIN location_travel l
+        ON b.ref_travel_id = l.id
+
+      LEFT JOIN location loc
+        ON l.location_id = loc.location_id
+        
+      WHERE b.ref_cus_id = ?
+      ORDER BY b.booking_queue_id DESC
+      `,
+      [customerId],
+    );
+
+    const result = rows.map((b: any) => ({
+      ...b,
+      location_province: toThaiProvince(b.location_province),
+    }));
+
+    return res.status(200).json({
+      message: "ดึงข้อมูลการจองของลูกค้าสำเร็จ",
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+// GUIDE BOOKING
+router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
+  const gid = req.params.gid;
+
+  try {
+    const [bookings]: any = await db.query(
+      `
+      SELECT 
+        b.booking_queue_id,
+        b.booking_start_date,
+        b.booking_end_date,
+        b.booking_status,
+        b.booking_total_price,
+        b.booking_cus_amount,
+
+        l.travel_name,
+        l.travel_detail,
+        l.travel_image,
+
+        loc.location_province,
+
+        c.cus_name,
+        c.cus_email,
+        c.cus_phonenumber
+
+      FROM booking_queues b
+
+      LEFT JOIN location_travel l
+        ON b.ref_travel_id = l.id
+
+      LEFT JOIN location loc
+        ON l.location_id = loc.location_id
+
+      LEFT JOIN customers c
+        ON b.ref_cus_id = c.cus_id
+
+      WHERE b.ref_guid_id = ?
+
+      ORDER BY b.booking_queue_id DESC
+      `,
+      [gid],
+    );
+
+    const result = bookings.map((b: any) => ({
+      ...b,
+      location_province: toThaiProvince(b.location_province),
+    }));
+
+    return res.json({
+      message: "ดึงข้อมูลการจองของไกด์สำเร็จ",
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+// BOOKING DETAIL
+router.get(
+  "/booking/detail/:booking_id",
+  async (req: Request, res: Response) => {
+    const booking_id = req.params.booking_id;
+
+    try {
+      const [rows]: any = await db.query(
+        `
+        SELECT 
+          b.booking_queue_id,
+          b.booking_start_date,
+          b.booking_end_date,
+          b.booking_status,
+          b.booking_total_price,
+          b.booking_cus_amount,
+
+          l.travel_name,
+          l.travel_detail,
+          l.travel_image,
+
+          loc.location_province,
+
+          g.guides_name,
+          g.guides_language,
+          g.guides_email,
+          g.guides_facebook,
+          g.guides_phonenumber
+
+        FROM booking_queues b
+
+        LEFT JOIN location_travel l
+          ON b.ref_travel_id = l.id
+
+        LEFT JOIN location loc
+          ON l.location_id = loc.location_id
+
+        LEFT JOIN guides g
+          ON b.ref_guid_id = g.guides_id
+
+        WHERE b.booking_queue_id = ?
+        `,
+        [booking_id],
+      );
+
+      if (rows.length === 0) {
+        return res.status(404).json({
+          message: "ไม่พบข้อมูลการจอง",
+        });
+      }
+
+      const booking = {
+        ...rows[0],
+        location_province: toThaiProvince(rows[0].location_province),
+      };
+
+      return res.json({
+        message: "ดึงรายละเอียดการจองสำเร็จ",
+        data: booking,
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        message: "Server Error",
+        error: error.message,
+      });
+    }
+  },
+);
+
+/* ================= CREATE BOOKING ================= */
+router.post("/booking", async (req: Request, res: Response) => {
+  const { gid, cid, travel_id, people, start_date, end_date, total_price } =
+    req.body;
+
+  try {
+    const [travelRows]: any = await db.query(
+      `SELECT id FROM location_travel WHERE location_id = ?`,
+      [travel_id]
+    );
+
+    const refTravelId = travelRows[0].id;
+
+    const start = new Date(start_date);
+    const end = new Date(end_date);
+
+    const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
         ref_guid_id,
@@ -190,33 +490,73 @@ router.post("/booking", async (req: Request, res: Response) => {
       [gid, cid, refTravelId, start, end, people, total_price]
     );
 
-    await conn.commit();
-
     return res.status(201).json({
       message: "จองสำเร็จ",
       booking_queue_id: result.insertId,
     });
-  } catch (err: any) {
-    await conn.rollback();
-    return res.status(500).json({ message: err.message });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
   }
 });
 
-/* ================= ACCEPT BOOKING ================= */
-router.patch("/booking/accept/:bid", async (req, res) => {
-  const { bid } = req.params;
+// GUIDE CANCEL BOOKING (ไกด์กดยกเลิก)
+router.patch("/booking/guide/cancel/:bid", async (req, res) => {
+  const bid = req.params.bid;
 
-  await db.query(
-    `UPDATE booking_queues SET booking_status = 2 WHERE booking_queue_id = ?`,
+  try {
+    const [rows]: any = await db.query(
+      `SELECT booking_status FROM booking_queues WHERE booking_queue_id = ?`,
+      [bid]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "ไม่พบข้อมูล" });
+    }
+
+    const status = rows[0].booking_status;
+
+    if (status >= 2) {
+      return res.status(400).json({
+        message: "ไม่สามารถยกเลิกได้เนื่องจากทริปดำเนินอยู่หรือจบลงแล้ว"
+      });
+    }
+
+    // ✅ เปลี่ยนสถานะเป็น 4 = cancelled
+    await db.query(
+      `UPDATE booking_queues SET booking_status = 4 WHERE booking_queue_id = ?`,
+      [bid]
+    );
+
+    return res.json({
+      message: "ไกด์ยกเลิกงานสำเร็จ"
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message
+    });
+  }
+});
+
+router.patch("/booking/accept/:bid", async (req, res) => {
+  const bid = req.params.bid;
+
+  const [result]: any = await db.query(
+    `
+    UPDATE booking_queues
+    SET booking_status = 2
+    WHERE booking_queue_id = ?
+    `,
     [bid]
   );
 
   return res.json({ message: "รับงานสำเร็จ" });
 });
 
-/* ================= START BOOKING ================= */
+// START BOOKING (เริ่มทริป)
 router.patch("/booking/start/:bid", async (req, res) => {
-  const { bid } = req.params;
+  const bid = req.params.bid;
 
   const [rows]: any = await db.query(
     `SELECT booking_status FROM booking_queues WHERE booking_queue_id = ?`,
@@ -232,172 +572,138 @@ router.patch("/booking/start/:bid", async (req, res) => {
   }
 
   await db.query(
-    `UPDATE booking_queues SET booking_status = 3 WHERE booking_queue_id = ?`,
+    `
+    UPDATE booking_queues
+    SET booking_status = 3
+    WHERE booking_queue_id = ?
+    `,
     [bid]
   );
 
   return res.json({ message: "เริ่มทริปแล้ว" });
 });
 
-/* ================= FINISH BOOKING ================= */
+/* ================= FINISH TRIP ================= */
+router.patch("/booking/finish/:bid", async (req, res) => {
+  const bid = req.params.bid;
+
+  await db.query(
+    `
+    UPDATE booking_queues
+    SET booking_status = 4
+    WHERE booking_queue_id = ?
+    `,
+    [bid]
+  );
+
+  return res.json({ message: "จบทริปแล้ว" });
+});
+
+// FINISH BOOKING (จบทริป)
 router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
-  const { bid } = req.params;
+  const bid = req.params.bid;
   const io = req.app.get("io");
 
   try {
+    const [bookingDetails]: any = await db.query(
+      `
+      SELECT 
+        b.ref_cus_id AS tourist_id, 
+        lt.travel_name AS attraction_name 
+      FROM booking_queues b
+      INNER JOIN location_travel lt 
+        ON b.ref_travel_id = lt.id
+      WHERE b.booking_queue_id = ?
+      `,
+      [bid],
+    );
+
+    if (bookingDetails.length === 0) {
+      return res.status(404).json({
+        message: "ไม่พบรายการจอง",
+      });
+    }
+
+    const { tourist_id, attraction_name } = bookingDetails[0];
+
+    // ✅ เปลี่ยนสถานะเป็น 3 = completed
+    const [result]: any = await db.query(
+      `
+      UPDATE booking_queues
+      SET booking_status = 3
+      WHERE booking_queue_id = ?
+      `,
+      [bid],
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: "ไม่พบรายการจอง",
+      });
+    }
+
+    if (io) {
+      io.to(tourist_id.toString()).emit("job_finished_notification", {
+        booking_queue_id: bid,
+        title: "การบริการเสร็จเรียบร้อย",
+        message: `หากคุณพอใจ รบกวนช่วยให้คะแนนรีวิว\n${attraction_name || "สถานที่ท่องเที่ยว"}`,
+      });
+    }
+
+    return res.json({
+      message: "จบงานสำเร็จ",
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+// CUSTOMER HISTORY (ประวัติที่สำเร็จแล้ว)
+router.get("/history/customer/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+
     const [rows]: any = await db.query(
       `
       SELECT 
+        b.booking_queue_id,
         b.booking_status,
-        b.ref_cus_id AS tourist_id,
-        lt.travel_name
+        b.booking_start_date,
+        b.booking_end_date,
+        b.booking_total_price,
+
+        l.travel_name,
+        l.travel_detail,
+        l.travel_image
+
       FROM booking_queues b
-      JOIN location_travel lt ON b.ref_travel_id = lt.id
-      WHERE b.booking_queue_id = ?
+
+      LEFT JOIN location_travel l
+        ON b.ref_travel_id = l.id
+
+      WHERE b.ref_cus_id = ?
+      AND b.booking_status = 3
+
+      ORDER BY b.booking_queue_id DESC
       `,
-      [bid]
+      [id],
     );
 
-    if (!rows.length) {
-      return res.status(404).json({ message: "ไม่พบรายการจอง" });
-    }
+    return res.status(200).json({
+      message: "ดึงประวัติสำเร็จ",
+      data: rows,
+    });
+  } catch (error: any) {
+    console.log(error);
 
-    const booking = rows[0];
-
-    if (Number(booking.booking_status) !== 3) {
-      return res.status(400).json({
-        message: "ต้องอยู่สถานะกำลังเริ่มทริป",
-      });
-    }
-
-    await db.query(
-      `UPDATE booking_queues SET booking_status = 4 WHERE booking_queue_id = ?`,
-      [bid]
-    );
-
-    if (io) {
-      io.to(booking.tourist_id.toString()).emit("job_finished_notification", {
-        booking_queue_id: bid,
-        title: "จบทริปแล้ว",
-        message: `ช่วยรีวิว: ${booking.travel_name}`,
-      });
-    }
-
-    return res.json({ message: "จบทริปสำเร็จ" });
-  } catch (err: any) {
-    return res.status(500).json({ message: err.message });
-  }
-});
-
-/* ================= CANCEL BOOKING ================= */
-router.patch("/booking/cancel/:bid", async (req, res) => {
-  const { bid } = req.params;
-
-  const [rows]: any = await db.query(
-    `SELECT booking_status FROM booking_queues WHERE booking_queue_id = ?`,
-    [bid]
-  );
-
-  if (!rows.length) {
-    return res.status(404).json({ message: "ไม่พบรายการจอง" });
-  }
-
-  const status = Number(rows[0].booking_status);
-
-  if (status >= 3) {
-    return res.status(400).json({
-      message: "ยกเลิกไม่ได้ (เริ่มหรือจบแล้ว)",
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
     });
   }
-
-  await db.query(
-    `UPDATE booking_queues SET booking_status = 5 WHERE booking_queue_id = ?`,
-    [bid]
-  );
-
-  return res.json({ message: "ยกเลิกสำเร็จ" });
-});
-
-/* ================= CUSTOMER BOOKING ================= */
-router.get("/booking/customer/:id", async (req, res) => {
-  const { id } = req.params;
-
-  const [rows]: any = await db.query(
-    `
-    SELECT b.*, l.travel_name, l.travel_image, loc.location_province
-    FROM booking_queues b
-    LEFT JOIN location_travel l ON b.ref_travel_id = l.id
-    LEFT JOIN location loc ON l.location_id = loc.location_id
-    WHERE b.ref_cus_id = ?
-    ORDER BY b.booking_queue_id DESC
-    `,
-    [id]
-  );
-
-  const result = rows.map((b: any) => ({
-    ...b,
-    location_province: toThaiProvince(b.location_province),
-  }));
-
-  return res.json({ data: result });
-});
-
-/* ================= GUIDE BOOKING ================= */
-router.get("/booking/guide/:gid", async (req, res) => {
-  const { gid } = req.params;
-
-  const [rows]: any = await db.query(
-    `
-    SELECT b.*, l.travel_name, c.cus_name
-    FROM booking_queues b
-    LEFT JOIN location_travel l ON b.ref_travel_id = l.id
-    LEFT JOIN customers c ON b.ref_cus_id = c.cus_id
-    WHERE b.ref_guid_id = ?
-    ORDER BY b.booking_queue_id DESC
-    `,
-    [gid]
-  );
-
-  return res.json({ data: rows });
-});
-
-/* ================= DETAIL ================= */
-router.get("/booking/detail/:id", async (req, res) => {
-  const { id } = req.params;
-
-  const [rows]: any = await db.query(
-    `
-    SELECT b.*, l.travel_name, g.guides_name
-    FROM booking_queues b
-    LEFT JOIN location_travel l ON b.ref_travel_id = l.id
-    LEFT JOIN guides g ON b.ref_guid_id = g.guides_id
-    WHERE b.booking_queue_id = ?
-    `,
-    [id]
-  );
-
-  if (!rows.length) {
-    return res.status(404).json({ message: "ไม่พบข้อมูล" });
-  }
-
-  return res.json({ data: rows[0] });
-});
-
-/* ================= HISTORY ================= */
-router.get("/history/customer/:id", async (req, res) => {
-  const { id } = req.params;
-
-  const [rows]: any = await db.query(
-    `
-    SELECT *
-    FROM booking_queues
-    WHERE ref_cus_id = ? AND booking_status = 4
-    ORDER BY booking_queue_id DESC
-    `,
-    [id]
-  );
-
-  return res.json({ data: rows });
 });
 
 export default router;
