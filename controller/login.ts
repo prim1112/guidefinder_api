@@ -371,7 +371,7 @@ router.post("/reset-password", async (req, res) => {
 
 router.get("/test-email", async (req, res) => {
   try {
-    await sendResetEmail("milin04122562@gmail.com", "123456");
+    await sendResetEmail("milin04122562@gmail.com", "0412");
 
     res.json({
       message: "ส่งเมลสำเร็จ",
