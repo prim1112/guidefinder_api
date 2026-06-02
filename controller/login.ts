@@ -149,10 +149,13 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
 
     const cleanEmail = email.trim().toLowerCase();
 
+    console.log("\n========== FORGOT PASSWORD ==========");
+    console.log("📩 INPUT EMAIL:", cleanEmail);
+
     let userId: number | null = null;
     let userType: string | null = null;
 
-    // ===== CHECK GUIDE =====
+    // ===== GUIDE =====
     const [guideRows]: any = await db.execute(
       `SELECT guides_id AS id
        FROM guides
@@ -160,12 +163,15 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       [cleanEmail]
     );
 
+    console.log("👨‍🏫 GUIDE RESULT:", guideRows);
+
     if (guideRows.length > 0) {
       userId = guideRows[0].id;
       userType = "guide";
+      console.log("✅ FOUND GUIDE USER");
     }
 
-    // ===== CHECK CUSTOMER =====
+    // ===== CUSTOMER =====
     if (!userId) {
       const [customerRows]: any = await db.execute(
         `SELECT cus_id AS id
@@ -174,15 +180,22 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
         [cleanEmail]
       );
 
+      console.log("👤 CUSTOMER RESULT:", customerRows);
+
       if (customerRows.length > 0) {
         userId = customerRows[0].id;
         userType = "customer";
+        console.log("✅ FOUND CUSTOMER USER");
       }
     }
 
     if (!userId || !userType) {
+      console.log("❌ USER NOT FOUND IN DB:", cleanEmail);
       return res.status(404).json({ message: "ไม่พบบัญชีนี้" });
     }
+
+    console.log("📌 USER TYPE:", userType);
+    console.log("📌 USER ID:", userId);
 
     // invalidate old codes
     await db.execute(
@@ -193,12 +206,9 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       [userId, userType]
     );
 
-    // generate secure 6-digit PIN
     const resetCode = crypto.randomInt(100000, 999999).toString();
-
     const expireAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    // save reset request
     await db.execute(
       `INSERT INTO reset_password
       (ref_user_id, reset_code, user_type, expire_at, is_used)
@@ -206,13 +216,20 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       [userId, resetCode, userType, expireAt]
     );
 
-    // send email
-    await sendResetEmail(cleanEmail, resetCode);
+    console.log("📨 SENDING EMAIL TO:", cleanEmail);
+    console.log("🔐 RESET CODE:", resetCode);
+
+    const result = await sendResetEmail(cleanEmail, resetCode);
+
+    console.log("🚀 RESEND RESULT:", result);
+    console.log("=====================================\n");
 
     return res.status(200).json({
       message: "ส่ง PIN ไปที่อีเมลแล้ว",
     });
   } catch (err: any) {
+    console.error("❌ FORGOT ERROR:", err);
+
     return res.status(500).json({
       message: "Server error",
       error: err.message,
@@ -335,13 +352,22 @@ router.post("/reset-password", async (req: Request, res: Response) => {
 
 router.get("/test-email", async (req, res) => {
   try {
-    await sendResetEmail("milin04122562@gmail.com", "0412");
+    console.log("📩 TEST EMAIL TRIGGERED");
+
+    const result = await sendResetEmail(
+      "milin04122562@gmail.com",
+      "0412"
+    );
+
+    console.log("🚀 TEST EMAIL RESULT:", result);
 
     res.json({
       message: "ส่งเมลสำเร็จ",
+      result,
     });
   } catch (err) {
-    console.error(err);
+    console.error("❌ TEST EMAIL ERROR:", err);
+
     res.status(500).json({
       message: "ส่งเมลไม่สำเร็จ",
     });
