@@ -545,9 +545,9 @@ router.patch("/booking/guide/cancel/:bid", async (req, res) => {
       });
     }
 
-    // ✅ เปลี่ยนสถานะเป็น 5 = cancelled
+    // ✅ เปลี่ยนสถานะเป็น 2 = cancelled
     await db.query(
-      `UPDATE booking_queues SET booking_status = 5 WHERE booking_queue_id = ?`,
+      `UPDATE booking_queues SET booking_status = 2 WHERE booking_queue_id = ?`,
       [bid]
     );
 
