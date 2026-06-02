@@ -328,45 +328,6 @@ router.get("/booking/customer/:id", async (req: Request, res: Response) => {
   }
 });
 
-// CUSTOMER CANCEL BOOKING
-router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
-  const bid = req.params.bid;
-
-  try {
-    const [rows]: any = await db.query(
-      `SELECT booking_status FROM booking_queues WHERE booking_queue_id = ?`,
-      [bid]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ message: "ไม่พบข้อมูลการจอง" });
-    }
-
-    const status = Number(rows[0].booking_status);
-
-    // ❌ cancel ได้เฉพาะ pending / accepted
-    if (status >= 2) {
-      return res.status(400).json({
-        message: "ไม่สามารถยกเลิกได้ เนื่องจากทริปเริ่มแล้ว",
-      });
-    }
-
-    await db.query(
-      `UPDATE booking_queues SET booking_status = 4 WHERE booking_queue_id = ?`,
-      [bid]
-    );
-
-    return res.json({
-      message: "ยกเลิกการจองสำเร็จ",
-    });
-  } catch (error: any) {
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
-  }
-});
-
 // GUIDE BOOKING
 router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
   const gid = req.params.gid;
@@ -538,9 +499,87 @@ router.post("/booking", async (req: Request, res: Response) => {
   }
 });
 
+router.patch("/booking/cancel/customer/:bid", async (req: Request, res: Response) => {
+  const bid = req.params.bid;
+
+  try {
+    const [rows]: any = await db.query(
+      `SELECT booking_status, booking_start_date 
+       FROM booking_queues 
+       WHERE booking_queue_id = ?`,
+      [bid]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "ไม่พบข้อมูลการจอง" });
+    }
+
+    const { booking_status, booking_start_date } = rows[0];
+
+    const status = Number(booking_status);
+    const startDate = new Date(booking_start_date);
+    const now = new Date();
+
+    // -------------------------
+    // ❌ CASE 3: เริ่มทริปแล้ว
+    // -------------------------
+    if (status >= 3) {
+      return res.status(400).json({
+        message: "ไม่สามารถยกเลิกได้ เนื่องจากเริ่มทริปแล้ว",
+      });
+    }
+
+    // -------------------------
+    // ✔️ CASE 1: ยังไม่รับงาน
+    // -------------------------
+    if (status === 0) {
+      await db.query(
+        `UPDATE booking_queues SET booking_status = 4 WHERE booking_queue_id = ?`,
+        [bid]
+      );
+
+      return res.json({
+        message: "ยกเลิกการจองสำเร็จ",
+      });
+    }
+
+    // -------------------------
+    // ✔️ CASE 2: ไกด์รับงานแล้ว → ต้องเช็ค 3 วัน
+    // -------------------------
+    if (status === 2) {
+      const diffTime = startDate.getTime() - now.getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+      if (diffDays < 3) {
+        return res.status(400).json({
+          message: "ไม่สามารถยกเลิกได้ ต้องยกเลิกก่อนวันเดินทางอย่างน้อย 3 วัน",
+        });
+      }
+
+      await db.query(
+        `UPDATE booking_queues SET booking_status = 4 WHERE booking_queue_id = ?`,
+        [bid]
+      );
+
+      return res.json({
+        message: "ยกเลิกการจองสำเร็จ",
+      });
+    }
+
+    return res.status(400).json({
+      message: "สถานะไม่รองรับการยกเลิก",
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
 // GUIDE CANCEL BOOKING (ไกด์กดยกเลิก)
-// CUSTOMER CANCEL BOOKING
-router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
+router.patch("/booking/guide/cancel/:bid", async (req, res) => {
   const bid = req.params.bid;
 
   try {
@@ -550,30 +589,31 @@ router.patch("/booking/cancel/:bid", async (req: Request, res: Response) => {
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({ message: "ไม่พบข้อมูลการจอง" });
+      return res.status(404).json({ message: "ไม่พบข้อมูล" });
     }
 
-    const status = Number(rows[0].booking_status);
+    const status = rows[0].booking_status;
 
-    // ❌ cancel ได้เฉพาะ pending / accepted
     if (status >= 2) {
       return res.status(400).json({
-        message: "ไม่สามารถยกเลิกได้ เนื่องจากทริปเริ่มแล้ว",
+        message: "ไม่สามารถยกเลิกได้เนื่องจากทริปดำเนินอยู่หรือจบลงแล้ว"
       });
     }
 
+    // ✅ เปลี่ยนสถานะเป็น 4 = cancelled
     await db.query(
       `UPDATE booking_queues SET booking_status = 4 WHERE booking_queue_id = ?`,
       [bid]
     );
 
     return res.json({
-      message: "ยกเลิกการจองสำเร็จ",
+      message: "ไกด์ยกเลิกงานสำเร็จ"
     });
+
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
-      error: error.message,
+      error: error.message
     });
   }
 });
