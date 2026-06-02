@@ -185,7 +185,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     end.setHours(0, 0, 0, 0);
 
     // ================= CHECK OVERLAP =================
-    // ล็อกคิวเฉพาะทริปที่มีสถานะ ไกด์รับงานแล้ว (2) หรือ กำลังไปทริป (3)
+    // ล็อกคิวเฉพาะทริปที่มีสถานะ ไกด์รับงานแล้ว (1) หรือ กำลังไปทริป (3)
     const [duplicate]: any = await db.query(
       `
       SELECT 1
@@ -225,7 +225,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
-      [gid, cid, refTravelId, start, end, people, total_price, 1],
+      [gid, cid, refTravelId, start, end, people, total_price, 0]
     );
 
     await db.query("COMMIT");
@@ -389,9 +389,7 @@ router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
 });
 
 // BOOKING DETAIL
-router.get(
-  "/booking/detail/:booking_id",
-  async (req: Request, res: Response) => {
+router.get("/booking/detail/:booking_id", async (req: Request, res: Response) => {
     const booking_id = req.params.booking_id;
 
     try {
@@ -478,35 +476,37 @@ router.patch("/booking/cancel/:bid", async (req, res) => {
     const booking = rows[0];
     const currentStatus = Number(booking.booking_status);
 
-    // ❌ ห้ามยกเลิกถ้าเริ่มทริปแล้ว (3 = in progress, 4 = completed, 5 = cancelled)
+    // ❌ ห้ามยกเลิกถ้าเริ่มทริปแล้ว (3 = start, 4 = finished)
     if (currentStatus >= 3) {
       return res.status(400).json({
         message: "ไม่สามารถยกเลิกได้ เนื่องจากทริปเริ่มต้นหรือจบไปแล้ว",
       });
     }
 
-    // ⏳ กฎการเช็คเวลา 3 วัน ทำเฉพาะ "เมื่อไกด์รับงานแล้ว (2 = accepted)" เท่านั้น
-    if (currentStatus === 2) {
+    // ⏳ เงื่อนไข 3 วัน (ใช้เฉพาะตอนรับงานแล้ว)
+    if (currentStatus === 1) {
       const tripDate = new Date(booking.booking_start_date);
       const now = new Date();
-      
+
       tripDate.setHours(0, 0, 0, 0);
       now.setHours(0, 0, 0, 0);
 
-      const diffDays = (tripDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+      const diffDays =
+        (tripDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
 
       if (diffDays < 3) {
         return res.status(400).json({
-          message: "ไกด์รับงานแล้ว จะต้องยกเลิกก่อนวันเดินทางอย่างน้อย 3 วัน",
+          message:
+            "ต้องยกเลิกก่อนวันเดินทางอย่างน้อย 3 วัน (เมื่อไกด์รับงานแล้ว)",
         });
       }
     }
 
-    // ✅ เปลี่ยนสถานะเป็น 5 = cancelled
+    // ✅ เปลี่ยนสถานะเป็น 2 = cancelled (ตามระบบใหม่ของคุณ)
     await db.query(
       `
       UPDATE booking_queues
-      SET booking_status = 5
+      SET booking_status = 2
       WHERE booking_queue_id = ?
       `,
       [bid]
@@ -568,11 +568,11 @@ router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
 
   try {
-    // ✅ เปลี่ยนเป็นเลข 2 = accepted
+    // ✅ เปลี่ยนเป็นเลข 1 = accepted
     const [result]: any = await db.query(
       `
       UPDATE booking_queues
-      SET booking_status = 2
+      SET booking_status = 1
       WHERE booking_queue_id = ?
       `,
       [bid],
@@ -615,8 +615,8 @@ router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
 
     const booking = rows[0];
 
-    // ✅ ต้องเป็นไกด์รับงานแล้ว (2 = accepted) เท่านั้นถึงจะสไลด์หรือกดเริ่มทริปได้
-    if (Number(booking.booking_status) !== 2) {
+    // ✅ ต้องเป็นไกด์รับงานแล้ว (1 = accepted) เท่านั้นถึงจะสไลด์หรือกดเริ่มทริปได้
+    if (Number(booking.booking_status) !== 1) {
       return res.status(400).json({
         message: "ยังเริ่มทริปไม่ได้ (ไกด์ต้องกดรับงานก่อน)",
       });
