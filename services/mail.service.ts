@@ -2,15 +2,34 @@ import { Resend } from "resend";
 
 const resend = new Resend("re_iqSAYnFG_FBgVjRn3AQ8FDqfroYeanfrM");
 
-export const sendResetEmail = async (email: string, pin: string) => {
-  await resend.emails.send({
-    from: "Guide Finder <onboarding@resend.dev>",
-    to: email,
-    subject: "Reset Password PIN",
-    text: `รหัสรีเซ็ตรหัสผ่านของคุณคือ: ${pin}`,
-  });
+export const sendResetEmail = async (
+  email: string,
+  pin: string
+) => {
+  try {
+    console.log("SEND EMAIL TO =", email);
 
-  console.log("EMAIL SENT");
+    const result = await resend.emails.send({
+      from: "Guide Finder <onboarding@resend.dev>",
+      to: email,
+      subject: "Reset Password PIN",
+      html: `
+        <div style="font-family: Arial, sans-serif;">
+          <h2>Guide Finder</h2>
+          <p>รหัสสำหรับรีเซ็ตรหัสผ่านของคุณคือ</p>
+          <h1>${pin}</h1>
+          <p>รหัสนี้มีอายุ 15 นาที</p>
+        </div>
+      `,
+    });
+
+    console.log("RESEND RESULT =", result);
+
+    return result;
+  } catch (error) {
+    console.error("EMAIL ERROR =", error);
+    throw error;
+  }
 };
 
 // ส่งอีเมลอนุมัติไกด์
