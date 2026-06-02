@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import db from "../db/dbconnect";
 import { RowDataPacket } from "mysql2";
 import crypto from "crypto";
-import { sendResetEmail } from "../services/mail.service";
+import { sendResetEmail } from "../src/services/mail.service";
 import jwt from "jsonwebtoken";
 
 export const router = Router();
@@ -137,7 +137,8 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-// FORGOT PASSWORD
+
+// 1. FORGOT PASSWORD (SEND PIN)
 router.post("/forgot-password", async (req: Request, res: Response) => {
   const { email } = req.body;
 
@@ -151,7 +152,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
     let userId: number | null = null;
     let userType: string | null = null;
 
-    // ===== GUIDE =====
+    // ===== CHECK GUIDE =====
     const [guideRows]: any = await db.execute(
       `SELECT guides_id AS id
        FROM guides
@@ -164,7 +165,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       userType = "guide";
     }
 
-    // ===== CUSTOMER =====
+    // ===== CHECK CUSTOMER =====
     if (!userId) {
       const [customerRows]: any = await db.execute(
         `SELECT cus_id AS id
@@ -183,7 +184,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "ไม่พบบัญชีนี้" });
     }
 
-    // invalidate old reset codes (optional but safe)
+    // invalidate old codes
     await db.execute(
       `UPDATE reset_password
        SET is_used = 1
@@ -192,11 +193,12 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       [userId, userType]
     );
 
-    // generate 6-digit PIN
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // generate secure 6-digit PIN
+    const resetCode = crypto.randomInt(100000, 999999).toString();
 
     const expireAt = new Date(Date.now() + 15 * 60 * 1000);
 
+    // save reset request
     await db.execute(
       `INSERT INTO reset_password
       (ref_user_id, reset_code, user_type, expire_at, is_used)
@@ -204,10 +206,11 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       [userId, resetCode, userType, expireAt]
     );
 
+    // send email
     await sendResetEmail(cleanEmail, resetCode);
 
     return res.status(200).json({
-      message: "ส่ง PIN สำเร็จ",
+      message: "ส่ง PIN ไปที่อีเมลแล้ว",
     });
   } catch (err: any) {
     return res.status(500).json({
@@ -217,7 +220,8 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
   }
 });
 
-//VERIFY PIN
+
+// 2. VERIFY PIN
 router.post("/verify-pin", async (req: Request, res: Response) => {
   const { pin } = req.body;
 
@@ -231,21 +235,19 @@ router.post("/verify-pin", async (req: Request, res: Response) => {
        FROM reset_password
        WHERE reset_code = ?
        AND is_used = 0
+       AND expire_at > NOW()
        ORDER BY reset_id DESC
        LIMIT 1`,
       [pin]
     );
 
     if (rows.length === 0) {
-      return res.status(400).json({ message: "PIN ไม่ถูกต้อง" });
+      return res.status(400).json({ message: "PIN ไม่ถูกต้องหรือหมดอายุ" });
     }
 
     const reset = rows[0];
 
-    if (new Date(reset.expire_at) < new Date()) {
-      return res.status(400).json({ message: "PIN หมดอายุแล้ว" });
-    }
-
+    // mark as used after verify
     await db.execute(
       `UPDATE reset_password
        SET is_used = 1
@@ -256,6 +258,7 @@ router.post("/verify-pin", async (req: Request, res: Response) => {
     return res.status(200).json({
       message: "OK",
       reset_id: reset.reset_id,
+      user_type: reset.user_type,
     });
   } catch (err: any) {
     return res.status(500).json({
@@ -265,7 +268,7 @@ router.post("/verify-pin", async (req: Request, res: Response) => {
   }
 });
 
-//RESET PASSWORD
+// 3. RESET PASSWORD
 router.post("/reset-password", async (req: Request, res: Response) => {
   const { reset_id, new_password } = req.body;
 
@@ -284,18 +287,22 @@ router.post("/reset-password", async (req: Request, res: Response) => {
       `SELECT ref_user_id, user_type
        FROM reset_password
        WHERE reset_id = ?
-       AND is_used = 1`,
+       AND is_used = 1
+       AND expire_at > NOW()`,
       [reset_id]
     );
 
     if (rows.length === 0) {
-      return res.status(400).json({ message: "คำขอไม่ถูกต้อง" });
+      return res.status(400).json({
+        message: "คำขอไม่ถูกต้องหรือหมดอายุ",
+      });
     }
 
     const { ref_user_id, user_type } = rows[0];
 
     const hashedPassword = await bcrypt.hash(new_password, 10);
 
+    // update password (GUIDE)
     if (user_type === "guide") {
       await db.execute(
         `UPDATE guides
@@ -305,80 +312,13 @@ router.post("/reset-password", async (req: Request, res: Response) => {
       );
     }
 
+    // update password (CUSTOMER)
     if (user_type === "customer") {
       await db.execute(
         `UPDATE customers
          SET cus_password = ?
          WHERE cus_id = ?`,
         [hashedPassword, ref_user_id]
-      );
-    }
-
-    return res.status(200).json({
-      message: "เปลี่ยนรหัสผ่านสำเร็จ",
-    });
-  } catch (err: any) {
-    return res.status(500).json({
-      message: "Server error",
-      error: err.message,
-    });
-  }
-});
-
-// RESET PASSWORD
-router.post("/reset-password", async (req, res) => {
-  const { reset_id, new_password } = req.body;
-
-  try {
-    if (!reset_id) {
-      return res.status(400).json({
-        message: "ไม่พบ reset_id",
-      });
-    }
-
-    if (!new_password || new_password.length < 6) {
-      return res.status(400).json({
-        message: "รหัสผ่านต้องอย่างน้อย 6 ตัวอักษร",
-      });
-    }
-
-    const [rows]: any = await db.execute(
-      `SELECT
-          ref_user_id,
-          user_type
-       FROM reset_password
-       WHERE reset_id = ?
-       AND is_used = 1`,
-      [reset_id],
-    );
-
-    if (rows.length === 0) {
-      return res.status(400).json({
-        message: "คำขอไม่ถูกต้อง",
-      });
-    }
-
-    const { ref_user_id, user_type } = rows[0];
-
-    const hashedPassword = await bcrypt.hash(new_password, 10);
-
-    // GUIDE
-    if (user_type === "guide") {
-      await db.execute(
-        `UPDATE guides
-         SET guides_password = ?
-         WHERE guides_id = ?`,
-        [hashedPassword, ref_user_id],
-      );
-    }
-
-    // CUSTOMER
-    if (user_type === "customer") {
-      await db.execute(
-        `UPDATE customers
-         SET cus_password = ?
-         WHERE cus_id = ?`,
-        [hashedPassword, ref_user_id],
       );
     }
 

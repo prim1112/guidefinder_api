@@ -5,7 +5,7 @@ import bcrypt from "bcrypt";
 import cloudinary from "../src/config/configCloud";
 import db from "../db/dbconnect";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
-import { sendGuideApprovedEmail, sendGuideRejectedEmail,} from "../services/mail.service";
+import { sendGuideApprovedEmail, sendGuideRejectedEmail,} from "../src/services/mail.service";
 
 export const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
