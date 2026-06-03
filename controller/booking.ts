@@ -457,7 +457,6 @@ router.get(
 );
 
 // CANCEL BOOKING (ลูกค้ากดยกเลิก)
-// CANCEL BOOKING (ลูกค้ากดยกเลิก)
 router.patch("/booking/cancel/:bid", async (req, res) => {
   const bid = req.params.bid;
 
