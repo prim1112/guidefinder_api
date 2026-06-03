@@ -273,59 +273,36 @@ router.put("/guides/:id", async (req: Request, res: Response) => {
     guides_name,
     guides_phonenumber,
     guides_email,
-    guides_password,
-    guides_language,
     guides_facebook,
-    guides_province,
-    guides_maxcus,
-    guides_pricepercusperday,
-    guides_status,
   } = req.body;
 
   try {
     const [rows]: any = await db.query(
       "SELECT guides_id FROM guides WHERE guides_id = ?",
-      [id],
+      [id]
     );
 
     if (!rows.length) {
       return res.status(404).json({
+        success: false,
         message: "❌ ไม่พบไกด์",
       });
     }
 
-    let hashedPassword = null;
-
-    if (guides_password && guides_password.trim() !== "") {
-      hashedPassword = await bcrypt.hash(guides_password, 10);
-    }
-
     await db.query(
       `UPDATE guides SET
-          guides_name = ?,
-          guides_phonenumber = ?,
-          guides_email = ?,
-          guides_language = ?,
-          guides_facebook = ?,
-          guides_province = ?,
-          guides_maxcus = ?,
-          guides_pricepercusperday = ?,
-          guides_status = ?,
-          guides_password = COALESCE(?, guides_password)
-        WHERE guides_id = ?`,
+        guides_name = ?,
+        guides_phonenumber = ?,
+        guides_email = ?,
+        guides_facebook = ?
+      WHERE guides_id = ?`,
       [
         guides_name,
         guides_phonenumber,
         guides_email,
-        guides_language,
         guides_facebook,
-        guides_province,
-        guides_maxcus,
-        guides_pricepercusperday,
-        guides_status,
-        hashedPassword,
         id,
-      ],
+      ]
     );
 
     return res.status(200).json({
@@ -333,6 +310,7 @@ router.put("/guides/:id", async (req: Request, res: Response) => {
       message: "✅ แก้ไขข้อมูลไกด์สำเร็จ",
       guides_id: id,
     });
+
   } catch (err: any) {
     return res.status(500).json({
       success: false,
