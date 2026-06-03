@@ -277,6 +277,20 @@ router.put("/guides/:id", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
+    // ================= CHECK INPUT =================
+    if (
+      !guides_name ||
+      !guides_phonenumber ||
+      !guides_email ||
+      !guides_facebook
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "กรุณากรอกข้อมูลให้ครบ",
+      });
+    }
+
+    // ================= CHECK GUIDE EXIST =================
     const [rows]: any = await db.query(
       "SELECT guides_id FROM guides WHERE guides_id = ?",
       [id]
@@ -289,6 +303,7 @@ router.put("/guides/:id", async (req: Request, res: Response) => {
       });
     }
 
+    // ================= UPDATE GUIDE =================
     await db.query(
       `UPDATE guides SET
         guides_name = ?,
