@@ -342,6 +342,44 @@ router.put("/guides/:id", async (req: Request, res: Response) => {
   }
 });
 
+router.delete("/guides/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    // ================= CHECK GUIDE EXIST =================
+    const [rows]: any = await db.query(
+      "SELECT guides_id FROM guides WHERE guides_id = ?",
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "❌ ไม่พบไกด์",
+      });
+    }
+
+    // ================= DELETE GUIDE =================
+    await db.query(
+      "DELETE FROM guides WHERE guides_id = ?",
+      [id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "🗑️ ลบไกด์สำเร็จ",
+      guides_id: id,
+    });
+
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: "❌ Server Error",
+      error: err.message,
+    });
+  }
+});
+
 // แก้ไขข้อมูลลูกค้า
 router.put("/customers/:id", async (req: Request, res: Response) => {
     const { id } = req.params;
