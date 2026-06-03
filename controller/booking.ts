@@ -185,19 +185,18 @@ router.post("/booking", async (req: Request, res: Response) => {
     end.setHours(0, 0, 0, 0);
 
     // ================= CHECK OVERLAP =================
-    // ล็อกคิวเฉพาะทริปที่มีสถานะ ไกด์รับงานแล้ว (1) หรือ กำลังไปทริป (3)
     const [duplicate]: any = await db.query(
       `
-      SELECT 1
-      FROM booking_queues
-      WHERE ref_guid_id = ?
-      AND booking_status IN (2, 3)
-      AND NOT (
-        booking_end_date < ?
-        OR booking_start_date > ?
-      )
-      LIMIT 1
-      `,
+  SELECT 1
+  FROM booking_queues
+  WHERE ref_guid_id = ?
+  AND booking_status IN (2, 3)
+  AND NOT (
+    booking_end_date < ?
+    OR booking_start_date > ?
+  )
+  LIMIT 1
+  `,
       [gid, start, end],
     );
 
@@ -225,7 +224,7 @@ router.post("/booking", async (req: Request, res: Response) => {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
-      [gid, cid, refTravelId, start, end, people, total_price, 0]
+      [gid, cid, refTravelId, start, end, people, total_price, 0],
     );
 
     await db.query("COMMIT");
@@ -261,7 +260,7 @@ router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
       WHERE ref_guid_id = ?
       AND booking_status IN (0, 1, 3)
       `,
-      [gid]
+      [gid],
     );
 
     return res.status(200).json({
@@ -389,7 +388,9 @@ router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
 });
 
 // BOOKING DETAIL
-router.get("/booking/detail/:booking_id", async (req: Request, res: Response) => {
+router.get(
+  "/booking/detail/:booking_id",
+  async (req: Request, res: Response) => {
     const booking_id = req.params.booking_id;
 
     try {
@@ -464,7 +465,7 @@ router.patch("/booking/cancel/:bid", async (req, res) => {
       `SELECT booking_status, booking_start_date 
        FROM booking_queues 
        WHERE booking_queue_id = ?`,
-      [bid]
+      [bid],
     );
 
     if (rows.length === 0) {
@@ -509,7 +510,7 @@ router.patch("/booking/cancel/:bid", async (req, res) => {
       SET booking_status = 2
       WHERE booking_queue_id = ?
       `,
-      [bid]
+      [bid],
     );
 
     return res.json({
@@ -530,7 +531,7 @@ router.patch("/booking/guide/cancel/:bid", async (req, res) => {
   try {
     const [rows]: any = await db.query(
       `SELECT booking_status FROM booking_queues WHERE booking_queue_id = ?`,
-      [bid]
+      [bid],
     );
 
     if (rows.length === 0) {
@@ -541,24 +542,23 @@ router.patch("/booking/guide/cancel/:bid", async (req, res) => {
 
     if (status >= 3) {
       return res.status(400).json({
-        message: "ไม่สามารถยกเลิกได้เนื่องจากทริปดำเนินอยู่หรือจบลงแล้ว"
+        message: "ไม่สามารถยกเลิกได้เนื่องจากทริปดำเนินอยู่หรือจบลงแล้ว",
       });
     }
 
     // ✅ เปลี่ยนสถานะเป็น 2 = cancelled
     await db.query(
       `UPDATE booking_queues SET booking_status = 2 WHERE booking_queue_id = ?`,
-      [bid]
+      [bid],
     );
 
     return res.json({
-      message: "ไกด์ยกเลิกงานสำเร็จ"
+      message: "ไกด์ยกเลิกงานสำเร็จ",
     });
-
   } catch (error: any) {
     return res.status(500).json({
       message: "Server Error",
-      error: error.message
+      error: error.message,
     });
   }
 });
