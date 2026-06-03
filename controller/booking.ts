@@ -253,15 +253,15 @@ router.get("/booking/unavailable/:gid", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
       `
-        SELECT 
-          booking_start_date,
-          booking_end_date,
-          booking_status
-        FROM booking_queues
-        WHERE ref_guid_id = ?
-        AND booking_status IN (2, 3)
-        `,
-      [gid],
+      SELECT 
+        booking_start_date,
+        booking_end_date,
+        booking_status
+      FROM booking_queues
+      WHERE ref_guid_id = ?
+      AND booking_status IN (0, 1, 3)
+      `,
+      [gid]
     );
 
     return res.status(200).json({
