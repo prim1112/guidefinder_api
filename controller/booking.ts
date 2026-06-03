@@ -719,47 +719,48 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
 });
 
 // CUSTOMER HISTORY (ประวัติที่สำเร็จแล้ว)
-router.get("/history/customer/:id", async (req: Request, res: Response) => {
-  try {
-    const id = req.params.id;
+router.get("/notification/unread/:id", async (req, res) => {
+  const id = req.params.id;
 
+  try {
     const [rows]: any = await db.query(
       `
-      SELECT 
-        b.booking_queue_id,
-        b.booking_status,
-        b.booking_start_date,
-        b.booking_end_date,
-        b.booking_total_price,
-
-        l.travel_name,
-        l.travel_detail,
-        l.travel_image
-
-      FROM booking_queues b
-
-      LEFT JOIN location_travel l
-        ON b.ref_travel_id = l.id
-
-      WHERE b.ref_cus_id = ?
-      AND b.booking_status = 4
-
-      ORDER BY b.booking_queue_id DESC
+      SELECT COUNT(*) as count
+      FROM booking_queues
+      WHERE ref_cus_id = ?
+      AND booking_status = 4
+      AND is_read = 0
       `,
-      [id],
+      [id]
     );
 
-    return res.status(200).json({
-      message: "ดึงประวัติสำเร็จ",
-      data: rows,
+    return res.json({
+      unread: rows[0].count
     });
-  } catch (error: any) {
-    console.log(error);
+  } catch (err: any) {
+    return res.status(500).json({ message: err.message });
+  }
+});
 
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
+router.patch("/notification/read/:id", async (req, res) => {
+  const id = req.params.id;
+
+  try {
+    await db.query(
+      `
+      UPDATE booking_queues
+      SET is_read = 1
+      WHERE ref_cus_id = ?
+      AND booking_status = 4
+      `,
+      [id]
+    );
+
+    return res.json({
+      message: "marked as read"
     });
+  } catch (err: any) {
+    return res.status(500).json({ message: err.message });
   }
 });
 
