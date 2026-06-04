@@ -31,13 +31,20 @@ const requireSuperAdmin = (req: Request, res: Response, next: Function) => {
 router.get("/alladmin", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
-      "SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_role FROM admin",
+      `SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_role, admin_status
+       FROM admin
+       WHERE admin_role != 'superadmin'`
     );
-    return res.json({ message: "✅ สำเร็จ", data: rows });
+
+    return res.json({
+      message: "✅ สำเร็จ",
+      data: rows,
+    });
   } catch (err: any) {
-    return res
-      .status(500)
-      .json({ message: "❌ Server Error", error: err.message });
+    return res.status(500).json({
+      message: "❌ Server Error",
+      error: err.message,
+    });
   }
 });
 
