@@ -258,6 +258,48 @@ router.put("/profile/me", async (req: Request, res: Response) => {
   }
 });
 
+// GET /superadmin/admin/search?keyword=...
+router.get("/superadmin/admin/search", async (req, res) => {
+  try {
+    const keyword = (req.query.keyword as string) || "";
+
+    if (!keyword) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const search = `%${keyword}%`;
+
+    const [rows] = await db.query(
+      `
+      SELECT 
+        admin_id,
+        admin_name,
+        admin_email,
+        admin_phonenumber,
+        admin_role
+      FROM admin
+      WHERE 
+        admin_name LIKE ?
+        OR admin_email LIKE ?
+        OR admin_phonenumber LIKE ?
+      ORDER BY admin_id DESC
+      `,
+      [search, search, search]
+    );
+
+    return res.json({
+      success: true,
+      data: rows,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
+
 // PUT: แก้ไขแอดมิน (superadmin)
 router.put("/editadmin/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
