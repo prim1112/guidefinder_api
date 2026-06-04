@@ -72,12 +72,12 @@ router.get("/admin/:id", async (req: Request, res: Response) => {
 router.get("/profile/me", async (req: Request, res: Response) => {
   const adminId = req.headers["user-id"];
 
-  console.log("USER ID FROM HEADER =", adminId); // debug
+  console.log("USER ID =", adminId); // 🔍 debug
 
   if (!adminId) {
     return res.status(400).json({
       success: false,
-      message: "❌ ไม่พบ user-id ใน header",
+      message: "❌ ไม่มี user-id",
     });
   }
 
@@ -94,7 +94,9 @@ router.get("/profile/me", async (req: Request, res: Response) => {
       [adminId],
     );
 
-    if (rows.length === 0) {
+    console.log("ROWS =", rows); // 🔍 debug
+
+    if (!rows || rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: "❌ ไม่พบข้อมูลแอดมิน",
