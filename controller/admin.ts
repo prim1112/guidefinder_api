@@ -33,7 +33,7 @@ router.get("/alladmin", async (req: Request, res: Response) => {
     const [rows]: any = await db.query(
       `SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_role
        FROM admin
-       WHERE admin_role != 'superadmin'`
+       WHERE admin_role != 'superadmin'`,
     );
 
     return res.json({
@@ -82,7 +82,7 @@ router.get("/profile/me", async (req: Request, res: Response) => {
         admin_role
        FROM admin
        WHERE admin_id = ?`,
-      [adminId]
+      [adminId],
     );
 
     if (rows.length === 0) {
@@ -248,7 +248,7 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
   try {
     const [existing]: any = await db.query(
       "SELECT admin_id FROM admin WHERE admin_id = ?",
-      [id]
+      [id],
     );
 
     if (existing.length === 0) {
@@ -276,7 +276,7 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
           admin_role,
           hashedPassword,
           id,
-        ]
+        ],
       );
     } else {
       // กรณีไม่เปลี่ยนรหัสผ่าน
@@ -287,13 +287,7 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
           admin_email = ?,
           admin_role = ?
          WHERE admin_id = ?`,
-        [
-          admin_name,
-          admin_phonenumber,
-          admin_email,
-          admin_role,
-          id,
-        ]
+        [admin_name, admin_phonenumber, admin_email, admin_role, id],
       );
     }
 
@@ -318,7 +312,7 @@ router.delete("/deleteadmin/:id", async (req: Request, res: Response) => {
     // ตรวจสอบว่ามีแอดมินนี้อยู่หรือไม่
     const [rows]: any = await db.query(
       "SELECT admin_id, admin_role FROM admin WHERE admin_id = ?",
-      [id]
+      [id],
     );
 
     if (rows.length === 0) {
@@ -337,10 +331,7 @@ router.delete("/deleteadmin/:id", async (req: Request, res: Response) => {
     }
 
     // ลบข้อมูล
-    await db.query(
-      "DELETE FROM admin WHERE admin_id = ?",
-      [id]
-    );
+    await db.query("DELETE FROM admin WHERE admin_id = ?", [id]);
 
     return res.status(200).json({
       success: true,
