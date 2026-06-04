@@ -8,7 +8,7 @@ export const router = Router();
 
 // POST REVIEW GUIDE
 
-router.post("/review/guide", async (req: Request, res: Response) => {
+router.post("/guide", async (req: Request, res: Response) => {
   try {
     const { booking_queue_id, guide_star, guide_comment } = req.body;
 
@@ -39,7 +39,7 @@ router.post("/review/guide", async (req: Request, res: Response) => {
 
 
 //  POST REVIEW PLACE
-router.post("/review/place", async (req: Request, res: Response) => {
+router.post("/place", async (req: Request, res: Response) => {
   try {
     const { booking_queue_id, place_star, place_comment } = req.body;
 
@@ -70,7 +70,7 @@ router.post("/review/place", async (req: Request, res: Response) => {
 
 
 // GET REVIEWS BY GUIDE
-router.get("/review/guide/:guide_id", async (req: Request, res: Response) => {
+router.get("/guide/:guide_id", async (req: Request, res: Response) => {
   try {
     const { guide_id } = req.params;
 
@@ -99,7 +99,7 @@ router.get("/review/guide/:guide_id", async (req: Request, res: Response) => {
 
 // GET REVIEWS BY PLACE
 
-router.get("/review/place/:place_id", async (req: Request, res: Response) => {
+router.get("/place/:place_id", async (req: Request, res: Response) => {
   try {
     const { place_id } = req.params;
 
