@@ -42,7 +42,7 @@ router.get("/alladmin", async (req: Request, res: Response) => {
 });
 
 // GET: ดึงแอดมินตาม ID
-router.get("/admin/:id",  async (req: Request, res: Response) => {
+router.get("/admin/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const [rows]: any = await db.query(
@@ -76,6 +76,8 @@ router.post("/add/admin", async (req: Request, res: Response) => {
     admin_email = admin_email?.trim().toLowerCase();
     admin_phonenumber = admin_phonenumber?.trim();
 
+    console.log("🔥 BODY:", req.body); // debug สำคัญ
+
     // ================= VALIDATION =================
     if (!admin_name || !admin_email || !admin_password || !admin_phonenumber) {
       return res.status(400).json({
@@ -101,7 +103,7 @@ router.post("/add/admin", async (req: Request, res: Response) => {
     // ================= CHECK DUPLICATE EMAIL =================
     const [existing]: any = await db.query(
       "SELECT admin_id FROM admin WHERE admin_email = ?",
-      [admin_email]
+      [admin_email],
     );
 
     if (existing.length > 0) {
@@ -113,18 +115,18 @@ router.post("/add/admin", async (req: Request, res: Response) => {
     // ================= HASH PASSWORD =================
     const hashedPassword = await bcrypt.hash(admin_password, 10);
 
-    // ================= INSERT ADMIN =================
+    // ================= INSERT ADMIN (FIXED) =================
     const [result]: any = await db.query(
       `INSERT INTO admin 
-      (admin_name, admin_phonenumber, admin_email, admin_password, admin_role, admin_status)
-      VALUES (?, ?, ?, ?, ?, 1)`,
+      (admin_name, admin_phonenumber, admin_email, admin_password, admin_role)
+      VALUES (?, ?, ?, ?, ?)`,
       [
         admin_name,
         admin_phonenumber,
         admin_email,
         hashedPassword,
         admin_role || "admin",
-      ]
+      ],
     );
 
     return res.status(201).json({
@@ -142,80 +144,77 @@ router.post("/add/admin", async (req: Request, res: Response) => {
 });
 
 // PUT: แก้ไขข้อมูลตัวเอง (superadmin)
-router.put(
-  "/profile/me", async (req: Request, res: Response) => {
-    const adminId = (req as any).userId; // รับ id จาก header
-    const { admin_name, admin_phonenumber, admin_email, admin_password } =
-      req.body;
+router.put("/profile/me", async (req: Request, res: Response) => {
+  const adminId = (req as any).userId; // รับ id จาก header
+  const { admin_name, admin_phonenumber, admin_email, admin_password } =
+    req.body;
 
-    try {
-      const [existing]: any = await db.query(
-        "SELECT admin_id FROM admin WHERE admin_id = ?",
-        [adminId],
-      );
+  try {
+    const [existing]: any = await db.query(
+      "SELECT admin_id FROM admin WHERE admin_id = ?",
+      [adminId],
+    );
 
-      if (!existing.length) {
-        return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
-      }
+    if (!existing.length) {
+      return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
+    }
 
-      if (admin_password) {
-        const hashedPassword = await bcrypt.hash(admin_password, 10);
-        await db.query(
-          `UPDATE admin SET 
+    if (admin_password) {
+      const hashedPassword = await bcrypt.hash(admin_password, 10);
+      await db.query(
+        `UPDATE admin SET 
           admin_name = ?, 
           admin_phonenumber = ?, 
           admin_email = ?,
           admin_password = ?
          WHERE admin_id = ?`,
-          [admin_name, admin_phonenumber, admin_email, hashedPassword, adminId],
-        );
-      } else {
-        await db.query(
-          `UPDATE admin SET 
+        [admin_name, admin_phonenumber, admin_email, hashedPassword, adminId],
+      );
+    } else {
+      await db.query(
+        `UPDATE admin SET 
           admin_name = ?, 
           admin_phonenumber = ?, 
           admin_email = ?
          WHERE admin_id = ?`,
-          [admin_name, admin_phonenumber, admin_email, adminId],
-        );
-      }
-
-      return res.json({ message: "✅ แก้ไขข้อมูลตัวเองสำเร็จ" });
-    } catch (err: any) {
-      return res
-        .status(500)
-        .json({ message: "❌ Server Error", error: err.message });
+        [admin_name, admin_phonenumber, admin_email, adminId],
+      );
     }
-  },
-);
+
+    return res.json({ message: "✅ แก้ไขข้อมูลตัวเองสำเร็จ" });
+  } catch (err: any) {
+    return res
+      .status(500)
+      .json({ message: "❌ Server Error", error: err.message });
+  }
+});
 
 // PUT: แก้ไขแอดมิน (superadmin)
-router.put(
-  "/editadminid", async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const {
-      admin_name,
-      admin_phonenumber,
-      admin_email,
-      admin_password,
-      admin_role,
-      admin_status,
-    } = req.body;
+router.put("/editadminid", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const {
+    admin_name,
+    admin_phonenumber,
+    admin_email,
+    admin_password,
+    admin_role,
+    admin_status,
+  } = req.body;
 
-    try {
-      const [existing]: any = await db.query(
-        "SELECT admin_id FROM admin WHERE admin_id = ?",
-        [id],
-      );
+  try {
+    const [existing]: any = await db.query(
+      "SELECT admin_id FROM admin WHERE admin_id = ?",
+      [id],
+    );
 
-      if (!existing.length) {
-        return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
-      }
+    if (!existing.length) {
+      return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
+    }
 
-      if (admin_password) {
-        const hashedPassword = await bcrypt.hash(admin_password, 10);
-        await db.query(
-          `UPDATE admin SET 
+    if (admin_password) {
+      const hashedPassword = await bcrypt.hash(admin_password, 10);
+      await db.query(
+        `UPDATE admin SET 
           admin_name = ?, 
           admin_phonenumber = ?, 
           admin_email = ?, 
@@ -223,87 +222,78 @@ router.put(
           admin_status = ?,
           admin_password = ?
          WHERE admin_id = ?`,
-          [
-            admin_name,
-            admin_phonenumber,
-            admin_email,
-            admin_role,
-            admin_status,
-            hashedPassword,
-            id,
-          ],
-        );
-      } else {
-        await db.query(
-          `UPDATE admin SET 
+        [
+          admin_name,
+          admin_phonenumber,
+          admin_email,
+          admin_role,
+          admin_status,
+          hashedPassword,
+          id,
+        ],
+      );
+    } else {
+      await db.query(
+        `UPDATE admin SET 
           admin_name = ?, 
           admin_phonenumber = ?, 
           admin_email = ?, 
           admin_role = ?,
           admin_status = ?
          WHERE admin_id = ?`,
-          [
-            admin_name,
-            admin_phonenumber,
-            admin_email,
-            admin_role,
-            admin_status,
-            id,
-          ],
-        );
-      }
-
-      return res.json({ message: "✅ แก้ไขแอดมินสำเร็จ" });
-    } catch (err: any) {
-      return res
-        .status(500)
-        .json({ message: "❌ Server Error", error: err.message });
+        [
+          admin_name,
+          admin_phonenumber,
+          admin_email,
+          admin_role,
+          admin_status,
+          id,
+        ],
+      );
     }
-  },
-);
+
+    return res.json({ message: "✅ แก้ไขแอดมินสำเร็จ" });
+  } catch (err: any) {
+    return res
+      .status(500)
+      .json({ message: "❌ Server Error", error: err.message });
+  }
+});
 
 // DELETE: ลบแอดมิน (superadmin)
-router.delete(
-  "/deleteadmin/id", async (req: Request, res: Response) => {
-    const { id } = req.params;
+router.delete("/deleteadmin/id", async (req: Request, res: Response) => {
+  const { id } = req.params;
 
-    try {
-      const [existing]: any = await db.query(
-        "SELECT admin_id, admin_role FROM admin WHERE admin_id = ?",
-        [id],
-      );
+  try {
+    const [existing]: any = await db.query(
+      "SELECT admin_id, admin_role FROM admin WHERE admin_id = ?",
+      [id],
+    );
 
-      if (!existing.length) {
-        return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
-      }
-
-      if (existing[0].admin_role === "superadmin") {
-        return res
-          .status(400)
-          .json({ message: "❌ ไม่สามารถลบ Superadmin ได้" });
-      }
-
-      await db.query("DELETE FROM admin WHERE admin_id = ?", [id]);
-
-      return res.json({ message: "✅ ลบแอดมินสำเร็จ" });
-    } catch (err: any) {
-      return res
-        .status(500)
-        .json({ message: "❌ Server Error", error: err.message });
+    if (!existing.length) {
+      return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
     }
-  },
-);
+
+    if (existing[0].admin_role === "superadmin") {
+      return res.status(400).json({ message: "❌ ไม่สามารถลบ Superadmin ได้" });
+    }
+
+    await db.query("DELETE FROM admin WHERE admin_id = ?", [id]);
+
+    return res.json({ message: "✅ ลบแอดมินสำเร็จ" });
+  } catch (err: any) {
+    return res
+      .status(500)
+      .json({ message: "❌ Server Error", error: err.message });
+  }
+});
 
 // แก้ไขข้อมูลไกด์
 router.put("/guides/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  const {
-    guides_name,
-    guides_phonenumber,
-    guides_email,
-    guides_facebook,
-  } = req.body;
+  const { guides_name, guides_phonenumber, guides_email, guides_facebook } =
+    req.body;
 
   try {
     // ================= CHECK INPUT =================
@@ -322,7 +312,7 @@ router.put("/guides/:id", async (req: Request, res: Response) => {
     // ================= CHECK GUIDE EXIST =================
     const [rows]: any = await db.query(
       "SELECT guides_id FROM guides WHERE guides_id = ?",
-      [id]
+      [id],
     );
 
     if (!rows.length) {
@@ -340,13 +330,7 @@ router.put("/guides/:id", async (req: Request, res: Response) => {
         guides_email = ?,
         guides_facebook = ?
       WHERE guides_id = ?`,
-      [
-        guides_name,
-        guides_phonenumber,
-        guides_email,
-        guides_facebook,
-        id,
-      ]
+      [guides_name, guides_phonenumber, guides_email, guides_facebook, id],
     );
 
     return res.status(200).json({
@@ -354,7 +338,6 @@ router.put("/guides/:id", async (req: Request, res: Response) => {
       message: "✅ แก้ไขข้อมูลไกด์สำเร็จ",
       guides_id: id,
     });
-
   } catch (err: any) {
     return res.status(500).json({
       success: false,
@@ -371,7 +354,7 @@ router.delete("/guides/:id", async (req: Request, res: Response) => {
     // ================= CHECK GUIDE EXIST =================
     const [rows]: any = await db.query(
       "SELECT guides_id FROM guides WHERE guides_id = ?",
-      [id]
+      [id],
     );
 
     if (rows.length === 0) {
@@ -382,17 +365,13 @@ router.delete("/guides/:id", async (req: Request, res: Response) => {
     }
 
     // ================= DELETE GUIDE =================
-    await db.query(
-      "DELETE FROM guides WHERE guides_id = ?",
-      [id]
-    );
+    await db.query("DELETE FROM guides WHERE guides_id = ?", [id]);
 
     return res.status(200).json({
       success: true,
       message: "🗑️ ลบไกด์สำเร็จ",
       guides_id: id,
     });
-
   } catch (err: any) {
     return res.status(500).json({
       success: false,
@@ -404,84 +383,66 @@ router.delete("/guides/:id", async (req: Request, res: Response) => {
 
 // แก้ไขข้อมูลลูกค้า
 router.put("/customers/:id", async (req: Request, res: Response) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    const {
-      cus_name,
-      cus_phonenumber,
-      cus_email,
-      cus_password,
-      role,
-    } = req.body;
+  const { cus_name, cus_phonenumber, cus_email, cus_password, role } = req.body;
 
-    // ตรวจสิทธิ์
-    if (role !== "admin" && role !== "superadmin") {
-      return res.status(403).json({
+  // ตรวจสิทธิ์
+  if (role !== "admin" && role !== "superadmin") {
+    return res.status(403).json({
+      success: false,
+      message: "❌ ไม่มีสิทธิ์เข้าถึง",
+    });
+  }
+
+  // ตรวจข้อมูลบังคับ
+  if (!cus_name?.trim() || !cus_phonenumber?.trim() || !cus_email?.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: "❌ กรุณากรอกข้อมูลให้ครบถ้วน",
+    });
+  }
+
+  try {
+    const [rows]: any = await db.query(
+      "SELECT cus_id FROM customers WHERE cus_id = ?",
+      [id],
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({
         success: false,
-        message: "❌ ไม่มีสิทธิ์เข้าถึง",
+        message: "❌ ไม่พบลูกค้า",
       });
     }
 
-    // ตรวจข้อมูลบังคับ
-    if (
-      !cus_name?.trim() ||
-      !cus_phonenumber?.trim() ||
-      !cus_email?.trim()
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "❌ กรุณากรอกข้อมูลให้ครบถ้วน",
-      });
+    let hashedPassword = null;
+
+    if (cus_password && cus_password.trim() !== "") {
+      hashedPassword = await bcrypt.hash(cus_password, 10);
     }
 
-    try {
-      const [rows]: any = await db.query(
-        "SELECT cus_id FROM customers WHERE cus_id = ?",
-        [id],
-      );
-
-      if (!rows.length) {
-        return res.status(404).json({
-          success: false,
-          message: "❌ ไม่พบลูกค้า",
-        });
-      }
-
-      let hashedPassword = null;
-
-      if (cus_password && cus_password.trim() !== "") {
-        hashedPassword = await bcrypt.hash(cus_password, 10);
-      }
-
-      await db.query(
-        `UPDATE customers SET
+    await db.query(
+      `UPDATE customers SET
           cus_name = ?,
           cus_phonenumber = ?,
           cus_email = ?,
           cus_password = COALESCE(?, cus_password)
         WHERE cus_id = ?`,
-        [
-          cus_name,
-          cus_phonenumber,
-          cus_email,
-          hashedPassword,
-          id,
-        ],
-      );
+      [cus_name, cus_phonenumber, cus_email, hashedPassword, id],
+    );
 
-      return res.status(200).json({
-        success: true,
-        message: "✅ แก้ไขข้อมูลลูกค้าสำเร็จ",
-      });
-    } catch (err: any) {
-      return res.status(500).json({
-        success: false,
-        message: err.message,
-      });
-    }
-  },
-);
-
+    return res.status(200).json({
+      success: true,
+      message: "✅ แก้ไขข้อมูลลูกค้าสำเร็จ",
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
 
 router.delete("/account/:id", async (req: Request, res: Response) => {
   try {
