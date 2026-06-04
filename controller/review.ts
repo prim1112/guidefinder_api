@@ -41,7 +41,6 @@ router.post("/guide", async (req: Request, res: Response) => {
 //  POST REVIEW PLACE
 router.post("/place", async (req: Request, res: Response) => {
   try {
-    // 1. รับค่าจาก Flutter (ตัวแปรฝั่งซ้ายต้องตรงกับคีย์ที่ Flutter ส่งมา)
     const { booking_queue_id, place_star, place_comment } = req.body;
 
     if (!booking_queue_id || !place_star) {
@@ -50,13 +49,11 @@ router.post("/place", async (req: Request, res: Response) => {
         message: "ข้อมูลไม่ครบ (place)",
       });
     }
-
-    // 2. แก้ไขคำสั่ง SQL ตรงนี้! เปลี่ยนเป็นชื่อคอลัมน์ที่ถูกต้องในฐานข้อมูลของคุณ
     await db.query(
-      `INSERT INTO review_places 
+      `INSERT INTO review_locations 
        (booking_queue_id, location_star, location_comment)
        VALUES (?, ?, ?)`,
-      [booking_queue_id, place_star, place_comment] // เอาค่าที่ส่งมาจาก Flutter ไปหยอดลงฐานข้อมูล
+      [booking_queue_id, place_star, place_comment]
     );
 
     return res.json({
