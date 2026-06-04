@@ -102,7 +102,6 @@ router.get("/guide/:guide_id", async (req: Request, res: Response) => {
 
 
 // GET REVIEWS BY PLACE
-
 router.get("/place/:place_id", async (req: Request, res: Response) => {
   try {
     const { place_id } = req.params;
@@ -110,10 +109,10 @@ router.get("/place/:place_id", async (req: Request, res: Response) => {
     const [rows] = await db.query(
       `
       SELECT rp.*
-      FROM review_places rp
+      FROM review_locations rp  -- ✨ แก้เป็น review_locations ให้ตรงตารางจริงแล้วครับ
       JOIN booking_queue b 
         ON rp.booking_queue_id = b.booking_queue_id
-      WHERE b.ref_travel_id = ?  -- ✨ แก้ตรงนี้จาก b.place_id เป็น b.ref_travel_id ให้ตรงกับตาราง DB
+      WHERE b.ref_travel_id = ?
       `,
       [place_id]
     );
