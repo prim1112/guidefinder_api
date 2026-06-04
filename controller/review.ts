@@ -5,9 +5,7 @@ import db from "../db/dbconnect";
 export const router = Router();
 
 
-
 // POST REVIEW GUIDE
-
 router.post("/guide", async (req: Request, res: Response) => {
   try {
     const { booking_queue_id, guide_star, guide_comment } = req.body;
@@ -30,16 +28,18 @@ router.post("/guide", async (req: Request, res: Response) => {
       success: true,
       message: "รีวิวไกด์สำเร็จ",
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
-    return res.status(500).json({ success: false });
+    return res.status(500).json({ 
+      success: false, 
+      message: err.message || "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์ของระบบไกด์" 
+    });
   }
 });
 
 
-
 //  POST REVIEW PLACE
-router.post("/place", async (req: Request, res: Response) => {
+ router.post("/place", async (req: Request, res: Response) => {
   try {
     const { booking_queue_id, place_star, place_comment } = req.body;
 
@@ -49,6 +49,8 @@ router.post("/place", async (req: Request, res: Response) => {
         message: "ข้อมูลไม่ครบ (place)",
       });
     }
+
+    // อัปเดตคอลัมน์และตารางตามสเปกจริงของ MySQL
     await db.query(
       `INSERT INTO review_locations 
        (booking_queue_id, location_star, location_comment)
@@ -64,7 +66,7 @@ router.post("/place", async (req: Request, res: Response) => {
     console.error(err);
     return res.status(500).json({ 
       success: false, 
-      message: err.message || "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์" 
+      message: err.message || "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์ของระบบสถานที่" 
     });
   }
 });
