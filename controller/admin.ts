@@ -46,7 +46,7 @@ router.get("/admin/:id",  async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const [rows]: any = await db.query(
-      "SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_role, admin_status FROM admin WHERE admin_id = ?",
+      "SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_roleF ROM admin WHERE admin_id = ?",
       [id],
     );
 
