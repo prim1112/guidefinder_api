@@ -68,6 +68,43 @@ router.get("/admin/:id", async (req: Request, res: Response) => {
   }
 });
 
+// GET: ข้อมูลโปรไฟล์ตัวเอง (superadmin)
+router.get("/profile/me", async (req: Request, res: Response) => {
+  const adminId = (req as any).userId;
+
+  try {
+    const [rows]: any = await db.query(
+      `SELECT
+        admin_id,
+        admin_name,
+        admin_phonenumber,
+        admin_email,
+        admin_role
+       FROM admin
+       WHERE admin_id = ?`,
+      [adminId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "❌ ไม่พบข้อมูลแอดมิน",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: rows[0],
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: "❌ Server Error",
+      error: err.message,
+    });
+  }
+});
+
 router.post("/add/admin", async (req: Request, res: Response) => {
   try {
     let {
