@@ -113,7 +113,7 @@ router.get("/place/:place_id", async (req: Request, res: Response) => {
       FROM review_places rp
       JOIN booking_queue b 
         ON rp.booking_queue_id = b.booking_queue_id
-      WHERE b.place_id = ?
+      WHERE b.ref_travel_id = ?  -- ✨ แก้ตรงนี้จาก b.place_id เป็น b.ref_travel_id ให้ตรงกับตาราง DB
       `,
       [place_id]
     );
