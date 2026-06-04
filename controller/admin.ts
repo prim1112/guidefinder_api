@@ -31,7 +31,7 @@ const requireSuperAdmin = (req: Request, res: Response, next: Function) => {
 router.get("/alladmin", async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
-      "SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_role, admin_status FROM admin",
+      "SELECT admin_id, admin_name, admin_phonenumber, admin_email, admin_role FROM admin",
     );
     return res.json({ message: "✅ สำเร็จ", data: rows });
   } catch (err: any) {
