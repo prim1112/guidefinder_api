@@ -742,7 +742,17 @@ router.get("/history/customer/:id", async (req: Request, res: Response) => {
         ON b.ref_travel_id = l.id
 
       WHERE b.ref_cus_id = ?
-      AND b.booking_status = 4
+        AND b.booking_status = 4
+        
+        -- 🟢 เพิ่มเงื่อนไข: ต้องยังไม่เคยรีวิวสถานที่ (ไม่มี booking_queue_id นี้ในตาราง review_places)
+        AND b.booking_queue_id NOT IN (
+            SELECT booking_queue_id FROM review_places
+        )
+        
+        -- 🟢 เพิ่มเงื่อนไข: ต้องยังไม่เคยรีวิวไกด์ (ไม่มี booking_queue_id นี้ในตาราง review_guides)
+        AND b.booking_queue_id NOT IN (
+            SELECT booking_queue_id FROM review_guides
+        )
 
       ORDER BY b.booking_queue_id DESC
       `,
