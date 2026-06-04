@@ -62,7 +62,7 @@ router.get("/admin/:id",  async (req: Request, res: Response) => {
 });
 
 // POST: เพิ่มแอดมิน (superadmin)
-router.post("/aad/admin", async (req: Request, res: Response) => {
+router.post("/add/admin", async (req: Request, res: Response) => {
   try {
     let {
       admin_name,
