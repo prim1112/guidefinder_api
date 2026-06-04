@@ -61,7 +61,6 @@ router.get("/admin/:id",  async (req: Request, res: Response) => {
   }
 });
 
-// POST: เพิ่มแอดมิน (superadmin)
 router.post("/add/admin", async (req: Request, res: Response) => {
   try {
     let {
@@ -73,18 +72,25 @@ router.post("/add/admin", async (req: Request, res: Response) => {
     } = req.body;
 
     // ================= NORMALIZE =================
-    admin_email = admin_email?.trim().toLowerCase();
     admin_name = admin_name?.trim();
+    admin_email = admin_email?.trim().toLowerCase();
     admin_phonenumber = admin_phonenumber?.trim();
 
     // ================= VALIDATION =================
-    if (!admin_name || !admin_phonenumber || !admin_email || !admin_password) {
+    if (!admin_name || !admin_email || !admin_password || !admin_phonenumber) {
       return res.status(400).json({
         message: "❌ กรุณากรอกข้อมูลให้ครบ",
       });
     }
 
-    // ================= EMAIL FORMAT CHECK =================
+    // ================= PHONE VALIDATION =================
+    if (admin_phonenumber.length < 9) {
+      return res.status(400).json({
+        message: "❌ เบอร์โทรไม่ถูกต้อง",
+      });
+    }
+
+    // ================= EMAIL FORMAT =================
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(admin_email)) {
       return res.status(400).json({
@@ -107,7 +113,7 @@ router.post("/add/admin", async (req: Request, res: Response) => {
     // ================= HASH PASSWORD =================
     const hashedPassword = await bcrypt.hash(admin_password, 10);
 
-    // ================= INSERT =================
+    // ================= INSERT ADMIN =================
     const [result]: any = await db.query(
       `INSERT INTO admin 
       (admin_name, admin_phonenumber, admin_email, admin_password, admin_role, admin_status)
@@ -126,6 +132,8 @@ router.post("/add/admin", async (req: Request, res: Response) => {
       admin_id: result.insertId,
     });
   } catch (err: any) {
+    console.log("🔥 SERVER ERROR:", err);
+
     return res.status(500).json({
       message: "❌ Server Error",
       error: err.message,
