@@ -62,9 +62,9 @@ router.get("/admin/:id",  async (req: Request, res: Response) => {
 });
 
 // POST: เพิ่มแอดมิน (superadmin)
-router.post(
-  "/aad/admin", async (req: Request, res: Response) => {
-    const {
+router.post("/aad/admin", async (req: Request, res: Response) => {
+  try {
+    let {
       admin_name,
       admin_phonenumber,
       admin_email,
@@ -72,45 +72,66 @@ router.post(
       admin_role,
     } = req.body;
 
-    if (!admin_name || !admin_email || !admin_password) {
-      return res.status(400).json({ message: "❌ กรุณากรอกข้อมูลให้ครบ" });
-    }
+    // ================= NORMALIZE =================
+    admin_email = admin_email?.trim().toLowerCase();
+    admin_name = admin_name?.trim();
+    admin_phonenumber = admin_phonenumber?.trim();
 
-    try {
-      const [existing]: any = await db.query(
-        "SELECT admin_id FROM admin WHERE admin_email = ?",
-        [admin_email],
-      );
-
-      if (existing.length > 0) {
-        return res.status(409).json({ message: "❌ Email นี้มีอยู่แล้ว" });
-      }
-
-      const hashedPassword = await bcrypt.hash(admin_password, 10);
-
-      const [result]: any = await db.query(
-        `INSERT INTO admin (admin_name, admin_phonenumber, admin_email, admin_password, admin_role, admin_status)
-       VALUES (?, ?, ?, ?, ?, 1)`,
-        [
-          admin_name,
-          admin_phonenumber || null,
-          admin_email,
-          hashedPassword,
-          admin_role || "admin",
-        ],
-      );
-
-      return res.status(201).json({
-        message: "✅ เพิ่มแอดมินสำเร็จ",
-        admin_id: result.insertId,
+    // ================= VALIDATION =================
+    if (!admin_name || !admin_phonenumber || !admin_email || !admin_password) {
+      return res.status(400).json({
+        message: "❌ กรุณากรอกข้อมูลให้ครบ",
       });
-    } catch (err: any) {
-      return res
-        .status(500)
-        .json({ message: "❌ Server Error", error: err.message });
     }
-  },
-);
+
+    // ================= EMAIL FORMAT CHECK =================
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(admin_email)) {
+      return res.status(400).json({
+        message: "❌ รูปแบบอีเมลไม่ถูกต้อง",
+      });
+    }
+
+    // ================= CHECK DUPLICATE EMAIL =================
+    const [existing]: any = await db.query(
+      "SELECT admin_id FROM admin WHERE admin_email = ?",
+      [admin_email]
+    );
+
+    if (existing.length > 0) {
+      return res.status(409).json({
+        message: "❌ Email นี้มีอยู่แล้ว",
+      });
+    }
+
+    // ================= HASH PASSWORD =================
+    const hashedPassword = await bcrypt.hash(admin_password, 10);
+
+    // ================= INSERT =================
+    const [result]: any = await db.query(
+      `INSERT INTO admin 
+      (admin_name, admin_phonenumber, admin_email, admin_password, admin_role, admin_status)
+      VALUES (?, ?, ?, ?, ?, 1)`,
+      [
+        admin_name,
+        admin_phonenumber,
+        admin_email,
+        hashedPassword,
+        admin_role || "admin",
+      ]
+    );
+
+    return res.status(201).json({
+      message: "✅ เพิ่มแอดมินสำเร็จ",
+      admin_id: result.insertId,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      message: "❌ Server Error",
+      error: err.message,
+    });
+  }
+});
 
 // PUT: แก้ไขข้อมูลตัวเอง (superadmin)
 router.put(
