@@ -15,6 +15,7 @@ import { router as packageRouter } from "./controller/package";
 import { router as locationRouter } from "./controller/location";
 import { router as bookingRouter } from "./controller/booking";
 import { router as adminRouter } from "./controller/admin";
+import { router as reviewRouter } from "./controller/review";
 export const app = express();
 
 // 💡 1. สร้าง httpServer มารองรับตัวแปร app ดั้งเดิม
@@ -75,5 +76,6 @@ app.use("/auth", loginRouter);
 app.use("/package", packageRouter);
 app.use("/location", locationRouter);
 app.use("/booking", bookingRouter);
+app.use("/review", reviewRouter);
 
 export default app;
