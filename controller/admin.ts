@@ -205,7 +205,6 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
     admin_email,
     admin_password,
     admin_role,
-    admin_status,
   } = req.body;
 
   try {
@@ -234,7 +233,6 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
           admin_phonenumber,
           admin_email,
           admin_role,
-          admin_status,
           hashedPassword,
           id,
         ],
@@ -253,7 +251,6 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
           admin_phonenumber,
           admin_email,
           admin_role,
-          admin_status,
           id,
         ],
       );
