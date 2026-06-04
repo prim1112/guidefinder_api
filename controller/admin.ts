@@ -200,9 +200,15 @@ router.post("/add/admin", async (req: Request, res: Response) => {
 
 // PUT: แก้ไขข้อมูลตัวเอง (superadmin)
 router.put("/profile/me", async (req: Request, res: Response) => {
-  const adminId = (req as any).userId; // รับ id จาก header
-  const { admin_name, admin_phonenumber, admin_email, admin_password } =
-    req.body;
+  const adminId = req.headers["user-id"]; // ✅ FIX
+
+  console.log("ADMIN ID =", adminId);
+
+  if (!adminId) {
+    return res.status(400).json({
+      message: "❌ ไม่พบ user-id",
+    });
+  }
 
   try {
     const [existing]: any = await db.query(
@@ -210,9 +216,16 @@ router.put("/profile/me", async (req: Request, res: Response) => {
       [adminId],
     );
 
-    if (!existing.length) {
-      return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
+    console.log("EXISTING =", existing);
+
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({
+        message: "❌ ไม่พบแอดมิน",
+      });
     }
+
+    const { admin_name, admin_phonenumber, admin_email, admin_password } =
+      req.body;
 
     if (admin_password) {
       const hashedPassword = await bcrypt.hash(admin_password, 10);
@@ -238,9 +251,10 @@ router.put("/profile/me", async (req: Request, res: Response) => {
 
     return res.json({ message: "✅ แก้ไขข้อมูลตัวเองสำเร็จ" });
   } catch (err: any) {
-    return res
-      .status(500)
-      .json({ message: "❌ Server Error", error: err.message });
+    return res.status(500).json({
+      message: "❌ Server Error",
+      error: err.message,
+    });
   }
 });
 
