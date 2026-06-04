@@ -126,43 +126,46 @@ router.post("/add/admin", async (req: Request, res: Response) => {
       admin_role,
     } = req.body;
 
+    console.log("🔥 BODY:", req.body);
+
     // ================= NORMALIZE =================
     admin_name = admin_name?.trim();
     admin_email = admin_email?.trim().toLowerCase();
     admin_phonenumber = admin_phonenumber?.trim();
-
-    console.log("🔥 BODY:", req.body); // debug สำคัญ
+    admin_role = admin_role?.trim() || "admin";
 
     // ================= VALIDATION =================
     if (!admin_name || !admin_email || !admin_password || !admin_phonenumber) {
       return res.status(400).json({
+        success: false,
         message: "❌ กรุณากรอกข้อมูลให้ครบ",
       });
     }
 
-    // ================= PHONE VALIDATION =================
     if (admin_phonenumber.length < 9) {
       return res.status(400).json({
+        success: false,
         message: "❌ เบอร์โทรไม่ถูกต้อง",
       });
     }
 
-    // ================= EMAIL FORMAT =================
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(admin_email)) {
       return res.status(400).json({
+        success: false,
         message: "❌ รูปแบบอีเมลไม่ถูกต้อง",
       });
     }
 
-    // ================= CHECK DUPLICATE EMAIL =================
+    // ================= CHECK DUPLICATE =================
     const [existing]: any = await db.query(
       "SELECT admin_id FROM admin WHERE admin_email = ?",
-      [admin_email],
+      [admin_email]
     );
 
     if (existing.length > 0) {
       return res.status(409).json({
+        success: false,
         message: "❌ Email นี้มีอยู่แล้ว",
       });
     }
@@ -170,7 +173,7 @@ router.post("/add/admin", async (req: Request, res: Response) => {
     // ================= HASH PASSWORD =================
     const hashedPassword = await bcrypt.hash(admin_password, 10);
 
-    // ================= INSERT ADMIN (FIXED) =================
+    // ================= INSERT =================
     const [result]: any = await db.query(
       `INSERT INTO admin 
       (admin_name, admin_phonenumber, admin_email, admin_password, admin_role)
@@ -180,18 +183,21 @@ router.post("/add/admin", async (req: Request, res: Response) => {
         admin_phonenumber,
         admin_email,
         hashedPassword,
-        admin_role || "admin",
-      ],
+        admin_role,
+      ]
     );
 
     return res.status(201).json({
+      success: true,
       message: "✅ เพิ่มแอดมินสำเร็จ",
       admin_id: result.insertId,
     });
+
   } catch (err: any) {
     console.log("🔥 SERVER ERROR:", err);
 
     return res.status(500).json({
+      success: false,
       message: "❌ Server Error",
       error: err.message,
     });
@@ -259,17 +265,22 @@ router.put("/profile/me", async (req: Request, res: Response) => {
 });
 
 // GET /superadmin/admin/search?keyword=...
-router.get("/superadmin/admin/search", async (req, res) => {
+router.get("/superadmin/admin/search", async (req: Request, res: Response) => {
   try {
     const keyword = (req.query.keyword as string) || "";
 
+    console.log("🔎 keyword:", keyword);
+
     if (!keyword) {
-      return res.status(200).json({ success: true, data: [] });
+      return res.status(200).json({
+        success: true,
+        data: [],
+      });
     }
 
     const search = `%${keyword}%`;
 
-    const [rows] = await db.query(
+    const [rows]: any = await db.query(
       `
       SELECT 
         admin_id,
@@ -279,10 +290,9 @@ router.get("/superadmin/admin/search", async (req, res) => {
         admin_role
       FROM admin
       WHERE 
-        admin_role = 'admin'
-        AND (
-          admin_name LIKE ?
-          OR admin_email LIKE ?
+        (
+          LOWER(admin_name) LIKE LOWER(?)
+          OR LOWER(admin_email) LIKE LOWER(?)
           OR admin_phonenumber LIKE ?
         )
       ORDER BY admin_id DESC
@@ -294,11 +304,14 @@ router.get("/superadmin/admin/search", async (req, res) => {
       success: true,
       data: rows,
     });
-  } catch (err) {
-    console.error(err);
+
+  } catch (err: any) {
+    console.log("🔥 SEARCH ERROR:", err);
+
     return res.status(500).json({
       success: false,
       message: "Server error",
+      error: err.message,
     });
   }
 });
