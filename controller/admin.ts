@@ -70,7 +70,16 @@ router.get("/admin/:id", async (req: Request, res: Response) => {
 
 // GET: ข้อมูลโปรไฟล์ตัวเอง (superadmin)
 router.get("/profile/me", async (req: Request, res: Response) => {
-  const adminId = (req as any).userId;
+  const adminId = req.headers["user-id"];
+
+  console.log("USER ID FROM HEADER =", adminId); // debug
+
+  if (!adminId) {
+    return res.status(400).json({
+      success: false,
+      message: "❌ ไม่พบ user-id ใน header",
+    });
+  }
 
   try {
     const [rows]: any = await db.query(
