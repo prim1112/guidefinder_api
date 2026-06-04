@@ -199,6 +199,7 @@ router.put("/profile/me", async (req: Request, res: Response) => {
 // PUT: แก้ไขแอดมิน (superadmin)
 router.put("/editadmin/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
+
   const {
     admin_name,
     admin_phonenumber,
@@ -210,22 +211,25 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
   try {
     const [existing]: any = await db.query(
       "SELECT admin_id FROM admin WHERE admin_id = ?",
-      [id],
+      [id]
     );
 
-    if (!existing.length) {
-      return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
+    if (existing.length === 0) {
+      return res.status(404).json({
+        message: "❌ ไม่พบแอดมิน",
+      });
     }
 
-    if (admin_password) {
+    // กรณีมีการเปลี่ยนรหัสผ่าน
+    if (admin_password && admin_password.trim() !== "") {
       const hashedPassword = await bcrypt.hash(admin_password, 10);
+
       await db.query(
-        `UPDATE admin SET 
-          admin_name = ?, 
-          admin_phonenumber = ?, 
-          admin_email = ?, 
+        `UPDATE admin SET
+          admin_name = ?,
+          admin_phonenumber = ?,
+          admin_email = ?,
           admin_role = ?,
-          admin_status = ?,
           admin_password = ?
          WHERE admin_id = ?`,
         [
@@ -235,16 +239,16 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
           admin_role,
           hashedPassword,
           id,
-        ],
+        ]
       );
     } else {
+      // กรณีไม่เปลี่ยนรหัสผ่าน
       await db.query(
-        `UPDATE admin SET 
-          admin_name = ?, 
-          admin_phonenumber = ?, 
-          admin_email = ?, 
-          admin_role = ?,
-          admin_status = ?
+        `UPDATE admin SET
+          admin_name = ?,
+          admin_phonenumber = ?,
+          admin_email = ?,
+          admin_role = ?
          WHERE admin_id = ?`,
         [
           admin_name,
@@ -252,15 +256,20 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
           admin_email,
           admin_role,
           id,
-        ],
+        ]
       );
     }
 
-    return res.json({ message: "✅ แก้ไขแอดมินสำเร็จ" });
+    return res.status(200).json({
+      message: "✅ แก้ไขแอดมินสำเร็จ",
+    });
   } catch (err: any) {
-    return res
-      .status(500)
-      .json({ message: "❌ Server Error", error: err.message });
+    console.error(err);
+
+    return res.status(500).json({
+      message: "❌ Server Error",
+      error: err.message,
+    });
   }
 });
 
@@ -269,26 +278,45 @@ router.delete("/deleteadmin/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
-    const [existing]: any = await db.query(
+    // ตรวจสอบว่ามีแอดมินนี้อยู่หรือไม่
+    const [rows]: any = await db.query(
       "SELECT admin_id, admin_role FROM admin WHERE admin_id = ?",
-      [id],
+      [id]
     );
 
-    if (!existing.length) {
-      return res.status(404).json({ message: "❌ ไม่พบแอดมิน" });
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "❌ ไม่พบแอดมิน",
+      });
     }
 
-    if (existing[0].admin_role === "superadmin") {
-      return res.status(400).json({ message: "❌ ไม่สามารถลบ Superadmin ได้" });
+    // ไม่อนุญาตให้ลบ superadmin
+    if (rows[0].admin_role === "superadmin") {
+      return res.status(400).json({
+        success: false,
+        message: "❌ ไม่สามารถลบ Superadmin ได้",
+      });
     }
 
-    await db.query("DELETE FROM admin WHERE admin_id = ?", [id]);
+    // ลบข้อมูล
+    await db.query(
+      "DELETE FROM admin WHERE admin_id = ?",
+      [id]
+    );
 
-    return res.json({ message: "✅ ลบแอดมินสำเร็จ" });
+    return res.status(200).json({
+      success: true,
+      message: "✅ ลบแอดมินสำเร็จ",
+    });
   } catch (err: any) {
-    return res
-      .status(500)
-      .json({ message: "❌ Server Error", error: err.message });
+    console.error("Delete Admin Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "❌ Server Error",
+      error: err.message,
+    });
   }
 });
 
