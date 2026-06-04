@@ -109,8 +109,8 @@ router.get("/place/:place_id", async (req: Request, res: Response) => {
     const [rows] = await db.query(
       `
       SELECT rp.*
-      FROM review_locations rp  -- ✨ แก้เป็น review_locations ให้ตรงตารางจริงแล้วครับ
-      JOIN booking_queue b 
+      FROM review_locations rp
+      JOIN booking_queues b 
         ON rp.booking_queue_id = b.booking_queue_id
       WHERE b.ref_travel_id = ?
       `,
