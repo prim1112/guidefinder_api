@@ -197,7 +197,7 @@ router.put("/profile/me", async (req: Request, res: Response) => {
 });
 
 // PUT: แก้ไขแอดมิน (superadmin)
-router.put("/editadminid", async (req: Request, res: Response) => {
+router.put("/editadmin/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   const {
     admin_name,
@@ -268,7 +268,7 @@ router.put("/editadminid", async (req: Request, res: Response) => {
 });
 
 // DELETE: ลบแอดมิน (superadmin)
-router.delete("/deleteadmin/id", async (req: Request, res: Response) => {
+router.delete("/deleteadmin/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
