@@ -279,9 +279,12 @@ router.get("/superadmin/admin/search", async (req, res) => {
         admin_role
       FROM admin
       WHERE 
-        admin_name LIKE ?
-        OR admin_email LIKE ?
-        OR admin_phonenumber LIKE ?
+        admin_role = 'admin'
+        AND (
+          admin_name LIKE ?
+          OR admin_email LIKE ?
+          OR admin_phonenumber LIKE ?
+        )
       ORDER BY admin_id DESC
       `,
       [search, search, search]
