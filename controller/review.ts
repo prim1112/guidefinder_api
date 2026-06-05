@@ -72,9 +72,7 @@ router.post("/guide", async (req: Request, res: Response) => {
 });
 
 
-
 // GET REVIEWS BY GUIDE
-// GET REVIEWS BY GUIDE (ดึงข้อมูลรีวิวและข้อมูลลูกค้าคนรีวิวด้วย)
 router.get("/guide/:guide_id", async (req: Request, res: Response) => {
   try {
     const { guide_id } = req.params;
@@ -82,16 +80,14 @@ router.get("/guide/:guide_id", async (req: Request, res: Response) => {
     const [rows] = await db.query(
       `
       SELECT 
-        rg.review_gid,
-        rg.booking_queue_id,
-        rg.guide_star,
-        rg.guide_comment,
-        c.cus_name,
-        c.cus_imageprofile
+        rg.*, 
+        c.cus_name
       FROM review_guides rg
-      JOIN booking_queue b ON rg.booking_queue_id = b.booking_queue_id
-      JOIN customers c ON b.cus_id = c.cus_id
-      WHERE b.guide_id = ?
+      JOIN booking_queues b 
+        ON rg.booking_queue_id = b.booking_queue_id
+      JOIN customers c 
+        ON b.ref_cus_id = c.cus_id 
+      WHERE b.ref_guid_id = ?       
       `,
       [guide_id]
     );
@@ -107,19 +103,22 @@ router.get("/guide/:guide_id", async (req: Request, res: Response) => {
 });
 
 
-
-// GET REVIEWS BY PLACE
+//GET REVIEWS BY PLACE 
 router.get("/place/:place_id", async (req: Request, res: Response) => {
   try {
     const { place_id } = req.params;
 
     const [rows] = await db.query(
       `
-      SELECT rp.*
+      SELECT 
+        rp.*,
+        c.cus_name
       FROM review_locations rp
-      JOIN booking_queues b 
+      JOIN booking_queues b          
         ON rp.booking_queue_id = b.booking_queue_id
-      WHERE b.ref_travel_id = ?
+      JOIN customers c 
+        ON b.ref_cus_id = c.cus_id   
+      WHERE b.ref_travel_id = ?    
       `,
       [place_id]
     );
