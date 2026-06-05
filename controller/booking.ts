@@ -734,32 +734,39 @@ router.get("/history/customer/:id", async (req: Request, res: Response) => {
 
         l.travel_name,
         l.travel_detail,
-        l.travel_image
+        l.travel_image,
+
+        CASE
+          WHEN rp.booking_queue_id IS NOT NULL THEN 1
+          ELSE 0
+        END AS reviewed_place,
+
+        CASE
+          WHEN rg.booking_queue_id IS NOT NULL THEN 1
+          ELSE 0
+        END AS reviewed_guide
 
       FROM booking_queues b
 
       LEFT JOIN location_travel l
         ON b.ref_travel_id = l.id
 
+      LEFT JOIN review_places rp
+        ON b.booking_queue_id = rp.booking_queue_id
+
+      LEFT JOIN review_guides rg
+        ON b.booking_queue_id = rg.booking_queue_id
+
       WHERE b.ref_cus_id = ?
         AND b.booking_status = 4
-        
-        -- 🟢 เพิ่มเงื่อนไข: ต้องยังไม่เคยรีวิวสถานที่ (ไม่มี booking_queue_id นี้ในตาราง review_places)
-        AND b.booking_queue_id NOT IN (
-            SELECT booking_queue_id FROM review_places
-        )
-        
-        -- 🟢 เพิ่มเงื่อนไข: ต้องยังไม่เคยรีวิวไกด์ (ไม่มี booking_queue_id นี้ในตาราง review_guides)
-        AND b.booking_queue_id NOT IN (
-            SELECT booking_queue_id FROM review_guides
-        )
 
       ORDER BY b.booking_queue_id DESC
       `,
-      [id],
+      [id]
     );
 
     return res.status(200).json({
+      success: true,
       message: "ดึงประวัติสำเร็จ",
       data: rows,
     });
@@ -767,6 +774,7 @@ router.get("/history/customer/:id", async (req: Request, res: Response) => {
     console.log(error);
 
     return res.status(500).json({
+      success: false,
       message: "Server Error",
       error: error.message,
     });
