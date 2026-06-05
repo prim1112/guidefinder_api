@@ -81,29 +81,24 @@ router.get("/guide/:guide_id", async (req: Request, res: Response) => {
       `
       SELECT 
         rg.*, 
-        c.cus_name
+        c.cus_name,
+        c.cus_imageprofile            
       FROM review_guides rg
-      JOIN booking_queues b 
-        ON rg.booking_queue_id = b.booking_queue_id
-      JOIN customers c 
-        ON b.ref_cus_id = c.cus_id 
-      WHERE b.ref_guid_id = ?       
+      JOIN booking_queues b ON rg.booking_queue_id = b.booking_queue_id
+      JOIN customers c ON b.ref_cus_id = c.cus_id
+      WHERE b.ref_guid_id = ?
       `,
       [guide_id]
     );
 
-    return res.json({
-      success: true,
-      data: rows,
-    });
+    return res.json({ success: true, data: rows });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false });
   }
 });
 
-
-//GET REVIEWS BY PLACE 
+// 2. GET REVIEWS BY PLACE 
 router.get("/place/:place_id", async (req: Request, res: Response) => {
   try {
     const { place_id } = req.params;
@@ -112,21 +107,17 @@ router.get("/place/:place_id", async (req: Request, res: Response) => {
       `
       SELECT 
         rp.*,
-        c.cus_name
+        c.cus_name,
+        c.cus_imageprofile            
       FROM review_locations rp
-      JOIN booking_queues b          
-        ON rp.booking_queue_id = b.booking_queue_id
-      JOIN customers c 
-        ON b.ref_cus_id = c.cus_id   
-      WHERE b.ref_travel_id = ?    
+      JOIN booking_queues b ON rp.booking_queue_id = b.booking_queue_id
+      JOIN customers c ON b.ref_cus_id = c.cus_id
+      WHERE b.ref_travel_id = ?
       `,
       [place_id]
     );
 
-    return res.json({
-      success: true,
-      data: rows,
-    });
+    return res.json({ success: true, data: rows });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false });
