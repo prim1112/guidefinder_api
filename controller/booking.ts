@@ -737,7 +737,7 @@ router.get("/history/customer/:id", async (req: Request, res: Response) => {
         l.travel_image,
 
         CASE
-          WHEN rp.booking_queue_id IS NOT NULL THEN 1
+          WHEN rl.booking_queue_id IS NOT NULL THEN 1
           ELSE 0
         END AS reviewed_place,
 
@@ -751,8 +751,8 @@ router.get("/history/customer/:id", async (req: Request, res: Response) => {
       LEFT JOIN location_travel l
         ON b.ref_travel_id = l.id
 
-      LEFT JOIN review_places rp
-        ON b.booking_queue_id = rp.booking_queue_id
+      LEFT JOIN review_locations rl
+        ON b.booking_queue_id = rl.booking_queue_id
 
       LEFT JOIN review_guides rg
         ON b.booking_queue_id = rg.booking_queue_id
