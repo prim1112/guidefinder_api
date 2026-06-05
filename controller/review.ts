@@ -74,16 +74,23 @@ router.post("/guide", async (req: Request, res: Response) => {
 
 
 // GET REVIEWS BY GUIDE
+// GET REVIEWS BY GUIDE (ดึงข้อมูลรีวิวและข้อมูลลูกค้าคนรีวิวด้วย)
 router.get("/guide/:guide_id", async (req: Request, res: Response) => {
   try {
     const { guide_id } = req.params;
 
     const [rows] = await db.query(
       `
-      SELECT rg.*
+      SELECT 
+        rg.review_gid,
+        rg.booking_queue_id,
+        rg.guide_star,
+        rg.guide_comment,
+        c.cus_name,
+        c.cus_imageprofile
       FROM review_guides rg
-      JOIN booking_queue b 
-        ON rg.booking_queue_id = b.booking_queue_id
+      JOIN booking_queue b ON rg.booking_queue_id = b.booking_queue_id
+      JOIN customers c ON b.cus_id = c.cus_id
       WHERE b.guide_id = ?
       `,
       [guide_id]
