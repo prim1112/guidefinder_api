@@ -247,30 +247,27 @@ router.post("/verify-pin", async (req: Request, res: Response) => {
       return res.status(400).json({ message: "กรุณากรอก PIN" });
     }
 
+    // ส่งวันที่ปัจจุบันจาก Node.js ไปเทียบ เพื่อตัดปัญหา Timezone ไม่ตรงกัน
+    const now = new Date(); 
+
     const [rows]: any = await db.execute(
       `SELECT *
        FROM reset_password
        WHERE reset_code = ?
        AND is_used = 0
-       AND expire_at > NOW()
+       AND expire_at > ?
        ORDER BY reset_id DESC
        LIMIT 1`,
-      [pin]
+      [pin, now]
     );
 
     if (rows.length === 0) {
-      return res.status(400).json({ message: "PIN ไม่ถูกต้องหรือหมดอายุ" });
+      return res.status(400).json({ message: "PIN ไม่ถูกต้องหรือหมดอายุแล้ว" });
     }
 
     const reset = rows[0];
 
-    // mark as used after verify
-    await db.execute(
-      `UPDATE reset_password
-       SET is_used = 1
-       WHERE reset_id = ?`,
-      [reset.reset_id]
-    );
+    // เอาการ UPDATE is_used = 1 ตรงนี้ออกไปก่อน! (ห้ามเพิ่งตัดสิทธิ์)
 
     return res.status(200).json({
       message: "OK",
@@ -300,44 +297,47 @@ router.post("/reset-password", async (req: Request, res: Response) => {
       });
     }
 
+    const now = new Date();
+
+    // เช็คว่า PIN นี้ยังไม่เคยถูกใช้ (is_used = 0) และยังไม่หมดอายุ
     const [rows]: any = await db.execute(
       `SELECT ref_user_id, user_type
        FROM reset_password
        WHERE reset_id = ?
-       AND is_used = 1
-       AND expire_at > NOW()`,
-      [reset_id]
+       AND is_used = 0
+       AND expire_at > ?`,
+      [reset_id, now]
     );
 
     if (rows.length === 0) {
       return res.status(400).json({
-        message: "คำขอไม่ถูกต้องหรือหมดอายุ",
+        message: "คำขอไม่ถูกต้อง หมดอายุ หรือถูกใช้งานไปแล้ว",
       });
     }
 
     const { ref_user_id, user_type } = rows[0];
-
     const hashedPassword = await bcrypt.hash(new_password, 10);
 
-    // update password (GUIDE)
+    // ทำการเปลี่ยนรหัสผ่านในตารางของ User
     if (user_type === "guide") {
       await db.execute(
-        `UPDATE guides
-         SET guides_password = ?
-         WHERE guides_id = ?`,
+        `UPDATE guides SET guides_password = ? WHERE guides_id = ?`,
+        [hashedPassword, ref_user_id]
+      );
+    } else if (user_type === "customer") {
+      await db.execute(
+        `UPDATE customers SET cus_password = ? WHERE cus_id = ?`,
         [hashedPassword, ref_user_id]
       );
     }
 
-    // update password (CUSTOMER)
-    if (user_type === "customer") {
-      await db.execute(
-        `UPDATE customers
-         SET cus_password = ?
-         WHERE cus_id = ?`,
-        [hashedPassword, ref_user_id]
-      );
-    }
+    // เมื่อเปลี่ยนรหัสผ่านสำเร็จแล้ว "ค่อยทำลาย PIN" ให้เป็น 1 ตรงนี้
+    await db.execute(
+      `UPDATE reset_password
+       SET is_used = 1
+       WHERE reset_id = ?`,
+      [reset_id]
+    );
 
     return res.status(200).json({
       message: "เปลี่ยนรหัสผ่านสำเร็จ",
