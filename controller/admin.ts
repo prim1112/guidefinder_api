@@ -160,7 +160,7 @@ router.post("/add/admin", async (req: Request, res: Response) => {
     // ================= CHECK DUPLICATE =================
     const [existing]: any = await db.query(
       "SELECT admin_id FROM admin WHERE admin_email = ?",
-      [admin_email]
+      [admin_email],
     );
 
     if (existing.length > 0) {
@@ -178,13 +178,7 @@ router.post("/add/admin", async (req: Request, res: Response) => {
       `INSERT INTO admin 
       (admin_name, admin_phonenumber, admin_email, admin_password, admin_role)
       VALUES (?, ?, ?, ?, ?)`,
-      [
-        admin_name,
-        admin_phonenumber,
-        admin_email,
-        hashedPassword,
-        admin_role,
-      ]
+      [admin_name, admin_phonenumber, admin_email, hashedPassword, admin_role],
     );
 
     return res.status(201).json({
@@ -192,7 +186,6 @@ router.post("/add/admin", async (req: Request, res: Response) => {
       message: "✅ เพิ่มแอดมินสำเร็จ",
       admin_id: result.insertId,
     });
-
   } catch (err: any) {
     console.log("🔥 SERVER ERROR:", err);
 
@@ -297,14 +290,13 @@ router.get("/superadmin/admin/search", async (req: Request, res: Response) => {
         )
       ORDER BY admin_id DESC
       `,
-      [search, search, search]
+      [search, search, search],
     );
 
     return res.json({
       success: true,
       data: rows,
     });
-
   } catch (err: any) {
     console.log("🔥 SEARCH ERROR:", err);
 
@@ -329,8 +321,9 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
   } = req.body;
 
   try {
+    // ✅ 1. ดึงข้อมูลสิทธิ์ (admin_role) เดิมของ ID นี้มาเก็บไว้เผื่อขัดตาทัพด้วย
     const [existing]: any = await db.query(
-      "SELECT admin_id FROM admin WHERE admin_id = ?",
+      "SELECT admin_id, admin_role FROM admin WHERE admin_id = ?",
       [id],
     );
 
@@ -339,6 +332,12 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
         message: "❌ ไม่พบแอดมิน",
       });
     }
+
+    // ✅ 2. สร้างตัวแปรเช็คความปลอดภัย: ถ้าส่ง admin_role มาให้ใช้ค่าใหม่ ถ้าส่งมาเป็น undefined/null ให้ดึงค่าใน DB เดิมประคองไว้
+    const finalRole =
+      admin_role !== undefined && admin_role !== null
+        ? admin_role
+        : existing[0].admin_role;
 
     // กรณีมีการเปลี่ยนรหัสผ่าน
     if (admin_password && admin_password.trim() !== "") {
@@ -356,7 +355,7 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
           admin_name,
           admin_phonenumber,
           admin_email,
-          admin_role,
+          finalRole, // ✅ ใช้ finalRole แทนตัวแปรเดิม
           hashedPassword,
           id,
         ],
@@ -370,7 +369,13 @@ router.put("/editadmin/:id", async (req: Request, res: Response) => {
           admin_email = ?,
           admin_role = ?
          WHERE admin_id = ?`,
-        [admin_name, admin_phonenumber, admin_email, admin_role, id],
+        [
+          admin_name,
+          admin_phonenumber,
+          admin_email,
+          finalRole, // ✅ ใช้ finalRole แทนตัวแปรเดิมเช่นกัน
+          id,
+        ],
       );
     }
 
