@@ -482,14 +482,14 @@ router.put(
         guides_language,
       } = req.body;
 
-      // 1. [VALIDATION] บังคับกรอกข้อมูลสำคัญ (ถ้าส่งค่าว่างมา จะไม่ให้ผ่าน)
-      if (!guides_name || !guides_phonenumber || !guides_email) {
+      // 🔥 [VALIDATION] เพิ่มการบังคับกรอก Facebook และ ภาษา เข้าไปในระบบตรวจเช็คหลัก
+      if (!guides_name || !guides_phonenumber || !guides_email || !guides_facebook || !guides_language) {
         return res.status(400).json({
-          message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ, เบอร์โทรศัพท์, อีเมล)",
+          message: "กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง (ชื่อ, เบอร์โทรศัพท์, อีเมล, Facebook, ภาษา)",
         });
       }
 
-      // 2. ตรวจสอบว่ามีไกด์ในระบบไหม
+      // ตรวจสอบว่ามีไกด์ในระบบไหม
       const [rows]: any = await db.query(
         "SELECT * FROM guides WHERE guides_id = ?",
         [id],
@@ -499,14 +499,14 @@ router.put(
       }
       const old = rows[0];
 
-      // 3. ตรวจสอบรหัสผ่าน
+      // ตรวจสอบรหัสผ่าน
       if (guides_password && guides_password !== confirm_password) {
         return res.status(400).json({ message: "รหัสผ่านไม่ตรงกัน" });
       }
 
       const email = guides_email.toLowerCase();
 
-      // 4. ตรวจสอบข้อมูลซ้ำในระบบ (อีเมล หรือ เบอร์โทร)
+      // ตรวจสอบข้อมูลซ้ำในระบบ
       const [dup]: any = await db.query(
         `SELECT guides_id FROM guides 
          WHERE (guides_email = ? OR guides_phonenumber = ?) AND guides_id != ?`,
@@ -518,20 +518,18 @@ router.put(
         });
       }
 
-      // 5. จัดการรหัสผ่าน
       let password = old.guides_password;
       if (guides_password) {
         password = await bcrypt.hash(guides_password, 10);
       }
 
-      // 6. จัดการอัปโหลดรูปภาพโปรไฟล์
       let image = old.guides_imageprofile;
       if (req.file?.buffer) {
         const result = await uploadToCloudinary(req.file.buffer, "guides/profile");
         image = result.secure_url;
       }
 
-      // 7. [SQL UPDATE] อัปเดตข้อมูลจริงลงฐานข้อมูล
+      // ✅ [SQL UPDATE] สั่งบันทึกตรง ๆ ได้เลย เพราะค่าถูกคัดกรองว่าไม่ว่างแน่นอนแล้ว
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
@@ -547,8 +545,8 @@ router.put(
           guides_phonenumber, 
           email,              
           password,
-          guides_facebook === "" ? null : (guides_facebook || old.guides_facebook), // ถลบลบลิงก์ออกจะปรับเป็น NULL
-          guides_language === "" ? null : (guides_language || old.guides_language), // ถลบลบภาษาออกจะปรับเป็น NULL
+          guides_facebook, 
+          guides_language, 
           image,
           id,
         ],
