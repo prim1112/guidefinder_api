@@ -656,16 +656,19 @@ router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
   }
 });
 
+
 // FINISH BOOKING (จบทริป)
 router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
   const io = req.app.get("io");
 
   try {
+    // 1. ดึงข้อมูลและตรวจสอบสถานะปัจจุบันของ Booking ก่อน (booking_status)
     const [bookingDetails]: any = await db.query(
       `
       SELECT 
         b.ref_cus_id AS tourist_id, 
+        b.booking_status,
         lt.travel_name AS attraction_name 
       FROM booking_queues b
       INNER JOIN location_travel lt 
@@ -681,28 +684,42 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
       });
     }
 
-    const { tourist_id, attraction_name } = bookingDetails[0];
+    const { tourist_id, booking_status, attraction_name } = bookingDetails[0];
 
-    // ✅ เปลี่ยนสถานะเป็น 4 = completed
+    // 2. 🛡️ ตรวจสอบความถูกต้อง: ถ้าสถานะไม่ใช่ 3 (เริ่มทริป) จะไม่ยอมให้จบงาน
+    if (booking_status !== 3) {
+      let statusText = "อยู่ในสถานะที่ไม่สามารถจบงานได้";
+      if (booking_status === 1) statusText = "ทริปนี้ยังไม่ได้เริ่มเดินทาง (ยังไม่ได้กดเริ่มทริป)";
+      if (booking_status === 4) statusText = "ทริปนี้ถูกปิดงาน/จบงานไปก่อนหน้านี้แล้ว";
+      if (booking_status === 2) statusText = "ทริปนี้ถูกยกเลิกไปแล้ว";
+
+      return res.status(400).json({
+        message: `ไม่สามารถจบงานได้: ${statusText}`,
+        current_status: booking_status
+      });
+    }
+
+    // 3. ✅ เปลี่ยนสถานะเป็น 4 = completed (ใส่เงื่อนไขความปลอดภัยซ้ำอีกชั้นที่ WHERE)
     const [result]: any = await db.query(
       `
       UPDATE booking_queues
       SET booking_status = 4
-      WHERE booking_queue_id = ?
+      WHERE booking_queue_id = ? AND booking_status = 3
       `,
       [bid],
     );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({
-        message: "ไม่พบรายการจอง",
+      return res.status(400).json({
+        message: "ไม่สามารถอัปเดตสถานะได้ เนื่องจากข้อมูลมีการเปลี่ยนแปลง",
       });
     }
 
+    // 4. ส่ง Socket แจ้งเตือนฝั่งนักท่องเที่ยวตามปกติ
     if (io) {
       io.to(tourist_id.toString()).emit("job_finished_notification", {
         booking_queue_id: bid,
-        title: "การบริการเสร็จเรียบร้อย",
+        title: "การบริการเสรียบร้อย",
         message: `หากคุณพอใจ รบกวนช่วยให้คะแนนรีวิว\n${attraction_name || "สถานที่ท่องเที่ยว"}`,
       });
     }
@@ -718,68 +735,6 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   }
 });
 
-// CUSTOMER HISTORY (ประวัติที่สำเร็จแล้ว)
-router.get("/history/customer/:id", async (req: Request, res: Response) => {
-  try {
-    const id = req.params.id;
-
-    const [rows]: any = await db.query(
-      `
-      SELECT 
-        b.booking_queue_id,
-        b.booking_status,
-        b.booking_start_date,
-        b.booking_end_date,
-        b.booking_total_price,
-
-        l.travel_name,
-        l.travel_detail,
-        l.travel_image,
-
-        CASE
-          WHEN rl.booking_queue_id IS NOT NULL THEN 1
-          ELSE 0
-        END AS reviewed_place,
-
-        CASE
-          WHEN rg.booking_queue_id IS NOT NULL THEN 1
-          ELSE 0
-        END AS reviewed_guide
-
-      FROM booking_queues b
-
-      LEFT JOIN location_travel l
-        ON b.ref_travel_id = l.id
-
-      LEFT JOIN review_locations rl
-        ON b.booking_queue_id = rl.booking_queue_id
-
-      LEFT JOIN review_guides rg
-        ON b.booking_queue_id = rg.booking_queue_id
-
-      WHERE b.ref_cus_id = ?
-        AND b.booking_status = 4
-
-      ORDER BY b.booking_queue_id DESC
-      `,
-      [id]
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "ดึงประวัติสำเร็จ",
-      data: rows,
-    });
-  } catch (error: any) {
-    console.log(error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Server Error",
-      error: error.message,
-    });
-  }
-});
 
 router.get("/notification/unread/:id", async (req, res) => {
   const id = req.params.id;
