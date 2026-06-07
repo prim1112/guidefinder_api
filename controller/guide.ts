@@ -482,7 +482,7 @@ router.put(
         guides_language,
       } = req.body;
 
-      // 1. [VALIDATION] กลับมาบังคับกรอกข้อมูลสำคัญ! (ถ้าลบออก/ปล่อยว่าง จะติดตรงนี้ทันที)
+      // 1. [VALIDATION] บังคับกรอกข้อมูลสำคัญ (ถ้าส่งค่าว่างมา จะไม่ให้ผ่าน)
       if (!guides_name || !guides_phonenumber || !guides_email) {
         return res.status(400).json({
           message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ, เบอร์โทรศัพท์, อีเมล)",
@@ -506,7 +506,7 @@ router.put(
 
       const email = guides_email.toLowerCase();
 
-      // 4. ตรวจสอบข้อมูลซ้ำ
+      // 4. ตรวจสอบข้อมูลซ้ำในระบบ (อีเมล หรือ เบอร์โทร)
       const [dup]: any = await db.query(
         `SELECT guides_id FROM guides 
          WHERE (guides_email = ? OR guides_phonenumber = ?) AND guides_id != ?`,
@@ -524,14 +524,14 @@ router.put(
         password = await bcrypt.hash(guides_password, 10);
       }
 
-      // 6. จัดการรูปภาพ
+      // 6. จัดการอัปโหลดรูปภาพโปรไฟล์
       let image = old.guides_imageprofile;
       if (req.file?.buffer) {
         const result = await uploadToCloudinary(req.file.buffer, "guides/profile");
         image = result.secure_url;
       }
 
-      // 7. [SQL UPDATE] เอา Logic "|| old.value" ออกสำหรับฟิลด์ที่บังคับกรอก
+      // 7. [SQL UPDATE] อัปเดตข้อมูลจริงลงฐานข้อมูล
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
@@ -543,12 +543,12 @@ router.put(
           guides_imageprofile = ? 
         WHERE guides_id = ?`,
         [
-          guides_name,        // บังคับใช้ค่าใหม่ที่ส่งมา (ซึ่งถูกเช็คแล้วว่าไม่ว่างในข้อ 1)
-          guides_phonenumber, // บังคับใช้ค่าใหม่ที่ส่งมา (ซึ่งถูกเช็คแล้วว่าไม่ว่างในข้อ 1)
-          email,              // บังคับใช้ค่าใหม่ที่ส่งมา (ซึ่งถูกเช็คแล้วว่าไม่ว่างในข้อ 1)
+          guides_name,        
+          guides_phonenumber, 
+          email,              
           password,
-          guides_facebook === "" ? null : (guides_facebook || old.guides_facebook), // ยอมให้เคลียร์ว่างได้
-          guides_language === "" ? null : (guides_language || old.guides_language), // ยอมให้เคลียร์ว่างได้
+          guides_facebook === "" ? null : (guides_facebook || old.guides_facebook), // ถลบลบลิงก์ออกจะปรับเป็น NULL
+          guides_language === "" ? null : (guides_language || old.guides_language), // ถลบลบภาษาออกจะปรับเป็น NULL
           image,
           id,
         ],
