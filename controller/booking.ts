@@ -621,6 +621,54 @@ router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
 });
 
 
+// START BOOKING (เริ่มทริป)
+router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
+  const bid = req.params.bid;
+
+  try {
+    const [rows]: any = await db.query(
+      `
+      SELECT booking_status 
+      FROM booking_queues 
+      WHERE booking_queue_id = ?
+      `,
+      [bid],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "ไม่พบรายการจอง" });
+    }
+
+    const booking = rows[0];
+
+    // ✅ ต้องเป็นไกด์รับงานแล้ว (1 = accepted) เท่านั้นถึงจะสไลด์หรือกดเริ่มทริปได้
+    if (Number(booking.booking_status) !== 1) {
+      return res.status(400).json({
+        message: "ยังเริ่มทริปไม่ได้ (ไกด์ต้องกดรับงานก่อน)",
+      });
+    }
+
+    // ✅ เปลี่ยนสถานะเป็น 3 = in progress
+    await db.query(
+      `
+      UPDATE booking_queues
+      SET booking_status = 3
+      WHERE booking_queue_id = ?
+      `,
+      [bid],
+    );
+
+    return res.json({
+      message: "เริ่มทริปแล้ว",
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
 // FINISH BOOKING (จบทริป)
 router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
@@ -699,6 +747,68 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   }
 });
 
+// CUSTOMER HISTORY (ประวัติที่สำเร็จแล้ว)
+router.get("/history/customer/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+
+    const [rows]: any = await db.query(
+      `
+      SELECT 
+        b.booking_queue_id,
+        b.booking_status,
+        b.booking_start_date,
+        b.booking_end_date,
+        b.booking_total_price,
+
+        l.travel_name,
+        l.travel_detail,
+        l.travel_image,
+
+        CASE
+          WHEN rl.booking_queue_id IS NOT NULL THEN 1
+          ELSE 0
+        END AS reviewed_place,
+
+        CASE
+          WHEN rg.booking_queue_id IS NOT NULL THEN 1
+          ELSE 0
+        END AS reviewed_guide
+
+      FROM booking_queues b
+
+      LEFT JOIN location_travel l
+        ON b.ref_travel_id = l.id
+
+      LEFT JOIN review_locations rl
+        ON b.booking_queue_id = rl.booking_queue_id
+
+      LEFT JOIN review_guides rg
+        ON b.booking_queue_id = rg.booking_queue_id
+
+      WHERE b.ref_cus_id = ?
+        AND b.booking_status = 4
+
+      ORDER BY b.booking_queue_id DESC
+      `,
+      [id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "ดึงประวัติสำเร็จ",
+      data: rows,
+    });
+  } catch (error: any) {
+    console.log(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
 
 router.get("/notification/unread/:id", async (req, res) => {
   const id = req.params.id;
