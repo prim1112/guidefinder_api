@@ -339,7 +339,7 @@ router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
         b.booking_end_date,
         b.booking_status,
         b.booking_total_price,
-        b.booking_cus_amount,
+        b.booking_cus_amount AS booking_amount_customer,
 
         l.travel_name,
         l.travel_detail,
