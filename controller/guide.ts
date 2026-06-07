@@ -468,11 +468,10 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
 // UPDATE GUIDE PROFILE
 router.put(
   "/profile/:id",
-  upload.single("guides_imageprofile"),
+  upload.single("guides_imageprofile"), // เปลี่ยนตามชื่อฟิลด์ไฟล์ของไกด์
   async (req: Request, res: Response) => {
-    const id = Number(req.params.id);
-
     try {
+      const id = Number(req.params.id);
       const {
         guides_name,
         guides_phonenumber,
@@ -483,14 +482,7 @@ router.put(
         guides_language,
       } = req.body;
 
-      // 1. [VALIDATION] เช็คข้อมูลที่ "จำเป็นต้องมี" (ตัดจังหวัดออกตามที่สั่ง)
-      if (!guides_name || !guides_phonenumber || !guides_email) {
-        return res.status(400).json({
-          message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ, เบอร์โทร, อีเมล)",
-        });
-      }
-
-      // 2. ตรวจสอบว่ามีไกด์คนนี้ในระบบไหม
+      // 1. ตรวจสอบว่ามีไกด์คนนี้ในระบบไหม และเอาข้อมูลเดิมมาเก็บไว้
       const [rows]: any = await db.query(
         "SELECT * FROM guides WHERE guides_id = ?",
         [id],
@@ -500,61 +492,74 @@ router.put(
         return res.status(404).json({ message: "ไม่พบข้อมูลไกด์" });
       }
 
-      const guide = rows[0];
+      const old = rows[0]; // เก็บข้อมูลเดิมไว้ใช้ทำ Fallback
 
-      // 3. [PASSWORD LOGIC]
-      let hashedPassword = guide.guides_password;
+      // 2. ตรวจสอบรหัสผ่าน (เหมือนของลูกค้า)
+      if (guides_password && guides_password !== confirm_password) {
+        return res.status(400).json({ message: "รหัสผ่านไม่ตรงกัน" });
+      }
+
+      // 3. จัดการเรื่องอีเมล (ถ้าส่งมาใหม่ให้ทำเป็นตัวพิมพ์เล็ก ถ้าไม่ส่งมาให้ใช้เมลเดิม)
+      const email = guides_email ? guides_email.toLowerCase() : old.guides_email;
+
+      // 4. ตรวจสอบข้อมูลซ้ำ (ปรับสเปกตามลูกค้า: เช็คว่าเมลหรือเบอร์นี้ คนอื่นใช้ไปหรือยัง)
+      const [dup]: any = await db.query(
+        `SELECT guides_id FROM guides 
+         WHERE (guides_email = ? OR guides_phonenumber = ?) AND guides_id != ?`,
+        [email, guides_phonenumber || old.guides_phonenumber, id],
+      );
+
+      if (dup.length) {
+        return res.status(400).json({
+          message: "อีเมลหรือเบอร์โทรศัพท์ถูกใช้งานในระบบแล้ว",
+        });
+      }
+
+      // 5. จัดการรหัสผ่าน (ถ้าไม่มีการเปลี่ยน ให้ใช้แฮชเดิม)
+      let password = old.guides_password;
       if (guides_password) {
-        if (guides_password !== confirm_password) {
-          return res.status(400).json({
-            message: "รหัสผ่านใหม่และรหัสผ่านยืนยันไม่ตรงกัน",
-          });
-        }
-        hashedPassword = await bcrypt.hash(guides_password, 10);
+        password = await bcrypt.hash(guides_password, 10);
       }
 
-      // 4. [IMAGE LOGIC]
-      let imageUrl = guide.guides_imageprofile;
-      if (req.file) {
-        const result = await uploadToCloudinary(
-          req.file.buffer,
-          "guides/profile",
-        );
-        imageUrl = result.secure_url;
+      // 6. จัดการรูปภาพโปรไฟล์
+      let image = old.guides_imageprofile;
+      if (req.file?.buffer) {
+        // อัปโหลดเข้าโฟลเดอร์ของ guides
+        const result = await uploadToCloudinary(req.file.buffer, "guides/profile");
+        image = result.secure_url;
       }
 
-      // 5. [SQL UPDATE]
+      // 7. สั่ง Update ลงฐานข้อมูลด้วย Logic แบบลูกค้า (ถ้าว่างให้ใช้ค่าเดิม)
+      // *หมายเหตุ: สำหรับ Facebook และ Language สามารถกดลบให้ว่างได้ผ่านโค้ดชุดนี้
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
-          guides_phonenumber = ?,
-          guides_email = ?,
-          guides_password = ?,
+          guides_phonenumber = ?, 
+          guides_email = ?, 
+          guides_password = ?, 
           guides_facebook = ?,
           guides_language = ?,
-          guides_imageprofile = ?
+          guides_imageprofile = ? 
         WHERE guides_id = ?`,
         [
-          guides_name,
-          guides_phonenumber,
-          guides_email,
-          hashedPassword,
-          guides_facebook || null,
-          guides_language || null,
-          imageUrl,
+          guides_name || old.guides_name,                 // ว่าง = ใช้ชื่อเดิม
+          guides_phonenumber || old.guides_phonenumber,   // ว่าง = ใช้เบอร์เดิม
+          email,                                          // ใช้ค่าเมลที่กรองแล้ว
+          password,                                       // ใช้รหัสผ่านที่กรองแล้ว
+          guides_facebook === "" ? null : (guides_facebook || old.guides_facebook), // ถ้ารีเซ็ตเป็นค่าว่างให้เป็น null ถ้านอกนั้นใช้ค่าเดิม
+          guides_language === "" ? null : (guides_language || old.guides_language), // ถ้ารีเซ็ตเป็นค่าว่างให้เป็น null ถ้านอกนั้นใช้ค่าเดิม
+          image,                                          // ใช้รูปที่กรองแล้ว
           id,
         ],
       );
 
-      return res.json({
-        message: "อัปเดตโปรไฟล์สำเร็จ",
+      res.json({
+        success: true,
+        message: "อัปเดตโปรไฟล์ไกด์สำเร็จ",
       });
-    } catch (error: any) {
-      console.error("Update Error:", error);
-      return res.status(500).json({
-        message: "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์",
-        error: error.message,
-      });
+    } catch (err: any) {
+      console.error("Update Guide Error:", err);
+      res.status(500).json({ message: err.message });
     }
   },
 );
