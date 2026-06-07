@@ -19,7 +19,7 @@ export const sendResetEmail = async (email: string, pin: string) => {
           <h2>Guide Finder</h2>
           <p>รหัสสำหรับรีเซ็ตรหัสผ่านของคุณคือ</p>
           <h1 style="letter-spacing: 4px;">${pin}</h1>
-          <p>รหัสนี้มีอายุ 15 นาที</p>
+          <p>รหัสนี้มีอายุ 2 นาที</p>
         </div>
       `,
     });
