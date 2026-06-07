@@ -468,7 +468,7 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
 // UPDATE GUIDE PROFILE
 router.put(
   "/profile/:id",
-  upload.single("guides_imageprofile"), // เปลี่ยนตามชื่อฟิลด์ไฟล์ของไกด์
+  upload.single("guides_imageprofile"),
   async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
@@ -482,55 +482,56 @@ router.put(
         guides_language,
       } = req.body;
 
-      // 1. ตรวจสอบว่ามีไกด์คนนี้ในระบบไหม และเอาข้อมูลเดิมมาเก็บไว้
+      // 1. [VALIDATION] กลับมาบังคับกรอกข้อมูลสำคัญ! (ถ้าลบออก/ปล่อยว่าง จะติดตรงนี้ทันที)
+      if (!guides_name || !guides_phonenumber || !guides_email) {
+        return res.status(400).json({
+          message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ, เบอร์โทรศัพท์, อีเมล)",
+        });
+      }
+
+      // 2. ตรวจสอบว่ามีไกด์ในระบบไหม
       const [rows]: any = await db.query(
         "SELECT * FROM guides WHERE guides_id = ?",
         [id],
       );
-
       if (!rows.length) {
         return res.status(404).json({ message: "ไม่พบข้อมูลไกด์" });
       }
+      const old = rows[0];
 
-      const old = rows[0]; // เก็บข้อมูลเดิมไว้ใช้ทำ Fallback
-
-      // 2. ตรวจสอบรหัสผ่าน (เหมือนของลูกค้า)
+      // 3. ตรวจสอบรหัสผ่าน
       if (guides_password && guides_password !== confirm_password) {
         return res.status(400).json({ message: "รหัสผ่านไม่ตรงกัน" });
       }
 
-      // 3. จัดการเรื่องอีเมล (ถ้าส่งมาใหม่ให้ทำเป็นตัวพิมพ์เล็ก ถ้าไม่ส่งมาให้ใช้เมลเดิม)
-      const email = guides_email ? guides_email.toLowerCase() : old.guides_email;
+      const email = guides_email.toLowerCase();
 
-      // 4. ตรวจสอบข้อมูลซ้ำ (ปรับสเปกตามลูกค้า: เช็คว่าเมลหรือเบอร์นี้ คนอื่นใช้ไปหรือยัง)
+      // 4. ตรวจสอบข้อมูลซ้ำ
       const [dup]: any = await db.query(
         `SELECT guides_id FROM guides 
          WHERE (guides_email = ? OR guides_phonenumber = ?) AND guides_id != ?`,
-        [email, guides_phonenumber || old.guides_phonenumber, id],
+        [email, guides_phonenumber, id],
       );
-
       if (dup.length) {
         return res.status(400).json({
           message: "อีเมลหรือเบอร์โทรศัพท์ถูกใช้งานในระบบแล้ว",
         });
       }
 
-      // 5. จัดการรหัสผ่าน (ถ้าไม่มีการเปลี่ยน ให้ใช้แฮชเดิม)
+      // 5. จัดการรหัสผ่าน
       let password = old.guides_password;
       if (guides_password) {
         password = await bcrypt.hash(guides_password, 10);
       }
 
-      // 6. จัดการรูปภาพโปรไฟล์
+      // 6. จัดการรูปภาพ
       let image = old.guides_imageprofile;
       if (req.file?.buffer) {
-        // อัปโหลดเข้าโฟลเดอร์ของ guides
         const result = await uploadToCloudinary(req.file.buffer, "guides/profile");
         image = result.secure_url;
       }
 
-      // 7. สั่ง Update ลงฐานข้อมูลด้วย Logic แบบลูกค้า (ถ้าว่างให้ใช้ค่าเดิม)
-      // *หมายเหตุ: สำหรับ Facebook และ Language สามารถกดลบให้ว่างได้ผ่านโค้ดชุดนี้
+      // 7. [SQL UPDATE] เอา Logic "|| old.value" ออกสำหรับฟิลด์ที่บังคับกรอก
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
@@ -542,13 +543,13 @@ router.put(
           guides_imageprofile = ? 
         WHERE guides_id = ?`,
         [
-          guides_name || old.guides_name,                 // ว่าง = ใช้ชื่อเดิม
-          guides_phonenumber || old.guides_phonenumber,   // ว่าง = ใช้เบอร์เดิม
-          email,                                          // ใช้ค่าเมลที่กรองแล้ว
-          password,                                       // ใช้รหัสผ่านที่กรองแล้ว
-          guides_facebook === "" ? null : (guides_facebook || old.guides_facebook), // ถ้ารีเซ็ตเป็นค่าว่างให้เป็น null ถ้านอกนั้นใช้ค่าเดิม
-          guides_language === "" ? null : (guides_language || old.guides_language), // ถ้ารีเซ็ตเป็นค่าว่างให้เป็น null ถ้านอกนั้นใช้ค่าเดิม
-          image,                                          // ใช้รูปที่กรองแล้ว
+          guides_name,        // บังคับใช้ค่าใหม่ที่ส่งมา (ซึ่งถูกเช็คแล้วว่าไม่ว่างในข้อ 1)
+          guides_phonenumber, // บังคับใช้ค่าใหม่ที่ส่งมา (ซึ่งถูกเช็คแล้วว่าไม่ว่างในข้อ 1)
+          email,              // บังคับใช้ค่าใหม่ที่ส่งมา (ซึ่งถูกเช็คแล้วว่าไม่ว่างในข้อ 1)
+          password,
+          guides_facebook === "" ? null : (guides_facebook || old.guides_facebook), // ยอมให้เคลียร์ว่างได้
+          guides_language === "" ? null : (guides_language || old.guides_language), // ยอมให้เคลียร์ว่างได้
+          image,
           id,
         ],
       );
