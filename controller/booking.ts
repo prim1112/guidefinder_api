@@ -581,72 +581,36 @@ router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
 
   try {
-    // ✅ เปลี่ยนเป็นเลข 1 = accepted
-    const [result]: any = await db.query(
-      `
-      UPDATE booking_queues
-      SET booking_status = 1
-      WHERE booking_queue_id = ?
-      `,
-      [bid],
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        message: "ไม่พบรายการจอง",
-      });
-    }
-
-    return res.json({
-      message: "รับงานสำเร็จ",
-    });
-  } catch (error: any) {
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
-  }
-});
-
-// START BOOKING (เริ่มทริป)
-router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
-  const bid = req.params.bid;
-
-  try {
+    // 1. ดึงสถานะปัจจุบันมาเช็คก่อน
     const [rows]: any = await db.query(
-      `
-      SELECT booking_status 
-      FROM booking_queues 
-      WHERE booking_queue_id = ?
-      `,
-      [bid],
+      `SELECT booking_status FROM booking_queues WHERE booking_queue_id = ?`,
+      [bid]
     );
 
     if (rows.length === 0) {
       return res.status(404).json({ message: "ไม่พบรายการจอง" });
     }
 
-    const booking = rows[0];
-
-    // ✅ ต้องเป็นไกด์รับงานแล้ว (1 = accepted) เท่านั้นถึงจะสไลด์หรือกดเริ่มทริปได้
-    if (Number(booking.booking_status) !== 1) {
-      return res.status(400).json({
-        message: "ยังเริ่มทริปไม่ได้ (ไกด์ต้องกดรับงานก่อน)",
+    // 2. 🛡️ ต้องเป็นสถานะ 0 (รอรับงาน) เท่านั้นถึงจะกดรับได้
+    if (Number(rows[0].booking_status) !== 0) {
+      return res.status(400).json({ 
+        message: "ไม่สามารถรับงานได้ เนื่องจากงานนี้ถูกดำเนินการหรือยกเลิกไปแล้ว",
+        current_status: rows[0].booking_status
       });
     }
 
-    // ✅ เปลี่ยนสถานะเป็น 3 = in progress
-    await db.query(
+    // 3. ✅ เปลี่ยนเป็นเลข 1 = accepted
+    const [result]: any = await db.query(
       `
       UPDATE booking_queues
-      SET booking_status = 3
-      WHERE booking_queue_id = ?
+      SET booking_status = 1
+      WHERE booking_queue_id = ? AND booking_status = 0
       `,
       [bid],
     );
 
     return res.json({
-      message: "เริ่มทริปแล้ว",
+      message: "รับงานสำเร็จ",
     });
   } catch (error: any) {
     return res.status(500).json({
