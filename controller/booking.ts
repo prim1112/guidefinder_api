@@ -358,8 +358,8 @@ router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
       LEFT JOIN location loc ON l.location_id = loc.location_id
       LEFT JOIN customers c ON b.ref_cus_id = c.cus_id
 
-      -- 💡 แก้ไขจุดนี้: เปลี่ยนจาก = 0 เป็น IN (0, 2) เพื่อให้ส่งงานที่สเตตัสเป็นยกเลิก (2) ไปให้หน้าบ้านด้วย
-      WHERE b.ref_guid_id = ? AND b.booking_status IN (0, 2)
+      -- ⚡ แก้ไขสำเร็จ: เปลี่ยนเป็น IN (1, 2) เพื่อส่งข้อมูลงานที่รับแล้ว (1) และงานที่ยกเลิก (2) ไปให้หน้าบ้าน
+      WHERE b.ref_guid_id = ? AND b.booking_status IN (1, 2)
 
       ORDER BY b.booking_queue_id DESC
       `,
