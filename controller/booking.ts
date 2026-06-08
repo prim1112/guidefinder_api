@@ -353,16 +353,12 @@ router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
 
       FROM booking_queues b
 
-      LEFT JOIN location_travel l
-        ON b.ref_travel_id = l.id
+      LEFT JOIN location_travel l ON b.ref_travel_id = l.id
+      LEFT JOIN location loc ON l.location_id = loc.location_id
+      LEFT JOIN customers c ON b.ref_cus_id = c.cus_id
 
-      LEFT JOIN location loc
-        ON l.location_id = loc.location_id
-
-      LEFT JOIN customers c
-        ON b.ref_cus_id = c.cus_id
-
-      WHERE b.ref_guid_id = ?
+      -- 🛠️ แก้ไขจุดนี้: กรองเอาเฉพาะงานที่สเตตัสเป็น 0 (รอไกด์ยืนยัน) เท่านั้น
+      WHERE b.ref_guid_id = ? AND b.booking_status = 0
 
       ORDER BY b.booking_queue_id DESC
       `,
