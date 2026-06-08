@@ -326,6 +326,7 @@ router.get("/booking/customer/:id", async (req: Request, res: Response) => {
   }
 });
 
+
 // GUIDE BOOKING
 router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
   const gid = req.params.gid;
@@ -357,8 +358,8 @@ router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
       LEFT JOIN location loc ON l.location_id = loc.location_id
       LEFT JOIN customers c ON b.ref_cus_id = c.cus_id
 
-      -- 🛠️ แก้ไขจุดนี้: กรองเอาเฉพาะงานที่สเตตัสเป็น 0 (รอไกด์ยืนยัน) เท่านั้น
-      WHERE b.ref_guid_id = ? AND b.booking_status = 0
+      -- 💡 แก้ไขจุดนี้: เปลี่ยนจาก = 0 เป็น IN (0, 2) เพื่อให้ส่งงานที่สเตตัสเป็นยกเลิก (2) ไปให้หน้าบ้านด้วย
+      WHERE b.ref_guid_id = ? AND b.booking_status IN (0, 2)
 
       ORDER BY b.booking_queue_id DESC
       `,
