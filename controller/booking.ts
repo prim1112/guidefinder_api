@@ -574,46 +574,46 @@ router.patch("/booking/guide/cancel/:bid", async (req, res) => {
 });
 
 // ACCEPT BOOKING (ไกด์กดรับงาน)
-router.patch("/booking/accept/:bid", async (req: Request, res: Response) => {
-  const bid = req.params.bid;
-
+router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
+  const gid = req.params.gid;
   try {
-    // 1. ดึงสถานะปัจจุบันมาเช็คก่อน
-    const [rows]: any = await db.query(
-      `SELECT booking_status FROM booking_queues WHERE booking_queue_id = ?`,
-      [bid]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ message: "ไม่พบรายการจอง" });
-    }
-
-    // 2. 🛡️ ต้องเป็นสถานะ 0 (รอรับงาน) เท่านั้นถึงจะกดรับได้
-    if (Number(rows[0].booking_status) !== 0) {
-      return res.status(400).json({ 
-        message: "ไม่สามารถรับงานได้ เนื่องจากงานนี้ถูกดำเนินการหรือยกเลิกไปแล้ว",
-        current_status: rows[0].booking_status
-      });
-    }
-
-    // 3. ✅ เปลี่ยนเป็นเลข 1 = accepted
-    const [result]: any = await db.query(
+    const [bookings]: any = await db.query(
       `
-      UPDATE booking_queues
-      SET booking_status = 1
-      WHERE booking_queue_id = ? AND booking_status = 0
+      SELECT 
+        b.booking_queue_id,
+        b.booking_start_date,
+        b.booking_end_date,
+        b.booking_status,
+        b.booking_total_price,
+        b.booking_cus_amount AS booking_amount_customer,
+        l.travel_name,
+        l.travel_detail,
+        l.travel_image,
+        loc.location_province,
+        c.cus_name,
+        c.cus_email,
+        c.cus_phonenumber
+      FROM booking_queues b
+      LEFT JOIN location_travel l ON b.ref_travel_id = l.id
+      LEFT JOIN location loc ON l.location_id = loc.location_id
+      LEFT JOIN customers c ON b.ref_cus_id = c.cus_id
+
+      -- ⚡ แก้ไขจุดนี้จุดเดียวในหลังบ้าน เพื่อส่งสเตตัส 0, 1, 2 ไปพร้อมกัน
+      WHERE b.ref_guid_id = ? AND b.booking_status IN (0, 1, 2)
+
+      ORDER BY b.booking_queue_id DESC
       `,
-      [bid],
+      [gid],
     );
 
-    return res.json({
-      message: "รับงานสำเร็จ",
-    });
+    const result = bookings.map((b: any) => ({
+      ...b,
+      location_province: toThaiProvince(b.location_province),
+    }));
+
+    return res.json({ message: "ดึงข้อมูลการจองของไกด์สำเร็จ", data: result });
   } catch (error: any) {
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
+    return res.status(500).json({ message: "Server Error", error: error.message });
   }
 });
 
