@@ -472,56 +472,26 @@ router.put(
   async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const {
-        guides_name,
-        guides_phonenumber,
-        guides_email,
-        guides_password,
-        confirm_password,
-        guides_facebook,
-        guides_language,
-      } = req.body;
+      const { guides_name, guides_phonenumber, guides_email, guides_password, confirm_password, guides_facebook, guides_language } = req.body;
 
-      // 🔥 [VALIDATION] เพิ่มการบังคับกรอก Facebook และ ภาษา เข้าไปในระบบตรวจเช็คหลัก
       if (!guides_name || !guides_phonenumber || !guides_email || !guides_facebook || !guides_language) {
-        return res.status(400).json({
-          message: "กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง (ชื่อ, เบอร์โทรศัพท์, อีเมล, Facebook, ภาษา)",
-        });
+        return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง (ชื่อ, เบอร์โทรศัพท์, อีเมล, Facebook, ภาษา)" });
       }
 
-      // ตรวจสอบว่ามีไกด์ในระบบไหม
-      const [rows]: any = await db.query(
-        "SELECT * FROM guides WHERE guides_id = ?",
-        [id],
-      );
-      if (!rows.length) {
-        return res.status(404).json({ message: "ไม่พบข้อมูลไกด์" });
-      }
+      const [rows]: any = await db.query("SELECT * FROM guides WHERE guides_id = ?", [id]);
+      if (!rows.length) return res.status(404).json({ message: "ไม่พบข้อมูลไกด์" });
       const old = rows[0];
 
-      // ตรวจสอบรหัสผ่าน
       if (guides_password && guides_password !== confirm_password) {
         return res.status(400).json({ message: "รหัสผ่านไม่ตรงกัน" });
       }
 
-      const email = guides_email.toLowerCase();
-
-      // ตรวจสอบข้อมูลซ้ำในระบบ
-      const [dup]: any = await db.query(
-        `SELECT guides_id FROM guides 
-         WHERE (guides_email = ? OR guides_phonenumber = ?) AND guides_id != ?`,
-        [email, guides_phonenumber, id],
-      );
-      if (dup.length) {
-        return res.status(400).json({
-          message: "อีเมลหรือเบอร์โทรศัพท์ถูกใช้งานในระบบแล้ว",
-        });
-      }
+      const email = guides_email.toLowerCase().trim();
+      const [dup]: any = await db.query("SELECT guides_id FROM guides WHERE (LOWER(guides_email) = ? OR guides_phonenumber = ?) AND guides_id != ?", [email, guides_phonenumber.trim(), id]);
+      if (dup.length) return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์ถูกใช้งานในระบบแล้ว" });
 
       let password = old.guides_password;
-      if (guides_password) {
-        password = await bcrypt.hash(guides_password, 10);
-      }
+      if (guides_password) password = await bcrypt.hash(guides_password, 10);
 
       let image = old.guides_imageprofile;
       if (req.file?.buffer) {
@@ -529,38 +499,18 @@ router.put(
         image = result.secure_url;
       }
 
-      // ✅ [SQL UPDATE] สั่งบันทึกตรง ๆ ได้เลย เพราะค่าถูกคัดกรองว่าไม่ว่างแน่นอนแล้ว
+      // ✅ ใช้ SQL IF สเตตัสเก่าเป็น 2 ค่อยดีดไปเป็น 0, ถ้าเป็นสเตตัส 1 อยู่แล้วให้คงเดิมไว้
       await db.query(
-        `UPDATE guides SET 
-          guides_name = ?, 
-          guides_phonenumber = ?, 
-          guides_email = ?, 
-          guides_password = ?, 
-          guides_facebook = ?,
-          guides_language = ?,
-          guides_imageprofile = ? 
-        WHERE guides_id = ?`,
-        [
-          guides_name,        
-          guides_phonenumber, 
-          email,              
-          password,
-          guides_facebook, 
-          guides_language, 
-          image,
-          id,
-        ],
+        `UPDATE guides SET guides_name = ?, guides_phonenumber = ?, guides_email = ?, guides_password = ?, guides_facebook = ?, guides_language = ?, guides_imageprofile = ?, guides_status = IF(guides_status = 2, 0, guides_status) WHERE guides_id = ?`,
+        [guides_name, guides_phonenumber, email, password, guides_facebook, guides_language, image, id]
       );
 
-      res.json({
-        success: true,
-        message: "อัปเดตโปรไฟล์ไกด์สำเร็จ",
-      });
+      const successMessage = old.guides_status === 2 ? "อัปเดตโปรไฟล์และส่งกลับไปให้แอดมินตรวจสอบอีกครั้งเรียบร้อยแล้ว" : "อัปเดตโปรไฟล์สำเร็จ";
+      return res.json({ success: true, message: successMessage });
     } catch (err: any) {
-      console.error("Update Guide Error:", err);
-      res.status(500).json({ message: err.message });
+      return res.status(500).json({ message: err.message });
     }
-  },
+  }
 );
 
 //  DELETE GUIDE PROFILE
