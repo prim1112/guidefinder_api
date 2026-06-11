@@ -472,26 +472,56 @@ router.put(
   async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const { guides_name, guides_phonenumber, guides_email, guides_password, confirm_password, guides_facebook, guides_language } = req.body;
+      const {
+        guides_name,
+        guides_phonenumber,
+        guides_email,
+        guides_password,
+        confirm_password,
+        guides_facebook,
+        guides_language,
+      } = req.body;
 
+      // 🔥 [VALIDATION] เพิ่มการบังคับกรอก Facebook และ ภาษา เข้าไปในระบบตรวจเช็คหลัก
       if (!guides_name || !guides_phonenumber || !guides_email || !guides_facebook || !guides_language) {
-        return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง (ชื่อ, เบอร์โทรศัพท์, อีเมล, Facebook, ภาษา)" });
+        return res.status(400).json({
+          message: "กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง (ชื่อ, เบอร์โทรศัพท์, อีเมล, Facebook, ภาษา)",
+        });
       }
 
-      const [rows]: any = await db.query("SELECT * FROM guides WHERE guides_id = ?", [id]);
-      if (!rows.length) return res.status(404).json({ message: "ไม่พบข้อมูลไกด์" });
+      // ตรวจสอบว่ามีไกด์ในระบบไหม
+      const [rows]: any = await db.query(
+        "SELECT * FROM guides WHERE guides_id = ?",
+        [id],
+      );
+      if (!rows.length) {
+        return res.status(404).json({ message: "ไม่พบข้อมูลไกด์" });
+      }
       const old = rows[0];
 
+      // ตรวจสอบรหัสผ่าน
       if (guides_password && guides_password !== confirm_password) {
         return res.status(400).json({ message: "รหัสผ่านไม่ตรงกัน" });
       }
 
-      const email = guides_email.toLowerCase().trim();
-      const [dup]: any = await db.query("SELECT guides_id FROM guides WHERE (LOWER(guides_email) = ? OR guides_phonenumber = ?) AND guides_id != ?", [email, guides_phonenumber.trim(), id]);
-      if (dup.length) return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์ถูกใช้งานในระบบแล้ว" });
+      const email = guides_email.toLowerCase();
+
+      // ตรวจสอบข้อมูลซ้ำในระบบ
+      const [dup]: any = await db.query(
+        `SELECT guides_id FROM guides 
+         WHERE (guides_email = ? OR guides_phonenumber = ?) AND guides_id != ?`,
+        [email, guides_phonenumber, id],
+      );
+      if (dup.length) {
+        return res.status(400).json({
+          message: "อีเมลหรือเบอร์โทรศัพท์ถูกใช้งานในระบบแล้ว",
+        });
+      }
 
       let password = old.guides_password;
-      if (guides_password) password = await bcrypt.hash(guides_password, 10);
+      if (guides_password) {
+        password = await bcrypt.hash(guides_password, 10);
+      }
 
       let image = old.guides_imageprofile;
       if (req.file?.buffer) {
@@ -499,16 +529,119 @@ router.put(
         image = result.secure_url;
       }
 
-      // ✅ ใช้ SQL IF สเตตัสเก่าเป็น 2 ค่อยดีดไปเป็น 0, ถ้าเป็นสเตตัส 1 อยู่แล้วให้คงเดิมไว้
+      // ✅ [SQL UPDATE] สั่งบันทึกตรง ๆ ได้เลย เพราะค่าถูกคัดกรองว่าไม่ว่างแน่นอนแล้ว
       await db.query(
-        `UPDATE guides SET guides_name = ?, guides_phonenumber = ?, guides_email = ?, guides_password = ?, guides_facebook = ?, guides_language = ?, guides_imageprofile = ?, guides_status = IF(guides_status = 2, 0, guides_status) WHERE guides_id = ?`,
-        [guides_name, guides_phonenumber, email, password, guides_facebook, guides_language, image, id]
+        `UPDATE guides SET 
+          guides_name = ?, 
+          guides_phonenumber = ?, 
+          guides_email = ?, 
+          guides_password = ?, 
+          guides_facebook = ?,
+          guides_language = ?,
+          guides_imageprofile = ? 
+        WHERE guides_id = ?`,
+        [
+          guides_name,        
+          guides_phonenumber, 
+          email,              
+          password,
+          guides_facebook, 
+          guides_language, 
+          image,
+          id,
+        ],
       );
 
-      const successMessage = old.guides_status === 2 ? "อัปเดตโปรไฟล์และส่งกลับไปให้แอดมินตรวจสอบอีกครั้งเรียบร้อยแล้ว" : "อัปเดตโปรไฟล์สำเร็จ";
-      return res.json({ success: true, message: successMessage });
+      res.json({
+        success: true,
+        message: "อัปเดตโปรไฟล์ไกด์สำเร็จ",
+      });
     } catch (err: any) {
-      return res.status(500).json({ message: err.message });
+      console.error("Update Guide Error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  },
+);
+
+router.put(
+  "/re-submit/:id",
+  upload.fields([
+    { name: "guides_imageprofile", maxCount: 1 },
+    { name: "guides_imagelicense", maxCount: 1 },
+    { name: "guides_image_business_license", maxCount: 1 },
+  ]),
+  async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const { 
+        guides_name, 
+        guides_phonenumber, 
+        guides_email, 
+        guides_facebook, 
+        guides_language 
+      } = req.body;
+
+      // 1. ตรวจสอบข้อมูลเก่าในระบบ
+      const [rows]: any = await db.query("SELECT * FROM guides WHERE guides_id = ?", [id]);
+      if (!rows.length) return res.status(404).json({ message: "ไม่พบข้อมูลไกด์ในระบบ" });
+      const oldData = rows[0];
+
+      // 2. ตรวจสอบอีเมล/เบอร์โทรซ้ำ
+      const email = guides_email.toLowerCase().trim();
+      const [dup]: any = await db.query(
+        "SELECT guides_id FROM guides WHERE (LOWER(guides_email) = ? OR guides_phonenumber = ?) AND guides_id != ?", 
+        [email, guides_phonenumber.trim(), id]
+      );
+      if (dup.length) return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์นี้ถูกใช้งานแล้ว" });
+
+      // 3. จัดการอัปโหลดรูปภาพใหม่ (ถ้ามีการส่งมา ถ้าไม่มีให้ใช้รูปเดิม)
+      const files = req.files as any;
+      const uploadImage = async (file: any, path: string, oldUrl: string) => {
+        if (file && file[0]?.buffer) {
+          const result = await uploadToCloudinary(file[0].buffer, path);
+          return result.secure_url;
+        }
+        return oldUrl; // ถ้ายูสเซอร์ไม่ได้เลือกรูปใหม่ ให้ใช้ URL รูปเดิมใน DB
+      };
+
+      const imageProfile = await uploadImage(files?.guides_imageprofile, "guides/profile", oldData.guides_imageprofile);
+      const imageLicense = await uploadImage(files?.guides_imagelicense, "guides/licenses", oldData.guides_imagelicense);
+      const imageBusiness = await uploadImage(files?.guides_image_business_license, "guides/business", oldData.guides_image_business_license);
+
+      // 4. อัปเดตข้อมูลลง Database และ ⭐ ดีดสถานะกลับไปเป็น 0 (รอตรวจสอบรอบใหม่) เสมอ!
+      await db.query(
+        `UPDATE guides SET 
+          guides_name = ?, 
+          guides_phonenumber = ?, 
+          guides_email = ?, 
+          guides_facebook = ?, 
+          guides_language = ?, 
+          guides_imageprofile = ?, 
+          guides_imagelicense = ?, 
+          guides_image_business_license = ?, 
+          guides_status = 0 -- 👈 ดีดกลับไปรอตรวจรอบสอง
+        WHERE guides_id = ?`,
+        [
+          guides_name, 
+          guides_phonenumber, 
+          email, 
+          guides_facebook, 
+          guides_language, 
+          imageProfile, 
+          imageLicense, 
+          imageBusiness, 
+          id
+        ]
+      );
+
+      return res.json({ 
+        success: true, 
+        message: "ส่งเอกสารแก้ไขเรียบร้อยแล้ว ระบบจะทำการตรวจสอบอีกครั้งภายใน 1-3 วันทำการค่ะ" 
+      });
+
+    } catch (err: any) {
+      console.error("Re-submit Error:", err);
+      return res.status(500).json({ message: "Server Error", error: err.message });
     }
   }
 );
