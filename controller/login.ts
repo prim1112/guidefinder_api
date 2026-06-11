@@ -16,9 +16,8 @@ async function checkPassword(input: string, stored: string) {
   return input === stored;
 }
 
-// ========================================================
+
 // LOGIN SYSTEM
-// ========================================================
 router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -65,7 +64,7 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    // 2. ตรวจสอบสิทธิ์ GUIDE
+    // 2. ตรวจสอบสิทธิ์ GUIDE 
     const [guideRows] = await db.execute<RowDataPacket[]>(
       "SELECT * FROM guides WHERE LOWER(guides_email) = ?",
       [cleanEmail],
@@ -74,10 +73,24 @@ router.post("/login", async (req: Request, res: Response) => {
     if (guideRows.length > 0) {
       const guide = guideRows[0] as any;
 
-      if (guide.guides_status === 0)
+      // ⏳ เคสสเตตัส 0: บัญชีสมัครใหม่/อยู่ระหว่างรออนุมัติจริง ๆ (บล็อกไว้ปกติ)
+      if (guide.guides_status === 0) {
         return res.status(403).json({ message: "⏳ บัญชีรออนุมัติจากแอดมิน" });
-      if (guide.guides_status === 2)
-        return res.status(403).json({ message: "❌ บัญชีถูกปฏิเสธ" });
+      }
+
+      // ❌ [ดักหลังบ้าน] เคสสเตตัส 2: โดนปฏิเสธ (Reject)
+      // ส่งสเตตัส 403 แต่แนบข้อความเฉพาะเจาะจงพร้อม ID ไปให้หน้าบ้านเปิดหน้าต่างแก้ไขเอกสาร
+      if (guide.guides_status === 2) {
+        return res.status(403).json({ 
+          message: "REJECTED_GUIDE", 
+          role: "guide",
+          user: {
+            id: guide.guides_id,
+            name: guide.guides_name,
+            email: guide.guides_email,
+          }
+        });
+      }
 
       const isValid = await bcrypt.compare(password, guide.guides_password);
       if (!isValid)
