@@ -264,39 +264,64 @@ router.get("/booking/customer/:id", async (req: Request, res: Response) => {
 
 // GUIDE BOOKING
 router.get("/booking/guide/:gid", async (req: Request, res: Response) => {
-  const gid = req.params.gid;
+  const { gid } = req.params;
+
+  // ตรวจสอบเบื้องต้นว่ามี gid ส่งมาหรือไม่
+  if (!gid) {
+    return res.status(400).json({
+      message: "กรุณาระบุรหัสไกด์ (gid)",
+    });
+  }
+
   try {
+    // ดึงข้อมูลโดยเอาเงื่อนไขคอมเมนต์เดิมออกเรียบร้อยแล้ว เพื่อให้สถานะ 0, 1, 2, 3, 4 ออกมาครบถ้วน
     const [bookings]: any = await db.query(
       `
       SELECT 
-        b.booking_queue_id, b.booking_start_date, b.booking_end_date,
-        b.booking_status, b.booking_total_price, b.booking_cus_amount AS booking_amount_customer,
-        l.travel_name, l.travel_detail, l.travel_image, loc.location_province,
-        c.cus_name, c.cus_email, c.cus_phonenumber
+        b.booking_queue_id, 
+        b.booking_start_date, 
+        b.booking_end_date,
+        b.booking_status, 
+        b.booking_total_price, 
+        b.booking_cus_amount AS booking_amount_customer,
+        l.travel_name, 
+        l.travel_detail, 
+        l.travel_image, 
+        loc.location_province,
+        c.cus_name, 
+        c.cus_email, 
+        c.cus_phonenumber
       FROM booking_queues b
       LEFT JOIN location_travel l ON b.ref_travel_id = l.id
       LEFT JOIN location loc ON l.location_id = loc.location_id
       LEFT JOIN customers c ON b.ref_cus_id = c.cus_id
       WHERE b.ref_guid_id = ? 
-      -- ⚡ แก้ไขจุดพังหลัก: เอาข้อจำกัด IN (1, 2) ออก เพื่อให้ข้อมูลสถานะ 0, 1, 2, 3, 4 ส่งไปหน้าบ้านได้ทั้งหมดครับ
       ORDER BY b.booking_queue_id DESC
       `,
-      [gid],
+      [gid]
     );
 
-    const result = bookings.map((b: any) => ({
+    // ป้องกันกรณีที่ bookings คืนค่ากลับมาเป็น null หรือ undefined
+    const safeBookings = bookings || [];
+
+    // แปลงชื่อจังหวัดเป็นภาษาไทย
+    const result = safeBookings.map((b: any) => ({
       ...b,
-      location_province: toThaiProvince(b.location_province),
+      location_province: typeof toThaiProvince === 'function' ? toThaiProvince(b.location_province) : b.location_province,
     }));
 
-    return res.json({
+    return res.status(200).json({
       message: "ดึงข้อมูลการจองของไกด์สำเร็จ",
       data: result,
     });
+
   } catch (error: any) {
+    // พิมพ์ Error ลง Console ของ Server เพื่อให้ง่ายต่อการ Debug 
+    console.error("GET GUIDE BOOKING ERROR =>", error);
+    
     return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
+      message: "เกิดข้อผิดพลาดภายในระบบ (Server Error)",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 });
