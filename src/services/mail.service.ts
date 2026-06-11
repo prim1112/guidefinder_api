@@ -87,13 +87,19 @@ export const sendGuideRejectedEmail = async (
     const result = await resend.emails.send({
       from: "Guide Finder <onboarding@resend.dev>",
       to: email,
-      subject: "ผลการตรวจสอบบัญชีมัคคุเทศก์",
+      subject: "⚠️ แจ้งผลการตรวจสอบบัญชีมัคคุเทศก์ - Guide Finder",
       html: `
-        <div style="font-family: Arial, sans-serif;">
-          <h2>⚠️ ผลการตรวจสอบบัญชี</h2>
-          <p>สวัสดี <b>${guideName}</b></p>
-          <p>บัญชีของคุณยังไม่ผ่านการตรวจสอบ</p>
-          <p>กรุณาแก้ไขข้อมูลหรือเอกสารแล้วส่งใหม่อีกครั้ง</p>
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eeeeee; border-radius: 8px; color: #333333;">
+          <h2 style="color: #e74c3c; margin-top: 0;">⚠️ ผลการตรวจสอบบัญชีมัคคุเทศก์</h2>
+          <p style="font-size: 16px;">สวัสดีครับคุณ <b>${guideName}</b></p>
+          <p style="font-size: 15px; line-height: 1.6;">
+            ตามที่ท่านได้ยื่นเอกสารสมัครสมาชิกเข้ามา ขณะนี้บัญชีของท่าน<b>ยังไม่ผ่านการอนุมัติ</b>จากระบบ
+          </p>
+          <p style="font-size: 15px; line-height: 1.6; color: #555555;">
+            กรุณากรุณาเข้าสู่ระบบผ่านแอปพลิเคชัน เพื่อตรวจสอบความถูกต้อง แก้ไขข้อมูลหรืออัปโหลดเอกสารหลักฐานใหม่อีกครั้งครับ
+          </p>
+          <hr style="border: none; border-top: 1px solid #eeeeee; margin: 20px 0;"/>
+          <p style="font-size: 12px; color: #999999; text-align: center; margin: 0;">Guide Finder Application</p>
         </div>
       `,
     });
