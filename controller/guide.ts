@@ -563,7 +563,7 @@ router.put(
   },
 );
 
-router.put(
+router.post(
   "/re-submit/:id",
   upload.fields([
     { name: "guides_imageprofile", maxCount: 1 },
@@ -608,7 +608,7 @@ router.put(
       const imageLicense = await uploadImage(files?.guides_imagelicense, "guides/licenses", oldData.guides_imagelicense);
       const imageBusiness = await uploadImage(files?.guides_image_business_license, "guides/business", oldData.guides_image_business_license);
 
-      // 4. อัปเดตข้อมูลลง Database และ ⭐ ดีดสถานะกลับไปเป็น 0 (รอตรวจสอบรอบใหม่) เสมอ!
+      // 4. อัปเดตข้อมูลลง Database และดีดสถานะกลับไปเป็น 0 (รอตรวจสอบรอบใหม่) เสมอ!
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
@@ -619,7 +619,7 @@ router.put(
           guides_imageprofile = ?, 
           guides_imagelicense = ?, 
           guides_image_business_license = ?, 
-          guides_status = 0 -- 👈 ดีดกลับไปรอตรวจรอบสอง
+          guides_status = 0
         WHERE guides_id = ?`,
         [
           guides_name, 
