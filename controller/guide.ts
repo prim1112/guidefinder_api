@@ -623,66 +623,63 @@ router.post(
 router.delete("/profile/:id", async (req: Request, res: Response) => {
   const id = Number(req.params.id);
 
-  // เริ่มต้น Transaction เพื่อความปลอดภัยของข้อมูล
-  const connection = await db.getConnection(); 
-  await connection.beginTransaction();
-
   try {
-    // 1. หา booking ทั้งหมดของไกด์คนนี้ เพื่อไปเคลียร์รีวิว
-    const [bookings]: any = await connection.query(
+    // ==========================================
+    // 1. หา booking_queue_id ทั้งหมดของไกด์คนนี้
+    // ==========================================
+    const [bookings]: any = await db.query(
       "SELECT booking_queue_id FROM booking_queues WHERE ref_guid_id = ?",
       [id],
     );
 
-    // 2. ลบ Review ที่ผูกกับ Booking ของไกด์คนนี้
+    console.log("BOOKING COUNT =>", bookings.length);
+
+    // หากไกด์คนนี้เคยมีประวัติการจอง ให้ตามไปเคลียร์ตารางรีวิวให้หมด
     if (bookings.length > 0) {
-      const bookingIds = bookings.map((b: any) => b.booking_queue_id);
-      await connection.query(
-        "DELETE FROM review_guides WHERE booking_queue_id IN (?)",
-        [bookingIds]
-      );
+      for (const booking of bookings) {
+        // 🔥 เพิ่มตรงนี้: ลบรีวิวสถานที่ท่องเที่ยวที่ผูกกับบุ๊กกิ้งนี้ก่อน
+        await db.query("DELETE FROM review_locations WHERE booking_queue_id = ?", [
+          booking.booking_queue_id,
+        ]);
+
+        // ลบรีวิวไกด์ (โค้ดเดิมของคุณ)
+        await db.query("DELETE FROM review_guides WHERE booking_queue_id = ?", [
+          booking.booking_queue_id,
+        ]);
+      }
     }
 
-    // 3. ลบ Booking ทั้งหมดของไกด์คนนี้
-    await connection.query("DELETE FROM booking_queues WHERE ref_guid_id = ?", [id]);
+    // ==========================================
+    // 2. ลบข้อมูลในตารางบุ๊กกิ้ง (เมื่อไม่มีรีวิวค้างแล้ว จะลบได้ฉลุย)
+    // ==========================================
+    await db.query("DELETE FROM booking_queues WHERE ref_guid_id = ?", [id]);
 
-    // ========================================================
-    // 🔥 เพิ่มเติม: ลบตารางอื่น ๆ ของไกด์ที่อาจจะติด Foreign Key (ถ้ามี)
-    // ========================================================
-    // ตัวอย่างเช่น:
-    // await connection.query("DELETE FROM guide_images WHERE ref_guid_id = ?", [id]);
-    // await connection.query("DELETE FROM guide_certificates WHERE ref_guid_id = ?", [id]);
-
-    // 4. ขั้นตอนสุดท้าย: ลบตัวตนไกด์ออกจากตารางหลัก
-    const [result]: any = await connection.query(
+    // ==========================================
+    // 3. ลบข้อมูลไกด์ออกจากตารางหลัก
+    // ==========================================
+    const [result]: any = await db.query(
       "DELETE FROM guides WHERE guides_id = ?",
       [id],
     );
 
     if (result.affectedRows === 0) {
-      await connection.rollback(); // ย้อนกลับหากไม่พบไกด์
-      return res.status(404).json({ message: "ไม่พบไกด์" });
+      return res.status(404).json({
+        message: "ไม่พบไกด์",
+      });
     }
-
-    // ทำการยืนยันการลบทั้งหมดพร้อมกัน
-    await connection.commit();
 
     return res.status(200).json({
       message: "ลบบัญชีสำเร็จ",
     });
   } catch (error: any) {
-    // หากเกิด Error แม้แต่จุดเดียว ให้ยกเลิกคำสั่งลบทั้งหมดทันที (ข้อมูลไม่พัง)
-    await connection.rollback();
     console.error("DELETE ERROR =", error);
 
     return res.status(500).json({
       message: "Server Error",
       error: error.message,
-      sqlMessage: error.sqlMessage, // ดูจากตรงนี้ใน Postman จะรู้เลยว่าติดตารางไหน!
+      sqlMessage: error.sqlMessage,
       code: error.code,
     });
-  } finally {
-    connection.release(); // คืน Connection ให้ Pool
   }
 });
 
