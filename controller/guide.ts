@@ -572,7 +572,7 @@ router.post(
   ]),
   async (req: Request, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const inputId = req.params.id; // รับค่ามาในรูปแบบ String ก่อนเพื่อความปลอดภัยของประเภทข้อมูล
       const { 
         guides_name, 
         guides_phonenumber, 
@@ -581,55 +581,39 @@ router.post(
         guides_language 
       } = req.body;
 
-      // 1. ตรวจสอบข้อมูลเก่าในระบบ
-      const [rows]: any = await db.query("SELECT * FROM guides WHERE guides_id = ?", [id]);
+      // 1. ตรวจสอบข้อมูลเก่าในระบบ (ค้นหาด้วย ID ที่ส่งมาจาก Flutter)
+      const [rows]: any = await db.query(
+        "SELECT * FROM guides WHERE guides_id = ? OR user_id = ?", 
+        [inputId, inputId]
+      );
       
-      // 🔴 [RENDER DEBUG 1] เช็คว่า ID นี้มีตัวตนในตารางไกด์จริงไหม
-      console.log("=====================================");
-      console.log("🔥 [RENDER DEBUG] RE-SUBMIT TRIGGERED");
-      console.log("-> ID จาก URL (req.params.id):", req.params.id, "Type:", typeof req.params.id);
-      console.log("-> ID หลังแปลงเป็น Numberแล้ว:", id);
-      console.log("-> ค้นพบข้อมูลในตาราง guides หรือไม่?:", rows.length > 0 ? "พบข้อมูล" : "❌ ไม่พบข้อมูล!");
-      if (rows.length > 0) {
-        console.log("-> ข้อมูลเดิมใน DB ของแถวนี้:", {
-          guides_id_ในตาราง: rows[0].guides_id,
-          ชื่อเดิม: rows[0].guides_name,
-          อีเมลเดิม: rows[0].guides_email,
-          เบอร์เดิม: rows[0].guides_phonenumber
-        });
+      if (!rows.length) {
+        return res.status(404).json({ message: "ไม่พบข้อมูลไกด์ในระบบ" });
       }
-      console.log("=====================================");
-
-      if (!rows.length) return res.status(404).json({ message: "ไม่พบข้อมูลไกด์ในระบบ" });
+      
       const oldData = rows[0];
+      // 🔥 ดึง guides_id ที่แท้จริงจาก Database มาใช้งาน (แก้ปัญหา Flutter ส่ง User ID ผิดตัวมา)
+      const trueGuideId = oldData.guides_id;
 
       // คลีนค่าข้อมูลให้บริสุทธิ์ ไร้เว้นวรรค ไร้ขีดแดช
       const email = guides_email ? guides_email.toLowerCase().trim() : "";
       const phoneNumber = guides_phonenumber ? guides_phonenumber.replace(/\D/g, "").trim() : ""; 
 
-      // 2. ตรวจสอบอีเมล/เบอร์โทรซ้ำ 
+      // 2. ตรวจสอบอีเมล/เบอร์โทรซ้ำ (ใช้ trueGuideId และแปลงประเภทข้อมูลให้รองรับทั้ง String/Number)
       const [dup]: any = await db.query(
-        `SELECT guides_id, guides_name, guides_email FROM guides 
+        `SELECT guides_id FROM guides 
          WHERE (LOWER(guides_email) = ? OR REPLACE(guides_phonenumber, '-', '') = ?) 
-         AND guides_id != ?`, 
-        [email, phoneNumber, id]
+         AND guides_id != ? AND CAST(guides_id AS CHAR) != CAST(? AS CHAR)`, 
+        [email, phoneNumber, trueGuideId, trueGuideId]
       );
       
-      // 🔴 [RENDER DEBUG 2] หากติดซ้ำ ให้ดูว่ามันไปชนกับใครในระบบ
       if (dup.length) {
-        console.log("❌ [RENDER ALERT] ตรวจพบข้อมูลซ้ำซ้อน!");
-        console.log("-> ข้อมูลใหม่ที่กำลังจะเซฟ:", { email, phoneNumber });
-        console.log("-> ดันไปชนกับไกด์คนนี้ในระบบ:", {
-          ชนกับไกด์ไอดี: dup[0].guides_id,
-          ชื่อคนเนล: dup[0].guides_name,
-          อีเมลคนนั้น: dup[0].guides_email
-        });
-        console.log("=====================================");
-        
+        // พ่น Log เตือนความจำบน Render เผื่อต้องการเช็คข้อมูลเพิ่มเติม
+        console.log(`❌ [RENDER ALERT] ID: ${trueGuideId} พยายามใช้อีเมล/เบอร์ซ้ำกับ Guide ID: ${dup[0].guides_id}`);
         return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์นี้ถูกใช้งานแล้ว" });
       }
 
-      // 3. จัดการอัปโหลดรูปภาพใหม่
+      // 3. จัดการอัปโหลดรูปภาพใหม่ (ถ้าไม่มีให้ใช้ URL รูปเดิม)
       const files = req.files as any;
       const uploadImage = async (file: any, path: string, oldUrl: string) => {
         if (file && file[0]?.buffer) {
@@ -643,7 +627,7 @@ router.post(
       const imageLicense = await uploadImage(files?.guides_imagelicense, "guides/licenses", oldData.guides_imagelicense);
       const imageBusiness = await uploadImage(files?.guides_image_business_license, "guides/business", oldData.guides_image_business_license);
 
-      // 4. อัปเดตข้อมูลลง Database
+      // 4. อัปเดตข้อมูลลง Database โดยอิงตาม trueGuideId ที่ถูกต้องแน่นอน
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
@@ -665,7 +649,7 @@ router.post(
           imageProfile, 
           imageLicense, 
           imageBusiness, 
-          id
+          trueGuideId
         ]
       );
 
