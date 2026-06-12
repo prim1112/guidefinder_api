@@ -586,29 +586,37 @@ router.post(
       if (!rows.length) return res.status(404).json({ message: "ไม่พบข้อมูลไกด์ในระบบ" });
       const oldData = rows[0];
 
-      // 2. ตรวจสอบอีเมล/เบอร์โทรซ้ำ
-      const email = guides_email.toLowerCase().trim();
-      const [dup]: any = await db.query(
-        "SELECT guides_id FROM guides WHERE (LOWER(guides_email) = ? OR guides_phonenumber = ?) AND guides_id != ?", 
-        [email, guides_phonenumber.trim(), id]
-      );
-      if (dup.length) return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์นี้ถูกใช้งานแล้ว" });
+      // 🔥 [แก้ไขจุดพัง] คลีนค่าข้อมูลให้บริสุทธิ์ ไร้เว้นวรรค ไร้ขีดแดช
+      const email = guides_email ? guides_email.toLowerCase().trim() : "";
+      const phoneNumber = guides_phonenumber ? guides_phonenumber.replace(/\D/g, "").trim() : ""; 
 
-      // 3. จัดการอัปโหลดรูปภาพใหม่ (ถ้ามีการส่งมา ถ้าไม่มีให้ใช้รูปเดิม)
+      // 2. ตรวจสอบอีเมล/เบอร์โทรซ้ำ (ปรับปรุง SQL ให้ปลอดภัยจากขีดแดชและเว้นวรรค)
+      const [dup]: any = await db.query(
+        `SELECT guides_id FROM guides 
+         WHERE (LOWER(guides_email) = ? OR REPLACE(guides_phonenumber, '-', '') = ?) 
+         AND guides_id != ?`, 
+        [email, phoneNumber, id]
+      );
+      
+      if (dup.length) {
+        return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์นี้ถูกใช้งานแล้ว" });
+      }
+
+      // 3. จัดการอัปโหลดรูปภาพใหม่
       const files = req.files as any;
       const uploadImage = async (file: any, path: string, oldUrl: string) => {
         if (file && file[0]?.buffer) {
           const result = await uploadToCloudinary(file[0].buffer, path);
           return result.secure_url;
         }
-        return oldUrl; // ถ้ายูสเซอร์ไม่ได้เลือกรูปใหม่ ให้ใช้ URL รูปเดิมใน DB
+        return oldUrl;
       };
 
       const imageProfile = await uploadImage(files?.guides_imageprofile, "guides/profile", oldData.guides_imageprofile);
       const imageLicense = await uploadImage(files?.guides_imagelicense, "guides/licenses", oldData.guides_imagelicense);
       const imageBusiness = await uploadImage(files?.guides_image_business_license, "guides/business", oldData.guides_image_business_license);
 
-      // 4. อัปเดตข้อมูลลง Database และดีดสถานะกลับไปเป็น 0 (รอตรวจสอบรอบใหม่) เสมอ!
+      // 4. อัปเดตข้อมูลลง Database (ส่งค่า phoneNumber ที่คลีนแล้วลงไปด้วย)
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
@@ -623,7 +631,7 @@ router.post(
         WHERE guides_id = ?`,
         [
           guides_name, 
-          guides_phonenumber, 
+          phoneNumber, // 🔥 ใช้เบอร์ที่ลบขีดแดชออกแล้ว เพื่อความสม่ำเสมอของ Data
           email, 
           guides_facebook, 
           guides_language, 
