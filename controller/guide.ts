@@ -572,7 +572,7 @@ router.post(
   ]),
   async (req: Request, res: Response) => {
     try {
-      const inputId = req.params.id; // รับค่ามาในรูปแบบ String ก่อนเพื่อความปลอดภัยของประเภทข้อมูล
+      const id = req.params.id; // 1. ดึงค่า ID จาก URL ออกมาตรงๆ (เป็น String) ไม่ต้องรีบแปลงเป็น Number
       const { 
         guides_name, 
         guides_phonenumber, 
@@ -581,39 +581,30 @@ router.post(
         guides_language 
       } = req.body;
 
-      // 1. ตรวจสอบข้อมูลเก่าในระบบ (ค้นหาด้วย ID ที่ส่งมาจาก Flutter)
-      const [rows]: any = await db.query(
-        "SELECT * FROM guides WHERE guides_id = ? OR user_id = ?", 
-        [inputId, inputId]
-      );
-      
-      if (!rows.length) {
-        return res.status(404).json({ message: "ไม่พบข้อมูลไกด์ในระบบ" });
-      }
-      
+      // 2. ตรวจสอบข้อมูลเก่าในระบบ (ค้นหาด้วย guides_id ในฐานข้อมูล)
+      const [rows]: any = await db.query("SELECT * FROM guides WHERE guides_id = ?", [id]);
+      if (!rows.length) return res.status(404).json({ message: "ไม่พบข้อมูลไกด์ในระบบ" });
       const oldData = rows[0];
-      // 🔥 ดึง guides_id ที่แท้จริงจาก Database มาใช้งาน (แก้ปัญหา Flutter ส่ง User ID ผิดตัวมา)
-      const trueGuideId = oldData.guides_id;
 
       // คลีนค่าข้อมูลให้บริสุทธิ์ ไร้เว้นวรรค ไร้ขีดแดช
       const email = guides_email ? guides_email.toLowerCase().trim() : "";
       const phoneNumber = guides_phonenumber ? guides_phonenumber.replace(/\D/g, "").trim() : ""; 
 
-      // 2. ตรวจสอบอีเมล/เบอร์โทรซ้ำ (ใช้ trueGuideId และแปลงประเภทข้อมูลให้รองรับทั้ง String/Number)
+      // 3. ตรวจสอบอีเมล/เบอร์โทรซ้ำ 
+      // 🔥 [จุดปิดบั๊กถาวร] บังคับแปลงทั้งสองฝั่งให้กลายเป็นประเภทข้อความ (CHAR) ก่อนเอามาเปรียบเทียบคำว่า !=
+      // วิธีนี้จะทำให้เงื่อนไข "ยกเว้นไอดีของตัวเอง" ทำงานถูกต้อง 100% ไม่ว่าใน DB จะมองเป็น INT หรือ STRING
       const [dup]: any = await db.query(
         `SELECT guides_id FROM guides 
          WHERE (LOWER(guides_email) = ? OR REPLACE(guides_phonenumber, '-', '') = ?) 
-         AND guides_id != ? AND CAST(guides_id AS CHAR) != CAST(? AS CHAR)`, 
-        [email, phoneNumber, trueGuideId, trueGuideId]
+         AND CAST(guides_id AS CHAR) != CAST(? AS CHAR)`, 
+        [email, phoneNumber, id]
       );
       
       if (dup.length) {
-        // พ่น Log เตือนความจำบน Render เผื่อต้องการเช็คข้อมูลเพิ่มเติม
-        console.log(`❌ [RENDER ALERT] ID: ${trueGuideId} พยายามใช้อีเมล/เบอร์ซ้ำกับ Guide ID: ${dup[0].guides_id}`);
         return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์นี้ถูกใช้งานแล้ว" });
       }
 
-      // 3. จัดการอัปโหลดรูปภาพใหม่ (ถ้าไม่มีให้ใช้ URL รูปเดิม)
+      // 4. จัดการอัปโหลดรูปภาพใหม่
       const files = req.files as any;
       const uploadImage = async (file: any, path: string, oldUrl: string) => {
         if (file && file[0]?.buffer) {
@@ -627,7 +618,7 @@ router.post(
       const imageLicense = await uploadImage(files?.guides_imagelicense, "guides/licenses", oldData.guides_imagelicense);
       const imageBusiness = await uploadImage(files?.guides_image_business_license, "guides/business", oldData.guides_image_business_license);
 
-      // 4. อัปเดตข้อมูลลง Database โดยอิงตาม trueGuideId ที่ถูกต้องแน่นอน
+      // 5. อัปเดตข้อมูลลง Database
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
@@ -649,7 +640,7 @@ router.post(
           imageProfile, 
           imageLicense, 
           imageBusiness, 
-          trueGuideId
+          id
         ]
       );
 
