@@ -496,7 +496,7 @@ router.put("/guides/:id", async (req: Request, res: Response) => {
 });
 
 router.delete("/guides/:id", async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const { id } = req.params; // หรือ Number(req.params.id) เพื่อความชัวร์ในกรณีที่ DB เป็น Integer
 
   try {
     // ================= CHECK GUIDE EXIST =================
@@ -512,19 +512,49 @@ router.delete("/guides/:id", async (req: Request, res: Response) => {
       });
     }
 
-    // ================= DELETE GUIDE =================
+    // ==================== เคลียร์ข้อมูลตารางลูก ====================
+    
+    // 1. หา booking_queue_id ทั้งหมดของไกด์คนนี้ก่อน
+    const [bookings]: any = await db.query(
+      "SELECT booking_queue_id FROM booking_queues WHERE ref_guid_id = ?",
+      [id],
+    );
+
+    // 2. ถ้าไกด์คนนี้เคยมีประวัติการจอง ให้ตามไปลบรีวิวต่าง ๆ ให้เกลี้ยง
+    if (bookings.length > 0) {
+      for (const booking of bookings) {
+        // ลบรีวิวสถานที่ท่องเที่ยวที่ผูกกับบุ๊กกิ้งนี้
+        await db.query("DELETE FROM review_locations WHERE booking_queue_id = ?", [
+          booking.booking_queue_id,
+        ]);
+
+        // ลบรีวิวไกด์ที่ผูกกับบุ๊กกิ้งนี้
+        await db.query("DELETE FROM review_guides WHERE booking_queue_id = ?", [
+          booking.booking_queue_id,
+        ]);
+      }
+    }
+
+    // 3. ลบข้อมูลในตารางบุ๊กกิ้ง (booking_queues) ทั้งหมดของไกด์คนนี้
+    await db.query("DELETE FROM booking_queues WHERE ref_guid_id = ?", [id]);
+
+    // ==========================================================
+
+    // ================= DELETE GUIDE (เมื่อเคลียร์หมดแล้ว ลบตัวแม่ได้เลย) =================
     await db.query("DELETE FROM guides WHERE guides_id = ?", [id]);
 
     return res.status(200).json({
       success: true,
-      message: "🗑️ ลบไกด์สำเร็จ",
+      message: "🗑️ ลบไกด์และข้อมูลที่เกี่ยวข้องทั้งหมดสำเร็จ",
       guides_id: id,
     });
   } catch (err: any) {
+    console.error("ADMIN DELETE GUIDE ERROR =", err);
     return res.status(500).json({
       success: false,
       message: "❌ Server Error",
       error: err.message,
+      sqlMessage: err.sqlMessage, // ใส่ไว้เพื่อส่อง Log กรณีที่มีตารางใหม่งอกมาแอบผูก Foreign Key เพิ่ม
     });
   }
 });
