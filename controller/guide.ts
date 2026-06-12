@@ -583,22 +583,49 @@ router.post(
 
       // 1. ตรวจสอบข้อมูลเก่าในระบบ
       const [rows]: any = await db.query("SELECT * FROM guides WHERE guides_id = ?", [id]);
+      
+      // 🔴 [RENDER DEBUG 1] เช็คว่า ID นี้มีตัวตนในตารางไกด์จริงไหม
+      console.log("=====================================");
+      console.log("🔥 [RENDER DEBUG] RE-SUBMIT TRIGGERED");
+      console.log("-> ID จาก URL (req.params.id):", req.params.id, "Type:", typeof req.params.id);
+      console.log("-> ID หลังแปลงเป็น Numberแล้ว:", id);
+      console.log("-> ค้นพบข้อมูลในตาราง guides หรือไม่?:", rows.length > 0 ? "พบข้อมูล" : "❌ ไม่พบข้อมูล!");
+      if (rows.length > 0) {
+        console.log("-> ข้อมูลเดิมใน DB ของแถวนี้:", {
+          guides_id_ในตาราง: rows[0].guides_id,
+          ชื่อเดิม: rows[0].guides_name,
+          อีเมลเดิม: rows[0].guides_email,
+          เบอร์เดิม: rows[0].guides_phonenumber
+        });
+      }
+      console.log("=====================================");
+
       if (!rows.length) return res.status(404).json({ message: "ไม่พบข้อมูลไกด์ในระบบ" });
       const oldData = rows[0];
 
-      // 🔥 [แก้ไขจุดพัง] คลีนค่าข้อมูลให้บริสุทธิ์ ไร้เว้นวรรค ไร้ขีดแดช
+      // คลีนค่าข้อมูลให้บริสุทธิ์ ไร้เว้นวรรค ไร้ขีดแดช
       const email = guides_email ? guides_email.toLowerCase().trim() : "";
       const phoneNumber = guides_phonenumber ? guides_phonenumber.replace(/\D/g, "").trim() : ""; 
 
-      // 2. ตรวจสอบอีเมล/เบอร์โทรซ้ำ (ปรับปรุง SQL ให้ปลอดภัยจากขีดแดชและเว้นวรรค)
+      // 2. ตรวจสอบอีเมล/เบอร์โทรซ้ำ 
       const [dup]: any = await db.query(
-        `SELECT guides_id FROM guides 
+        `SELECT guides_id, guides_name, guides_email FROM guides 
          WHERE (LOWER(guides_email) = ? OR REPLACE(guides_phonenumber, '-', '') = ?) 
          AND guides_id != ?`, 
         [email, phoneNumber, id]
       );
       
+      // 🔴 [RENDER DEBUG 2] หากติดซ้ำ ให้ดูว่ามันไปชนกับใครในระบบ
       if (dup.length) {
+        console.log("❌ [RENDER ALERT] ตรวจพบข้อมูลซ้ำซ้อน!");
+        console.log("-> ข้อมูลใหม่ที่กำลังจะเซฟ:", { email, phoneNumber });
+        console.log("-> ดันไปชนกับไกด์คนนี้ในระบบ:", {
+          ชนกับไกด์ไอดี: dup[0].guides_id,
+          ชื่อคนเนล: dup[0].guides_name,
+          อีเมลคนนั้น: dup[0].guides_email
+        });
+        console.log("=====================================");
+        
         return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์นี้ถูกใช้งานแล้ว" });
       }
 
@@ -616,7 +643,7 @@ router.post(
       const imageLicense = await uploadImage(files?.guides_imagelicense, "guides/licenses", oldData.guides_imagelicense);
       const imageBusiness = await uploadImage(files?.guides_image_business_license, "guides/business", oldData.guides_image_business_license);
 
-      // 4. อัปเดตข้อมูลลง Database (ส่งค่า phoneNumber ที่คลีนแล้วลงไปด้วย)
+      // 4. อัปเดตข้อมูลลง Database
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
@@ -631,7 +658,7 @@ router.post(
         WHERE guides_id = ?`,
         [
           guides_name, 
-          phoneNumber, // 🔥 ใช้เบอร์ที่ลบขีดแดชออกแล้ว เพื่อความสม่ำเสมอของ Data
+          phoneNumber, 
           email, 
           guides_facebook, 
           guides_language, 
