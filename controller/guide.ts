@@ -572,92 +572,46 @@ router.post(
   ]),
   async (req: Request, res: Response) => {
     try {
-      // 1. ดึงค่า ID จาก URL ออกมาตรงๆ (ค่าเริ่มต้นจะเป็น String)
-      const id = req.params.id; 
-      const { 
-        guides_name, 
-        guides_phonenumber, 
-        guides_email, 
-        guides_facebook, 
-        guides_language 
-      } = req.body;
+      const { id } = req.params;
+      const { guides_name, guides_phonenumber, guides_email, guides_facebook, guides_language } = req.body;
 
-      // 2. ตรวจสอบข้อมูลเก่าในระบบ (ค้นหาไกด์จาก ID ที่แอป Flutter ส่งมา)
+      // 1. ตรวจสอบข้อมูลเก่า
       const [rows]: any = await db.query("SELECT * FROM guides WHERE guides_id = ?", [id]);
       if (!rows.length) return res.status(404).json({ message: "ไม่พบข้อมูลไกด์ในระบบ" });
       const oldData = rows[0];
 
-      // 3. คลีนค่าข้อมูลให้บริสุทธิ์ (ตัดช่องว่าง, ทำตัวพิมพ์เล็ก, และตัดขีดแดชออกให้เหลือแต่ตัวเลขล้วน)
+      // 2. คลีนค่าข้อมูล
       const email = guides_email ? guides_email.toLowerCase().trim() : "";
       const phoneNumber = guides_phonenumber ? guides_phonenumber.replace(/\D/g, "").trim() : ""; 
 
-      // 4. ตรวจสอบอีเมล/เบอร์โทรซ้ำ 
-      // ใช้ REPLACE ลบแดชฝั่ง DB และใช้ CAST ครอบทั้งสองฝั่งเพื่อป้องกันบั๊กประเภทข้อมูล (INT vs VARCHAR) บน Render
+      // 3. ตรวจสอบข้อมูลซ้ำ (คงลอจิก CAST และ REPLACE ป้องกันบั๊กบน Render เหมือนเดิม)
       const [dup]: any = await db.query(
-        `SELECT guides_id, guides_name, guides_email, guides_phonenumber FROM guides 
+        `SELECT guides_id FROM guides 
          WHERE (LOWER(guides_email) = ? OR REPLACE(guides_phonenumber, '-', '') = ?) 
          AND CAST(guides_id AS CHAR) != CAST(? AS CHAR)`, 
         [email, phoneNumber, id]
       );
-      
-      if (dup.length) {
-        // 🔴 ระบบสืบสวนระบุตัวปัญหาบน Render Logs
-        console.log("=================================================");
-        console.log("❌ [RENDER BUG DETECTED] ตรวจพบข้อมูลซ้ำซ้อน!");
-        console.log(`-> คุณส่ง ID จากแอปมาแก้ไขคือ: ${id}`);
-        console.log(`-> แต่มันดันไปซ้ำกับไกด์อีกแถวที่มีอยู่แล้วใน DB คือ ID: ${dup[0].guides_id}`);
-        console.log(`-> ชื่อของแถวที่ซ้ำ: ${dup[0].guides_name}`);
-        console.log(`-> อีเมลที่ซ้ำ: ${dup[0].guides_email}`);
-        console.log(`-> เบอร์ที่ซ้ำ: ${dup[0].guides_phonenumber}`);
-        console.log("=================================================");
+      if (dup.length) return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์นี้ถูกใช้งานแล้ว" });
 
-        return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์นี้ถูกใช้งานแล้ว" });
-      }
-
-      // 5. จัดการอัปโหลดรูปภาพใหม่เข้า Cloudinary (ถ้าไม่มีการเลือกใหม่ ให้ใช้ URL เดิม)
+      // 4. อัปโหลดรูปภาพใหม่ (ลดรูปฟังก์ชันเหลือบรรทัดเดียวสั้นๆ)
       const files = req.files as any;
-      const uploadImage = async (file: any, path: string, oldUrl: string) => {
-        if (file && file[0]?.buffer) {
-          const result = await uploadToCloudinary(file[0].buffer, path);
-          return result.secure_url;
-        }
-        return oldUrl;
-      };
+      const upImg = async (f: any, p: string, old: string) => f?.[0]?.buffer ? (await uploadToCloudinary(f[0].buffer, p)).secure_url : old;
 
-      const imageProfile = await uploadImage(files?.guides_imageprofile, "guides/profile", oldData.guides_imageprofile);
-      const imageLicense = await uploadImage(files?.guides_imagelicense, "guides/licenses", oldData.guides_imagelicense);
-      const imageBusiness = await uploadImage(files?.guides_image_business_license, "guides/business", oldData.guides_image_business_license);
+      const imgProfile = await upImg(files?.guides_imageprofile, "guides/profile", oldData.guides_imageprofile);
+      const imgLicense = await upImg(files?.guides_imagelicense, "guides/licenses", oldData.guides_imagelicense);
+      const imgBusiness = await upImg(files?.guides_image_business_license, "guides/business", oldData.guides_image_business_license);
 
-      // 6. อัปเดตข้อมูลลง Database และดีดสถานะกลับไปเป็น 0 (รอตรวจสอบรอบใหม่)
+      // 5. อัปเดตข้อมูลลง Database
       await db.query(
         `UPDATE guides SET 
-          guides_name = ?, 
-          guides_phonenumber = ?, 
-          guides_email = ?, 
-          guides_facebook = ?, 
-          guides_language = ?, 
-          guides_imageprofile = ?, 
-          guides_imagelicense = ?, 
-          guides_image_business_license = ?, 
-          guides_status = 0
+          guides_name = ?, guides_phonenumber = ?, guides_email = ?, guides_facebook = ?, 
+          guides_language = ?, guides_imageprofile = ?, guides_imagelicense = ?, 
+          guides_image_business_license = ?, guides_status = 0
         WHERE guides_id = ?`,
-        [
-          guides_name, 
-          phoneNumber, // บันทึกแบบเบอร์สะอาดตัวเลขล้วน
-          email, 
-          guides_facebook, 
-          guides_language, 
-          imageProfile, 
-          imageLicense, 
-          imageBusiness, 
-          id
-        ]
+        [guides_name, phoneNumber, email, guides_facebook, guides_language, imgProfile, imgLicense, imgBusiness, id]
       );
 
-      return res.json({ 
-        success: true, 
-        message: "ส่งเอกสารแก้ไขเรียบร้อยแล้ว ระบบจะทำการตรวจสอบอีกครั้งภายใน 1-3 วันทำการค่ะ" 
-      });
+      return res.json({ success: true, message: "ส่งเอกสารแก้ไขเรียบร้อยแล้ว ระบบจะทำการตรวจสอบอีกครั้งภายใน 1-3 วันทำการค่ะ" });
 
     } catch (err: any) {
       console.error("Re-submit Error:", err);
