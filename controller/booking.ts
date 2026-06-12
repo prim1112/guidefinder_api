@@ -104,7 +104,7 @@ router.get("/booking", async (req: Request, res: Response) => {
   }
 });
 
-// CREATE BOOKING
+// CREATE BOOKING (เวอร์ชันแก้ไข ป้องกันข้อมูลซ้ำ)
 router.post("/booking", async (req: Request, res: Response) => {
   console.log(req.body);
   const { gid, cid, travel_id, people, start_date, end_date, total_price } = req.body;
@@ -149,6 +149,7 @@ router.post("/booking", async (req: Request, res: Response) => {
     start.setHours(0, 0, 0, 0);
     end.setHours(0, 0, 0, 0);
 
+    // 1. เช็คว่าไกด์ว่างไหมในช่วงเวลานั้น (มีอยู่เดิม)
     const [duplicate]: any = await db.query(
       `
       SELECT 1
@@ -169,6 +170,27 @@ router.post("/booking", async (req: Request, res: Response) => {
       return res.status(400).json({ message: "ช่วงเวลานี้ไกด์ไม่ว่าง" });
     }
 
+    // ✨ 2. เพิ่มเติม: เช็คว่าลูกค้ารายนี้เคยส่งคำขอจอง "ทริปเดียวกัน วันเดียวกัน" ไปแล้วหรือยัง (ป้องกันการกดเบิ้ล)
+    const [customerDuplicate]: any = await db.query(
+      `
+      SELECT 1 
+      FROM booking_queues 
+      WHERE ref_cus_id = ? 
+      AND ref_guid_id = ? 
+      AND ref_travel_id = ?
+      AND booking_start_date = ? 
+      AND booking_status = 0
+      LIMIT 1
+      `,
+      [cid, gid, refTravelId, start]
+    );
+
+    if (customerDuplicate.length > 0) {
+      await db.query("ROLLBACK");
+      return res.status(400).json({ message: "คุณได้ส่งคำขอจองรายการนี้ไปแล้ว อยู่ระหว่างรอไกด์ยืนยัน" });
+    }
+
+    // ทำการบันทึกข้อมูลเมื่อผ่านการตรวจสอบทั้งหมด
     const [result]: any = await db.query(
       `
       INSERT INTO booking_queues (
