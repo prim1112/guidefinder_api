@@ -176,7 +176,7 @@ router.post(
     { name: "guides_image_business_license", maxCount: 1 },
   ]),
   async (req: Request, res: Response) => {
-    const {
+    let {
       guides_name,
       guides_phonenumber,
       guides_email,
@@ -189,28 +189,63 @@ router.post(
     } = req.body;
 
     try {
-      // 🔍 validate
+      //NORMALIZE 
+      guides_name = guides_name?.trim();
+      guides_email = guides_email?.trim().toLowerCase();
+      guides_phonenumber = guides_phonenumber?.trim();
+
+      //VALIDATION
       if (!guides_email || !guides_password || !guides_phonenumber) {
         return res.status(400).json({
-          message: "กรุณากรอก email, password และเบอร์โทร",
+          success: false,
+          message: "❌ กรุณากรอก email, password และเบอร์โทรให้ครบถ้วน",
         });
       }
 
-      // 🔍 check duplicate
+      //CHECK DUPLICATE (CROSS-TABLES)
+      // ล็อกสเปกเช็กซ้ำข้ามตารางเพื่อไม่ให้ซ้ำกับ แอดมิน, ไกด์คนอื่น, หรือ ลูกค้า
       const [existing]: any = await db.query(
-        "SELECT guides_email FROM guides WHERE guides_email = ? OR guides_phonenumber = ?",
-        [guides_email, guides_phonenumber],
+        `SELECT 'admin' AS origin_table, admin_email AS email, admin_phonenumber AS phone FROM admin WHERE admin_email = ? OR admin_phonenumber = ?
+         UNION
+         SELECT 'guides' AS origin_table, guides_email AS email, guides_phonenumber AS phone FROM guides WHERE guides_email = ? OR guides_phonenumber = ?
+         UNION
+         SELECT 'customers' AS origin_table, cus_email AS email, cus_phonenumber AS phone FROM customers WHERE cus_email = ? OR cus_phonenumber = ?`,
+        [
+          guides_email, guides_phonenumber, // ตาราง admin
+          guides_email, guides_phonenumber, // ตาราง guides
+          guides_email, guides_phonenumber  // ตาราง customers
+        ]
       );
 
-      if (existing.length) {
-        return res.status(400).json({
-          message: "อีเมลหรือเบอร์โทรนี้มีในระบบแล้ว",
+      if (existing.length > 0) {
+        const isEmailDup = existing.some((row: any) => row.email === guides_email);
+        const isPhoneDup = existing.some((row: any) => row.phone === guides_phonenumber);
+        
+        const matchedRole = existing[0].origin_table; 
+        let roleThai = "ระบบ";
+        if (matchedRole === "admin") roleThai = "แอดมิน";
+        if (matchedRole === "guide") roleThai = "ไกด์คนอื่น";
+        if (matchedRole === "customer") roleThai = "ลูกค้า";
+
+        let alertMessage = "❌ ข้อมูลนี้ถูกใช้งานในระบบแล้ว";
+        if (isEmailDup && isPhoneDup) {
+          alertMessage = `❌ อีเมลและเบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
+        } else if (isEmailDup) {
+          alertMessage = `❌ อีเมลนี้ถูกใช้งานแล้วโดย (${roleThai})`;
+        } else if (isPhoneDup) {
+          alertMessage = `❌ เบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
+        }
+
+        // 💡 ปรับสเตตัสตรงนี้จาก 400 เป็น 409 เพื่อไม่ให้หน้าบ้านเข้าใจผิดว่าเป็น Bad Request
+        return res.status(409).json({
+          success: false,
+          message: alertMessage,
         });
       }
 
+      //FILE UPLOAD PROCESS 
       const files = req.files as any;
 
-      //upload image
       const uploadImage = async (file: any, path: string) => {
         if (!file) return null;
         const result = await uploadToCloudinary(file.buffer, path);
@@ -234,10 +269,10 @@ router.post(
         "guides/business",
       );
 
-      //hash password
+      //HASH PASSWORD
       const hashedPassword = await bcrypt.hash(guides_password, 10);
 
-      // insert
+      //INSERT 
       const [result]: any = await db.query(
         `INSERT INTO guides 
         (guides_name, guides_phonenumber, guides_email, guides_password, 
@@ -262,14 +297,16 @@ router.post(
       );
 
       return res.status(201).json({
-        message: "ลงทะเบียนสำเร็จ! รอการอนุมัติ",
+        success: true,
+        message: "✅ ลงทะเบียนสำเร็จ! รอการอนุมัติ",
         gid: result.insertId,
       });
     } catch (error: any) {
       console.error("POST /register_guides error:", error);
 
       return res.status(500).json({
-        message: "Server Error",
+        success: false,
+        message: "❌ Server Error",
         error: error.message,
       });
     }
