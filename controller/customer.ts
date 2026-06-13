@@ -176,11 +176,13 @@ router.post(
 
 
 //UPDATE PROFILE
-router.put( "/profile/:id", upload.single("cus_imageprofile"),
+router.put(
+  "/profile/:id",
+  upload.single("cus_imageprofile"),
   async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const {
+      let {
         cus_name,
         cus_phonenumber,
         cus_email,
@@ -188,50 +190,84 @@ router.put( "/profile/:id", upload.single("cus_imageprofile"),
         confirm_password,
       } = req.body;
 
+      // ตรวจสอบว่ามีผู้ใช้คนนี้ในระบบจริงไหม
       const [rows]: any = await db.query(
         "SELECT * FROM customers WHERE cus_id = ?",
         [id],
       );
 
       if (!rows.length) {
-        return res.status(404).json({ message: "ไม่พบผู้ใช้" });
+        return res.status(404).json({ success: false, message: "❌ ไม่พบข้อมูลผู้ใช้" });
       }
 
       const old = rows[0];
 
-      // password check
+      //NORMALIZE 
+      cus_name = cus_name?.trim() || old.cus_name;
+      cus_email = cus_email?.trim().toLowerCase() || old.cus_email;
+      //ล้างเครื่องหมายขีด (-) ออกจากเบอร์โทรศัพท์ให้เหลือเฉพาะตัวเลขดิบ 10 หลัก (ถ้าไม่ส่งมาให้ใช้ค่าเดิม)
+      cus_phonenumber = cus_phonenumber ? cus_phonenumber.trim().replace(/\D/g, "") : old.cus_phonenumber;
+
+      // ตรวจสอบรหัสผ่านกรณีมีการกรอกเข้ามาใหม่
       if (cus_password && cus_password !== confirm_password) {
-        return res.status(400).json({ message: "รหัสผ่านไม่ตรงกัน" });
+        return res.status(400).json({ success: false, message: "❌ รหัสผ่านไม่ตรงกัน" });
       }
 
-      const email = cus_email ? cus_email.toLowerCase() : old.cus_email;
-
-      // check duplicate
-      const [dup]: any = await db.query(
-        `SELECT cus_id FROM customers 
-         WHERE (cus_email = ? OR cus_phonenumber = ?) AND cus_id != ?`,
-        [email, cus_phonenumber || old.cus_phonenumber, id],
+      //CHECK DUPLICATE (CROSS-TABLES)
+      //ค้นหาข้ามตาราง และยกเว้นไอดีของตัวเอง (id != ?) เฉพาะในตาราง customers
+      const [existing]: any = await db.query(
+        `SELECT 'admin' AS origin_table, admin_email AS email, admin_phonenumber AS phone FROM admin WHERE admin_email = ? OR admin_phonenumber = ?
+         UNION
+         SELECT 'guide' AS origin_table, guides_email AS email, guides_phonenumber AS phone FROM guides WHERE guides_email = ? OR guides_phonenumber = ?
+         UNION
+         SELECT 'customer' AS origin_table, cus_email AS email, cus_phonenumber AS phone FROM customers WHERE (cus_email = ? OR cus_phonenumber = ?) AND cus_id != ?`,
+        [
+          cus_email, cus_phonenumber,         // ตาราง admin
+          cus_email, cus_phonenumber,         // ตาราง guides
+          cus_email, cus_phonenumber, id      // ตาราง customers (เช็กคนอื่น ยกเว้นตัวเอง)
+        ]
       );
 
-      if (dup.length) {
-        return res.status(400).json({
-          message: "อีเมลหรือเบอร์ถูกใช้งานแล้ว",
+      if (existing.length > 0) {
+        const isEmailDup = existing.some((row: any) => row.email === cus_email);
+        const isPhoneDup = existing.some((row: any) => row.phone === cus_phonenumber);
+        
+        const matchedRole = existing[0].origin_table; 
+        let roleThai = "ระบบ";
+        if (matchedRole === "admin") roleThai = "แอดมิน";
+        if (matchedRole === "guide") roleThai = "ไกด์";
+        if (matchedRole === "customer") roleThai = "ลูกค้าท่านอื่น";
+
+        let alertMessage = "❌ ข้อมูลนี้ถูกใช้งานในระบบแล้ว";
+        if (isEmailDup && isPhoneDup) {
+          alertMessage = `❌ อีเมลและเบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
+        } else if (isEmailDup) {
+          alertMessage = `❌ อีเมลนี้ถูกใช้งานแล้วโดย (${roleThai})`;
+        } else if (isPhoneDup) {
+          alertMessage = `❌ เบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
+        }
+
+        // 💡 ส่งสเตตัส 409 เพื่อบอกหน้าบ้านว่าเกิด Conflict ข้อมูลซ้ำซ้อน
+        return res.status(409).json({
+          success: false,
+          message: alertMessage,
         });
       }
 
-      // password
+      // ================= PASSWORD PROCESS =================
       let password = old.cus_password;
       if (cus_password) {
         password = await bcrypt.hash(cus_password, 10);
       }
 
-      // image
+      // ================= FILE UPLOAD PROCESS =================
       let image = old.cus_imageprofile;
       if (req.file?.buffer) {
         const result = await uploadToCloudinary(req.file.buffer, "customers");
         image = result.secure_url;
       }
 
+      // ================= SQL UPDATE =================
       await db.query(
         `UPDATE customers SET 
           cus_name = ?, 
@@ -241,21 +277,27 @@ router.put( "/profile/:id", upload.single("cus_imageprofile"),
           cus_imageprofile = ? 
         WHERE cus_id = ?`,
         [
-          cus_name || old.cus_name,
-          cus_phonenumber || old.cus_phonenumber,
-          email,
+          cus_name,
+          cus_phonenumber,
+          cus_email,
           password,
           image,
           id,
         ],
       );
 
-      res.json({
+      return res.json({
         success: true,
-        message: "อัปเดตสำเร็จ",
+        message: "✅ อัปเดตโปรไฟล์สำเร็จ",
       });
+
     } catch (err: any) {
-      res.status(500).json({ message: err.message });
+      console.error("🔥 Update Customer Error:", err);
+      return res.status(500).json({ 
+        success: false,
+        message: "❌ Server Error",
+        error: err.message 
+      });
     }
   },
 );
