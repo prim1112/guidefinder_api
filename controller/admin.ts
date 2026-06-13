@@ -227,36 +227,104 @@ router.post("/add/admin", async (req: Request, res: Response) => {
   }
 });
 
-// PUT: แก้ไขข้อมูลตัวเอง (superadmin)
+//PUT: แก้ไขข้อมูลตัวเอง (superadmin) พร้อมดักข้อมูลซ้ำข้ามตาราง
 router.put("/profile/me", async (req: Request, res: Response) => {
-  const adminId = req.headers["user-id"]; // ✅ FIX
+  const adminId = req.headers["user-id"];
 
   console.log("ADMIN ID =", adminId);
 
   if (!adminId) {
     return res.status(400).json({
+      success: false,
       message: "❌ ไม่พบ user-id",
     });
   }
 
   try {
-    const [existing]: any = await db.query(
+    // 1. ตรวจสอบก่อนว่าแอดมินคนนี้มีตัวตนอยู่จริงไหม
+    const [currentAdmin]: any = await db.query(
       "SELECT admin_id FROM admin WHERE admin_id = ?",
       [adminId],
     );
 
-    console.log("EXISTING =", existing);
-
-    if (!existing || existing.length === 0) {
+    if (!currentAdmin || currentAdmin.length === 0) {
       return res.status(404).json({
-        message: "❌ ไม่พบแอดมิน",
+        success: false,
+        message: "❌ ไม่พบแอดมินในระบบ",
       });
     }
 
-    const { admin_name, admin_phonenumber, admin_email, admin_password } =
-      req.body;
+    let { admin_name, admin_phonenumber, admin_email, admin_password } = req.body;
 
-    if (admin_password) {
+    //NORMALIZE & VALIDATION 
+    admin_name = admin_name?.trim();
+    admin_email = admin_email?.trim().toLowerCase();
+    admin_phonenumber = admin_phonenumber?.trim();
+
+    if (!admin_name || !admin_email || !admin_phonenumber) {
+      return res.status(400).json({
+        success: false,
+        message: "❌ กรุณากรอกข้อมูลให้ครบทุกช่อง (ชื่อ, เบอร์โทร, อีเมล)",
+      });
+    }
+
+    if (admin_phonenumber.length !== 10) {
+      return res.status(400).json({
+        success: false,
+        message: "❌ เบอร์โทรศัพท์ต้องครบ 10 หลัก",
+      });
+    }
+
+    const gmailRegex = /^[\w-\.]+@gmail\.com$/;
+    if (!gmailRegex.test(admin_email)) {
+      return res.status(400).json({
+        success: false,
+        message: "❌ ระบบรองรับเฉพาะบัญชี @gmail.com เท่านั้น",
+      });
+    }
+
+    //CHECK DUPLICATE (CROSS-TABLES)
+    //จุดสำคัญ: ในส่วนของตาราง admin เราใส่เงื่อนไข "AND admin_id != ?" เพื่อข้ามข้อมูลปัจจุบันของตัวเองไป
+    const [existing]: any = await db.query(
+      `SELECT 'admin' AS origin_table, admin_email AS email, admin_phonenumber AS phone FROM admin WHERE (admin_email = ? OR admin_phonenumber = ?) AND admin_id != ?
+       UNION
+       SELECT 'guide' AS origin_table, guides_email AS email, guides_phonenumber AS phone FROM guides WHERE guides_email = ? OR guides_phonenumber = ?
+       UNION
+       SELECT 'customer' AS origin_table, cus_email AS email, cus_phonenumber AS phone FROM customers WHERE cus_email = ? OR cus_phonenumber = ?`,
+      [
+        admin_email, admin_phonenumber, adminId, // ของตาราง admin (ส่ง adminId ไปคัดออก)
+        admin_email, admin_phonenumber,          // ของตาราง guides
+        admin_email, admin_phonenumber           // ของตาราง customers
+      ]
+    );
+
+    if (existing.length > 0) {
+      const isEmailDup = existing.some((row: any) => row.email === admin_email);
+      const isPhoneDup = existing.some((row: any) => row.phone === admin_phonenumber);
+      
+      const matchedRole = existing[0].origin_table; 
+      let roleThai = "แอดมินคนอื่น";
+      if (matchedRole === "guide") roleThai = "ไกด์";
+      if (matchedRole === "customer") roleThai = "ลูกค้า";
+
+      let alertMessage = "❌ ข้อมูลนี้ถูกใช้งานในระบบแล้ว";
+      if (isEmailDup && isPhoneDup) {
+        alertMessage = `❌ อีเมลและเบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
+      } else if (isEmailDup) {
+        alertMessage = `❌ อีเมลนี้ถูกใช้งานแล้วโดย (${roleThai})`;
+      } else if (isPhoneDup) {
+        alertMessage = `❌ เบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
+      }
+
+      return res.status(409).json({
+        success: false,
+        message: alertMessage,
+      });
+    }
+
+    //UPDATE PROCESS
+    if (admin_password && admin_password.trim() !== "") {
+      // เคส: มีการเปลี่ยนรหัสผ่านใหม่ด้วย
       const hashedPassword = await bcrypt.hash(admin_password, 10);
       await db.query(
         `UPDATE admin SET 
@@ -268,6 +336,7 @@ router.put("/profile/me", async (req: Request, res: Response) => {
         [admin_name, admin_phonenumber, admin_email, hashedPassword, adminId],
       );
     } else {
+      // เคส อัปเดตข้อมูลทั่วไป โดยไม่มีการเปลี่ยนรหัสผ่าน
       await db.query(
         `UPDATE admin SET 
           admin_name = ?, 
@@ -278,9 +347,15 @@ router.put("/profile/me", async (req: Request, res: Response) => {
       );
     }
 
-    return res.json({ message: "✅ แก้ไขข้อมูลตัวเองสำเร็จ" });
+    return res.json({ 
+      success: true,
+      message: "✅ แก้ไขข้อมูลตัวเองสำเร็จ" 
+    });
+
   } catch (err: any) {
+    console.log("🔥 SERVER ERROR:", err);
     return res.status(500).json({
+      success: false,
       message: "❌ Server Error",
       error: err.message,
     });
