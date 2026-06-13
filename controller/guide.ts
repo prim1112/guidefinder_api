@@ -583,7 +583,7 @@ router.put(
   async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const {
+      let {
         guides_name,
         guides_phonenumber,
         guides_email,
@@ -593,54 +593,90 @@ router.put(
         guides_language,
       } = req.body;
 
-      // 🔥 [VALIDATION] เพิ่มการบังคับกรอก Facebook และ ภาษา เข้าไปในระบบตรวจเช็คหลัก
+      // ================= NORMALIZE =================
+      guides_name = guides_name?.trim();
+      guides_email = guides_email?.trim().toLowerCase();
+      // 💡 ล้างเครื่องหมายขีด (-) ออกจากเบอร์โทรศัพท์ให้เหลือเฉพาะตัวเลขดิบ 10 หลัก
+      guides_phonenumber = guides_phonenumber?.trim().replace(/\D/g, "");
+
+      // ================= VALIDATION =================
       if (!guides_name || !guides_phonenumber || !guides_email || !guides_facebook || !guides_language) {
         return res.status(400).json({
-          message: "กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง (ชื่อ, เบอร์โทรศัพท์, อีเมล, Facebook, ภาษา)",
+          success: false,
+          message: "❌ กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง (ชื่อ, เบอร์โทรศัพท์, อีเมล, Facebook, ภาษา)",
         });
       }
 
-      // ตรวจสอบว่ามีไกด์ในระบบไหม
+      // ตรวจสอบว่ามีไกด์คนนี้ในระบบจริงไหม
       const [rows]: any = await db.query(
         "SELECT * FROM guides WHERE guides_id = ?",
         [id],
       );
       if (!rows.length) {
-        return res.status(404).json({ message: "ไม่พบข้อมูลไกด์" });
+        return res.status(404).json({ success: false, message: "❌ ไม่พบข้อมูลไกด์ในระบบ" });
       }
       const old = rows[0];
 
-      // ตรวจสอบรหัสผ่าน
+      // ตรวจสอบรหัสผ่านกรณีมีการกรอกเข้ามาใหม่
       if (guides_password && guides_password !== confirm_password) {
-        return res.status(400).json({ message: "รหัสผ่านไม่ตรงกัน" });
+        return res.status(400).json({ success: false, message: "❌ รหัสผ่านใหม่ไม่ตรงกัน" });
       }
 
-      const email = guides_email.toLowerCase();
-
-      // ตรวจสอบข้อมูลซ้ำในระบบ
-      const [dup]: any = await db.query(
-        `SELECT guides_id FROM guides 
-         WHERE (guides_email = ? OR guides_phonenumber = ?) AND guides_id != ?`,
-        [email, guides_phonenumber, id],
+      //CHECK DUPLICATE (CROSS-TABLES)
+      // 💡 ค้นหาข้ามตาราง และยกเว้นไอดีของตัวเอง (id != ?) เฉพาะในตาราง guides
+      const [existing]: any = await db.query(
+        `SELECT 'admin' AS origin_table, admin_email AS email, admin_phonenumber AS phone FROM admin WHERE admin_email = ? OR admin_phonenumber = ?
+         UNION
+         SELECT 'guide' AS origin_table, guides_email AS email, guides_phonenumber AS phone FROM guides WHERE (guides_email = ? OR guides_phonenumber = ?) AND guides_id != ?
+         UNION
+         SELECT 'customer' AS origin_table, cus_email AS email, cus_phonenumber AS phone FROM customers WHERE cus_email = ? OR cus_phonenumber = ?`,
+        [
+          guides_email, guides_phonenumber,         // ตาราง admin
+          guides_email, guides_phonenumber, id,     // ตาราง guides (เช็กคนอื่น ยกเว้นตัวเอง)
+          guides_email, guides_phonenumber          // ตาราง customers
+        ]
       );
-      if (dup.length) {
-        return res.status(400).json({
-          message: "อีเมลหรือเบอร์โทรศัพท์ถูกใช้งานในระบบแล้ว",
+
+      if (existing.length > 0) {
+        const isEmailDup = existing.some((row: any) => row.email === guides_email);
+        const isPhoneDup = existing.some((row: any) => row.phone === guides_phonenumber);
+        
+        const matchedRole = existing[0].origin_table; 
+        let roleThai = "ระบบ";
+        if (matchedRole === "admin") roleThai = "แอดมิน";
+        if (matchedRole === "guide") roleThai = "ไกด์ท่านอื่น";
+        if (matchedRole === "customer") roleThai = "ลูกค้า";
+
+        let alertMessage = "❌ ข้อมูลนี้ถูกใช้งานในระบบแล้ว";
+        if (isEmailDup && isPhoneDup) {
+          alertMessage = `❌ อีเมลและเบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
+        } else if (isEmailDup) {
+          alertMessage = `❌ อีเมลนี้ถูกใช้งานแล้วโดย (${roleThai})`;
+        } else if (isPhoneDup) {
+          alertMessage = `❌ เบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
+        }
+
+        //ส่งสเตตัส 409 เพื่อบอกหน้าบ้านว่าเกิด Conflict ข้อมูลซ้ำซ้อน
+        return res.status(409).json({
+          success: false,
+          message: alertMessage,
         });
       }
 
+      //PASSWORD PROCESS
       let password = old.guides_password;
       if (guides_password) {
         password = await bcrypt.hash(guides_password, 10);
       }
 
+      // ================= FILE UPLOAD PROCESS =================
       let image = old.guides_imageprofile;
       if (req.file?.buffer) {
         const result = await uploadToCloudinary(req.file.buffer, "guides/profile");
         image = result.secure_url;
       }
 
-      // ✅ [SQL UPDATE] สั่งบันทึกตรง ๆ ได้เลย เพราะค่าถูกคัดกรองว่าไม่ว่างแน่นอนแล้ว
+      // ================= SQL UPDATE =================
       await db.query(
         `UPDATE guides SET 
           guides_name = ?, 
@@ -654,7 +690,7 @@ router.put(
         [
           guides_name,        
           guides_phonenumber, 
-          email,              
+          guides_email,              
           password,
           guides_facebook, 
           guides_language, 
@@ -663,13 +699,18 @@ router.put(
         ],
       );
 
-      res.json({
+      return res.json({
         success: true,
-        message: "อัปเดตโปรไฟล์ไกด์สำเร็จ",
+        message: "✅ อัปเดตโปรไฟล์ไกด์สำเร็จ",
       });
+
     } catch (err: any) {
-      console.error("Update Guide Error:", err);
-      res.status(500).json({ message: err.message });
+      console.error("🔥 Update Guide Error:", err);
+      return res.status(500).json({ 
+        success: false,
+        message: "❌ Server Error",
+        error: err.message 
+      });
     }
   },
 );
