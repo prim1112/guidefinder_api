@@ -513,7 +513,7 @@ router.patch("/booking/start/:bid", async (req: Request, res: Response) => {
   }
 });
 
-// FINISH BOOKING (จบทริป)
+// FINISH BOOKING (จบทริป) - เวอร์ชันอัปเดตฟิลด์แจ้งเตือน (is_read = 0)
 router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
   const bid = req.params.bid;
   const io = req.app.get("io");
@@ -547,8 +547,11 @@ router.patch("/booking/finish/:bid", async (req: Request, res: Response) => {
       });
     }
 
+    // 🪄 จุดที่แก้ไข: เพิ่มการ SET is_read = 0 เข้าไปใน Query ตอนที่ปรับสถานะเป็นจบทริป (booking_status = 4)
     const [result]: any = await db.query(
-      `UPDATE booking_queues SET booking_status = 4 WHERE booking_queue_id = ? AND booking_status = 3`,
+      `UPDATE booking_queues 
+       SET booking_status = 4, is_read = 0 
+       WHERE booking_queue_id = ? AND booking_status = 3`,
       [bid],
     );
 
