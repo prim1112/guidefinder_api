@@ -332,7 +332,7 @@ router.post("/approve/:gid", async (req: Request, res: Response) => {
   }
 });
 
-// ==================== REJECT GUIDE ====================
+//REJECT GUIDE
 router.put("/reject/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
 
@@ -624,9 +624,7 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
   const id = Number(req.params.id);
 
   try {
-    // ==========================================
     // 1. หา booking_queue_id ทั้งหมดของไกด์คนนี้
-    // ==========================================
     const [bookings]: any = await db.query(
       "SELECT booking_queue_id FROM booking_queues WHERE ref_guid_id = ?",
       [id],
@@ -649,14 +647,10 @@ router.delete("/profile/:id", async (req: Request, res: Response) => {
       }
     }
 
-    // ==========================================
     // 2. ลบข้อมูลในตารางบุ๊กกิ้ง (เมื่อไม่มีรีวิวค้างแล้ว จะลบได้ฉลุย)
-    // ==========================================
     await db.query("DELETE FROM booking_queues WHERE ref_guid_id = ?", [id]);
 
-    // ==========================================
     // 3. ลบข้อมูลไกด์ออกจากตารางหลัก
-    // ==========================================
     const [result]: any = await db.query(
       "DELETE FROM guides WHERE guides_id = ?",
       [id],
