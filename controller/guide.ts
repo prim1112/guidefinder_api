@@ -189,12 +189,13 @@ router.post(
     } = req.body;
 
     try {
-      //NORMALIZE 
+      // NORMALIZE 
       guides_name = guides_name?.trim();
       guides_email = guides_email?.trim().toLowerCase();
-      guides_phonenumber = guides_phonenumber?.trim();
+      // 💡 ปรับปรุง: ล้างขีด (-) เผื่อกรณีหน้าบ้านส่งเลขฟอร์แมตติดมา ให้เหลือตัวเลขดิบ 10 หลัก
+      guides_phonenumber = guides_phonenumber?.trim().replace(/\D/g, "");
 
-      //VALIDATION
+      // VALIDATION
       if (!guides_email || !guides_password || !guides_phonenumber) {
         return res.status(400).json({
           success: false,
@@ -202,18 +203,18 @@ router.post(
         });
       }
 
-      //CHECK DUPLICATE (CROSS-TABLES)
-      // ล็อกสเปกเช็กซ้ำข้ามตารางเพื่อไม่ให้ซ้ำกับ แอดมิน, ไกด์คนอื่น, หรือ ลูกค้า
+      //CHECK DUPLICATE (LAST-DEFENSE)
+      //ระบบความปลอดภัยขั้นสุดท้าย ป้องกันการยิง API ตรงโดยไม่ผ่านหน้าแรก
       const [existing]: any = await db.query(
         `SELECT 'admin' AS origin_table, admin_email AS email, admin_phonenumber AS phone FROM admin WHERE admin_email = ? OR admin_phonenumber = ?
          UNION
-         SELECT 'guides' AS origin_table, guides_email AS email, guides_phonenumber AS phone FROM guides WHERE guides_email = ? OR guides_phonenumber = ?
+         SELECT 'guide' AS origin_table, guides_email AS email, guides_phonenumber AS phone FROM guides WHERE guides_email = ? OR guides_phonenumber = ?
          UNION
-         SELECT 'customers' AS origin_table, cus_email AS email, cus_phonenumber AS phone FROM customers WHERE cus_email = ? OR cus_phonenumber = ?`,
+         SELECT 'customer' AS origin_table, cus_email AS email, cus_phonenumber AS phone FROM customers WHERE cus_email = ? OR cus_phonenumber = ?`,
         [
           guides_email, guides_phonenumber, // ตาราง admin
-          guides_email, guides_phonenumber, // ตาราง guides
-          guides_email, guides_phonenumber  // ตาราง customers
+          guides_email, guides_phonenumber, // ตาราง guides (ปรับชื่อจำลองเป็น 'guide')
+          guides_email, guides_phonenumber  // ตาราง customers (ปรับชื่อจำลองเป็น 'customer')
         ]
       );
 
@@ -224,7 +225,7 @@ router.post(
         const matchedRole = existing[0].origin_table; 
         let roleThai = "ระบบ";
         if (matchedRole === "admin") roleThai = "แอดมิน";
-        if (matchedRole === "guide") roleThai = "ไกด์คนอื่น";
+        if (matchedRole === "guide") roleThai = "ไกด์คนอื่น"; // 💡 แก้ไขลอจิกเทียบคำให้ตรงกัน
         if (matchedRole === "customer") roleThai = "ลูกค้า";
 
         let alertMessage = "❌ ข้อมูลนี้ถูกใช้งานในระบบแล้ว";
@@ -236,14 +237,13 @@ router.post(
           alertMessage = `❌ เบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
         }
 
-        // 💡 ปรับสเตตัสตรงนี้จาก 400 เป็น 409 เพื่อไม่ให้หน้าบ้านเข้าใจผิดว่าเป็น Bad Request
         return res.status(409).json({
           success: false,
           message: alertMessage,
         });
       }
 
-      //FILE UPLOAD PROCESS 
+      // ================= FILE UPLOAD PROCESS =================
       const files = req.files as any;
 
       const uploadImage = async (file: any, path: string) => {
@@ -269,10 +269,10 @@ router.post(
         "guides/business",
       );
 
-      //HASH PASSWORD
+      // ================= HASH PASSWORD =================
       const hashedPassword = await bcrypt.hash(guides_password, 10);
 
-      //INSERT 
+      // ================= INSERT =================
       const [result]: any = await db.query(
         `INSERT INTO guides 
         (guides_name, guides_phonenumber, guides_email, guides_password, 
@@ -312,6 +312,80 @@ router.post(
     }
   },
 );
+
+// POST: /check-duplicate (สำหรับใช้หน้าแรกของแอปเพื่อเช็ก อีเมล/เบอร์โทร ซ้ำข้ามตาราง)
+router.post("/check-duplicate", async (req: Request, res: Response) => {
+  try {
+    let { email, phone } = req.body;
+
+    // เคลียร์ฟอร์แมตข้อมูลเบื้องต้น
+    email = email?.trim().toLowerCase();
+    phone = phone?.trim().replace(/\D/g, ""); // ลบขีด (-) ออกให้เหลือเลขดิบ 10 หลัก
+
+    if (!email || !phone) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "❌ ข้อมูลไม่ครบถ้วน (ต้องการ email และ phone)" 
+      });
+    }
+
+    // ยิง SQL คิวรีสแกนหาข้อมูลข้ามตาราง (admin, guides, customers)
+    const [existing]: any = await db.query(
+      `SELECT 'admin' AS origin_table, admin_email AS email, admin_phonenumber AS phone FROM admin WHERE admin_email = ? OR admin_phonenumber = ?
+       UNION
+       SELECT 'guide' AS origin_table, guides_email AS email, guides_phonenumber AS phone FROM guides WHERE guides_email = ? OR guides_phonenumber = ?
+       UNION
+       SELECT 'customer' AS origin_table, cus_email AS email, cus_phonenumber AS phone FROM customers WHERE cus_email = ? OR cus_phonenumber = ?`,
+      [
+        email, phone, // ตาราง admin
+        email, phone, // ตาราง guides
+        email, phone  // ตาราง customers
+      ]
+    );
+
+    // ถ้าเจอข้อมูลซ้ำในระบบ
+    if (existing.length > 0) {
+      const isEmailDup = existing.some((row: any) => row.email === email);
+      const isPhoneDup = existing.some((row: any) => row.phone === phone);
+      
+      const matchedRole = existing[0].origin_table; 
+      let roleThai = "ระบบ";
+      if (matchedRole === "admin") roleThai = "แอดมิน";
+      if (matchedRole === "guide") roleThai = "ไกด์คนอื่น";
+      if (matchedRole === "customer") roleThai = "ลูกค้า";
+
+      let alertMessage = "❌ ข้อมูลนี้ถูกใช้งานในระบบแล้ว";
+      if (isEmailDup && isPhoneDup) {
+        alertMessage = `❌ อีเมลและเบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
+      } else if (isEmailDup) {
+        alertMessage = `❌ อีเมลนี้ถูกใช้งานแล้วโดย (${roleThai})`;
+      } else if (isPhoneDup) {
+        alertMessage = `❌ เบอร์โทรศัพท์นี้ถูกใช้งานแล้วโดย (${roleThai})`;
+      }
+
+      return res.status(409).json({
+        success: false,
+        isDuplicate: true,
+        message: alertMessage,
+      });
+    }
+
+    // 🎉 ถ้าผ่านฉลุย ไม่มีใครซ้ำเลย
+    return res.status(200).json({
+      success: true,
+      isDuplicate: false,
+      message: "✅ ข้อมูลนี้สามารถใช้งานได้"
+    });
+
+  } catch (err: any) {
+    console.error("🔥 Error in /check-duplicate:", err);
+    return res.status(500).json({ 
+      success: false, 
+      message: "❌ Server Error", 
+      error: err.message 
+    });
+  }
+});
 
 router.post("/approve/:gid", async (req: Request, res: Response) => {
   const { gid } = req.params;
