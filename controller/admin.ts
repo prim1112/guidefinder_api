@@ -162,9 +162,9 @@ router.post("/add/admin", async (req: Request, res: Response) => {
     const [existing]: any = await db.query(
       `SELECT 'admin' AS origin_table, admin_email AS email, admin_phonenumber AS phone FROM admin WHERE admin_email = ? OR admin_phonenumber = ?
        UNION
-       SELECT 'guides' AS origin_table, guide_email AS email, guide_phonenumber AS phone FROM guides WHERE guides_email = ? OR guides_phonenumber = ?
+       SELECT 'guides' AS origin_table, guides_email AS email, guides_phonenumber AS phone FROM guides WHERE guides_email = ? OR guides_phonenumber = ?
        UNION
-       SELECT 'customers' AS origin_table, customer_email AS email, customer_phonenumber AS phone FROM customers WHERE cus_email = ? OR cus_phonenumber = ?`,
+       SELECT 'customers' AS origin_table, cus_email AS email, cus_phonenumber AS phone FROM customers WHERE cus_email = ? OR cus_phonenumber = ?`,
       [
         admin_email, admin_phonenumber, // สำหรับตาราง admin
         admin_email, admin_phonenumber, // สำหรับตาราง guide
