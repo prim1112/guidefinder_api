@@ -186,11 +186,11 @@ router.post("/add/admin", async (req: Request, res: Response) => {
       // 3. ปรับแต่งข้อความแจ้งเตือนให้เฉพาะเจาะจงและตรงจุดที่สุด
       let alertMessage = "❌ ข้อมูลนี้ถูกใช้งานในระบบแล้ว";
       if (isEmailDup && isPhoneDup) {
-        alertMessage = `❌ อีเมลและเบอร์โทรศัพท์นี้ถูกใช้งานแล้วในระบบ (${roleThai})`;
+        alertMessage = `❌ อีเมลและเบอร์โทรศัพท์นี้ถูกใช้งานแล้วในระบบ)`;
       } else if (isEmailDup) {
-        alertMessage = `❌ อีเมลนี้ถูกใช้งานแล้วในระบบ (${roleThai})`;
+        alertMessage = `❌ อีเมลนี้ถูกใช้งานแล้วในระบบ)`;
       } else if (isPhoneDup) {
-        alertMessage = `❌ เบอร์โทรศัพท์นี้ถูกใช้งานแล้วในระบบ (${roleThai})`;
+        alertMessage = `❌ เบอร์โทรศัพท์นี้ถูกใช้งานแล้วในระบบ)`;
       }
 
       return res.status(409).json({
