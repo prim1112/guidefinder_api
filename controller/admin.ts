@@ -128,13 +128,13 @@ router.post("/add/admin", async (req: Request, res: Response) => {
 
     console.log("🔥 BODY:", req.body);
 
-    // ================= NORMALIZE =================
+    //NORMALIZE
     admin_name = admin_name?.trim();
     admin_email = admin_email?.trim().toLowerCase();
     admin_phonenumber = admin_phonenumber?.trim();
     admin_role = admin_role?.trim() || "admin";
 
-    // ================= VALIDATION =================
+    //VALIDATION
     if (!admin_name || !admin_email || !admin_password || !admin_phonenumber) {
       return res.status(400).json({
         success: false,
@@ -149,7 +149,6 @@ router.post("/add/admin", async (req: Request, res: Response) => {
       });
     }
 
-    // ✅ ล็อกสเปกหลังบ้านให้เช็กเฉพาะบัญชี @gmail.com เท่านั้น ตรงตามหน้าบ้าน
     const gmailRegex = /^[\w-\.]+@gmail\.com$/;
     if (!gmailRegex.test(admin_email)) {
       return res.status(400).json({
@@ -158,29 +157,52 @@ router.post("/add/admin", async (req: Request, res: Response) => {
       });
     }
 
-    // ================= CHECK DUPLICATE =================
-    // เช็กทั้งอีเมลและเบอร์โทรศัพท์เพื่อป้องกันไม่ให้ค่าใดค่าหนึ่งซ้ำในระบบ
+    // ใช้ UNION รวมผลลัพธ์จากตาราง admin, guide และ customer เข้าด้วยกันใน Query เดียว
+    // พร้อมใส่ตรรกะ 'origin_table' เพื่อระบุว่าข้อมูลที่ซ้ำหลุดมาจากตารางใด
     const [existing]: any = await db.query(
-      "SELECT admin_email, admin_phonenumber FROM admin WHERE admin_email = ? OR admin_phonenumber = ?",
-      [admin_email, admin_phonenumber]
+      `SELECT 'admin' AS origin_table, admin_email AS email, admin_phonenumber AS phone FROM admin WHERE admin_email = ? OR admin_phonenumber = ?
+       UNION
+       SELECT 'guide' AS origin_table, guide_email AS email, guide_phonenumber AS phone FROM guide WHERE guide_email = ? OR guide_phonenumber = ?
+       UNION
+       SELECT 'customer' AS origin_table, customer_email AS email, customer_phonenumber AS phone FROM customer WHERE customer_email = ? OR customer_phonenumber = ?`,
+      [
+        admin_email, admin_phonenumber, // สำหรับตาราง admin
+        admin_email, admin_phonenumber, // สำหรับตาราง guide
+        admin_email, admin_phonenumber  // สำหรับตาราง customer
+      ]
     );
 
     if (existing.length > 0) {
-      // ตรวจสอบว่าฟิลด์ไหนที่ซ้ำกับข้อมูลเก่าใน Database
-      const isEmailDup = existing.some((row: any) => row.admin_email === admin_email);
+      // 1. เช็กก่อนว่ามีฟิลด์ไหนที่ตรงกับที่ส่งเข้ามาบ้าง
+      const isEmailDup = existing.some((row: any) => row.email === admin_email);
+      const isPhoneDup = existing.some((row: any) => row.phone === admin_phonenumber);
       
+      // 2. ดูว่าข้อมูลที่ซ้ำมาจากกลุ่มผู้ใช้ประเภทใดประเภทแรกที่ตรวจเจอ
+      const matchedRole = existing[0].origin_table; 
+      let roleThai = "แอดมิน";
+      if (matchedRole === "guide") roleThai = "ไกด์";
+      if (matchedRole === "customer") roleThai = "ลูกค้า";
+
+      // 3. ปรับแต่งข้อความแจ้งเตือนให้เฉพาะเจาะจงและตรงจุดที่สุด
+      let alertMessage = "❌ ข้อมูลนี้ถูกใช้งานในระบบแล้ว";
+      if (isEmailDup && isPhoneDup) {
+        alertMessage = `❌ อีเมลและเบอร์โทรศัพท์นี้ถูกใช้งานแล้วในระบบ (${roleThai})`;
+      } else if (isEmailDup) {
+        alertMessage = `❌ อีเมลนี้ถูกใช้งานแล้วในระบบ (${roleThai})`;
+      } else if (isPhoneDup) {
+        alertMessage = `❌ เบอร์โทรศัพท์นี้ถูกใช้งานแล้วในระบบ (${roleThai})`;
+      }
+
       return res.status(409).json({
         success: false,
-        message: isEmailDup 
-          ? "❌ อีเมลนี้ถูกใช้งานในระบบแล้ว" 
-          : "❌ เบอร์โทรศัพท์นี้ถูกใช้งานในระบบแล้ว",
+        message: alertMessage,
       });
     }
 
-    // ================= HASH PASSWORD =================
+    //HASH PASSWORD
     const hashedPassword = await bcrypt.hash(admin_password, 10);
 
-    // ================= INSERT =================
+    //INSERT 
     const [result]: any = await db.query(
       `INSERT INTO admin 
       (admin_name, admin_phonenumber, admin_email, admin_password, admin_role)
