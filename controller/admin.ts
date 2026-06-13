@@ -138,35 +138,42 @@ router.post("/add/admin", async (req: Request, res: Response) => {
     if (!admin_name || !admin_email || !admin_password || !admin_phonenumber) {
       return res.status(400).json({
         success: false,
-        message: "❌ กรุณากรอกข้อมูลให้ครบ",
+        message: "❌ กรุณากรอกข้อมูลให้ครบทุกช่อง",
       });
     }
 
-    if (admin_phonenumber.length < 9) {
+    if (admin_phonenumber.length !== 10) {
       return res.status(400).json({
         success: false,
-        message: "❌ เบอร์โทรไม่ถูกต้อง",
+        message: "❌ เบอร์โทรศัพท์ต้องครบ 10 หลัก",
       });
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(admin_email)) {
+    // ✅ ล็อกสเปกหลังบ้านให้เช็กเฉพาะบัญชี @gmail.com เท่านั้น ตรงตามหน้าบ้าน
+    const gmailRegex = /^[\w-\.]+@gmail\.com$/;
+    if (!gmailRegex.test(admin_email)) {
       return res.status(400).json({
         success: false,
-        message: "❌ รูปแบบอีเมลไม่ถูกต้อง",
+        message: "❌ ระบบรองรับเฉพาะบัญชี @gmail.com เท่านั้น",
       });
     }
 
     // ================= CHECK DUPLICATE =================
+    // เช็กทั้งอีเมลและเบอร์โทรศัพท์เพื่อป้องกันไม่ให้ค่าใดค่าหนึ่งซ้ำในระบบ
     const [existing]: any = await db.query(
-      "SELECT admin_id FROM admin WHERE admin_email = ?",
-      [admin_email],
+      "SELECT admin_email, admin_phonenumber FROM admin WHERE admin_email = ? OR admin_phonenumber = ?",
+      [admin_email, admin_phonenumber]
     );
 
     if (existing.length > 0) {
+      // ตรวจสอบว่าฟิลด์ไหนที่ซ้ำกับข้อมูลเก่าใน Database
+      const isEmailDup = existing.some((row: any) => row.admin_email === admin_email);
+      
       return res.status(409).json({
         success: false,
-        message: "❌ Email นี้มีอยู่แล้ว",
+        message: isEmailDup 
+          ? "❌ อีเมลนี้ถูกใช้งานในระบบแล้ว" 
+          : "❌ เบอร์โทรศัพท์นี้ถูกใช้งานในระบบแล้ว",
       });
     }
 
@@ -186,6 +193,7 @@ router.post("/add/admin", async (req: Request, res: Response) => {
       message: "✅ เพิ่มแอดมินสำเร็จ",
       admin_id: result.insertId,
     });
+
   } catch (err: any) {
     console.log("🔥 SERVER ERROR:", err);
 
